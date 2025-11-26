@@ -1,4 +1,3 @@
-```typescript
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@2.0.0";
@@ -40,11 +39,11 @@ serve(async (req) => {
             .eq('id', order_id);
 
         if (orderError) {
-            throw new Error(`Database error: ${ orderError.message } `);
+            throw new Error(`Database error: ${orderError.message} `);
         }
 
         if (!orders || orders.length === 0) {
-            throw new Error(`Order not found: No order with ID ${ order_id } `);
+            throw new Error(`Order not found: No order with ID ${order_id} `);
         }
 
         const order = orders[0];
@@ -58,7 +57,7 @@ serve(async (req) => {
 
         // Fallback email if profile fetch fails
         let customerEmail = profile?.email;
-        const customerName = profile?.first_name ? `${ profile.first_name } ${ profile.last_name || '' } ` : 'Valued Customer';
+        const customerName = profile?.first_name ? `${profile.first_name} ${profile.last_name || ''} ` : 'Valued Customer';
 
         if (!customerEmail) {
             // Try fetching from auth.users using admin API
@@ -69,23 +68,23 @@ serve(async (req) => {
             customerEmail = userData.user.email;
         }
 
-        console.log(`Processing order ${ order.order_number } for ${ customerEmail }`);
+        console.log(`Processing order ${order.order_number} for ${customerEmail}`);
 
         // 4. Generate PDF Invoice
         console.log("Generating PDF...");
         // Use React.createElement to avoid JSX in .ts file
         const pdfBuffer = await renderToBuffer(React.createElement(InvoicePdf, { order: order }));
-        console.log(`PDF generated.Length: ${ pdfBuffer.length } `);
+        console.log(`PDF generated.Length: ${pdfBuffer.length} `);
 
         // 5. Upload to Supabase Storage
-        const fileName = `invoices / ${ order.order_number }.pdf`;
+        const fileName = `invoices / ${order.order_number}.pdf`;
         const { error: uploadError } = await supabase.storage
             .from('invoices')
             .upload(fileName, pdfBuffer, {
                 contentType: 'application/pdf',
                 upsert: true
             });
-    
+
         if (uploadError) {
             console.error("Error uploading invoice:", uploadError);
         }
@@ -97,19 +96,19 @@ serve(async (req) => {
         // Use React.createElement to avoid JSX in .ts file
         const emailHtml = render(React.createElement(OrderConfirmationEmail, { order: order, customerName: customerName }));
         const emailText = render(React.createElement(OrderConfirmationEmail, { order: order, customerName: customerName }), {
-          plainText: true,
+            plainText: true,
         });
 
         // 7. Send Email via Resend
         const emailResponse = await resend.emails.send({
             from: Deno.env.get("SENDER_EMAIL") || "MTRIX <onboarding@resend.dev>",
             to: [customerEmail],
-            subject: `Order Confirmed - ${ order.order_number } `,
+            subject: `Order Confirmed - ${order.order_number} `,
             html: emailHtml,
             text: emailText,
             attachments: [
                 {
-                    filename: `Invoice - ${ order.order_number }.pdf`,
+                    filename: `Invoice - ${order.order_number}.pdf`,
                     content: pdfBuffer,
                 },
             ],
@@ -117,8 +116,8 @@ serve(async (req) => {
 
         console.log("Email sent:", emailResponse);
 
-        return new Response(JSON.stringify({ 
-            success: true, 
+        return new Response(JSON.stringify({
+            success: true,
             emailId: emailResponse.data?.id,
             invoiceUrl: publicUrl,
             pdfSize: pdfBuffer.length
@@ -133,4 +132,3 @@ serve(async (req) => {
         });
     }
 });
-```

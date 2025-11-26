@@ -65,103 +65,120 @@ export const OrderConfirmationEmail = ({
                         <Hr style={hr} />
 
                         <Text style={footerText}>
-                            );
+                            If you have any questions, reply to this email or contact our support team.
+                        </Text>
+                        <Text style={footerText}>
+                            © 2024 MTRIX. All rights reserved.
+                        </Text>
+                        <Section style={{ textAlign: 'center' as const, marginTop: '20px' }}>
+                            <Img
+                                src="https://tguflnxyewjuuzckcemo.supabase.co/storage/v1/object/public/assets/ezgif-7bee47465acb1993.gif"
+                                alt="Matrix Rain"
+                                width="100%"
+                                height="50"
+                                style={{ objectFit: 'cover', borderRadius: '4px', opacity: 0.5 }}
+                            />
+                        </Section>
+                    </Section>
+                </Container>
+            </Body>
+        </Html>
+    );
 };
 
-                            const main = {
-                                backgroundColor: '#000000',
-                            fontFamily:
-                            '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
+const main = {
+    backgroundColor: '#000000',
+    fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
 };
 
-                            const container = {
-                                margin: '0 auto',
-                            padding: '20px 0 48px',
-                            width: '560px',
+const container = {
+    margin: '0 auto',
+    padding: '20px 0 48px',
+    width: '560px',
 };
 
-                            const header = {
-                                textAlign: 'center' as const,
-                            padding: '20px',
+const header = {
+    textAlign: 'center' as const,
+    padding: '20px',
 };
 
-                            const logo = {
-                                fontSize: '24px',
-                            fontWeight: 'bold',
-                            color: '#D4AF37',
-                            letterSpacing: '2px',
+const logo = {
+    fontSize: '24px',
+    fontWeight: 'bold',
+    color: '#D4AF37',
+    letterSpacing: '2px',
 };
 
-                            const content = {
-                                backgroundColor: '#111111',
-                            padding: '40px',
-                            borderRadius: '8px',
-                            border: '1px solid #333',
+const content = {
+    backgroundColor: '#111111',
+    padding: '40px',
+    borderRadius: '8px',
+    border: '1px solid #333',
 };
 
-                            const h1 = {
-                                color: '#ffffff',
-                            fontSize: '24px',
-                            fontWeight: '600',
-                            lineHeight: '1.3',
-                            margin: '0 0 20px',
-                            textAlign: 'center' as const,
+const h1 = {
+    color: '#ffffff',
+    fontSize: '24px',
+    fontWeight: '600',
+    lineHeight: '1.3',
+    margin: '0 0 20px',
+    textAlign: 'center' as const,
 };
 
-                            const text = {
-                                color: '#cccccc',
-                            fontSize: '16px',
-                            lineHeight: '24px',
-                            margin: '0 0 20px',
+const text = {
+    color: '#cccccc',
+    fontSize: '16px',
+    lineHeight: '24px',
+    margin: '0 0 20px',
 };
 
-                            const orderInfo = {
-                                backgroundColor: '#222',
-                            padding: '20px',
-                            borderRadius: '4px',
-                            marginBottom: '24px',
-                            textAlign: 'center' as const,
+const orderInfo = {
+    backgroundColor: '#222',
+    padding: '20px',
+    borderRadius: '4px',
+    marginBottom: '24px',
+    textAlign: 'center' as const,
 };
 
-                            const orderId = {
-                                color: '#D4AF37',
-                            fontSize: '20px',
-                            fontWeight: 'bold',
-                            margin: '0',
+const orderId = {
+    color: '#D4AF37',
+    fontSize: '20px',
+    fontWeight: 'bold',
+    margin: '0',
 };
 
-                            const orderDate = {
-                                color: '#888',
-                            fontSize: '14px',
-                            margin: '5px 0 0',
+const orderDate = {
+    color: '#888',
+    fontSize: '14px',
+    margin: '5px 0 0',
 };
 
-                            const btnContainer = {
-                                textAlign: 'center' as const,
-                            marginBottom: '24px',
+const btnContainer = {
+    textAlign: 'center' as const,
+    marginBottom: '24px',
 };
 
-                            const button = {
-                                backgroundColor: '#D4AF37',
-                            borderRadius: '4px',
-                            color: '#000',
-                            fontSize: '16px',
-                            fontWeight: 'bold',
-                            textDecoration: 'none',
-                            textAlign: 'center' as const,
-                            display: 'block',
-                            padding: '12px 24px',
+const button = {
+    backgroundColor: '#D4AF37',
+    borderRadius: '4px',
+    color: '#000',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    textDecoration: 'none',
+    textAlign: 'center' as const,
+    display: 'block',
+    padding: '12px 24px',
 };
 
-                            const hr = {
-                                borderColor: '#333',
-                            margin: '20px 0',
+const hr = {
+    borderColor: '#333',
+    margin: '20px 0',
 };
 
-                            const footerText = {
-                                color: '#666',
-                            fontSize: '12px',
-                            lineHeight: '16px',
-                            textAlign: 'center' as const,
-                            margin: '0 0 10px',
+const footerText = {
+    color: '#666',
+    fontSize: '12px',
+    lineHeight: '16px',
+    textAlign: 'center' as const,
+    margin: '0 0 10px',
 };

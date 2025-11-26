@@ -80,39 +80,72 @@ Deno.serve(async (req) => {
     // 3. Send Emails
     const results = []
 
-      < img src = "https://tguflnxyewjuuzckcemo.supabase.co/storage/v1/object/public/assets/ezgif-7bee47465acb1993.gif" alt = "Matrix Rain" width = "100%" height = "50" style = "object-fit: cover; border-radius: 4px; opacity: 0.5;" />
-        </div>
-        </div>
-        </div>
-          `,
-    text: text
-})
+    for (const userId in userCarts) {
+      const cart = userCarts[userId]
+      if (!cart.email) continue
 
-if (error) {
-    console.error(`Failed to send email to ${ cart.email }: `, error)
-    results.push({ userId, status: 'failed', error })
-} else {
-    // 4. Update reminder_sent_at
-    const { error: updateError } = await supabase
-        .from('cart_items')
-        .update({ reminder_sent_at: new Date().toISOString() })
-        .in('id', cart.ids)
+      console.log(`Sending email to ${cart.email}...`)
 
-    if (updateError) console.error('Failed to update timestamp:', updateError)
+      const text = `Don't Forget Your Style!\n\nHey ${cart.name},\n\nWe noticed you left some great items in your cart:\n\n${cart.items.map((item: string) => `- ${item}`).join('\n')}\n\nThey're selling out fast! Complete your order now to secure your look.\n\nReturn to Cart: https://mtrix.store/cart\n\nStay stylish,\nTeam MTRIX\n\n© 2024 MTRIX. All rights reserved.`
 
-    results.push({ userId, status: 'sent', id: data?.id })
-}
-        }
+      const { data, error } = await resend.emails.send({
+        from: 'MTRIX <onboarding@resend.dev>', // Update this if you have a custom domain
+        to: [cart.email],
+        subject: 'You left something behind! 👀',
+        html: `
+          <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif; max-width: 600px; margin: 0 auto; background-color: #000000; color: #cccccc; padding: 20px;">
+            <div style="background-color: #111111; padding: 40px; border-radius: 8px; border: 1px solid #333;">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <span style="font-size: 24px; font-weight: bold; color: #D4AF37; letter-spacing: 2px;">MTRIX</span>
+              </div>
+              <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 20px; text-align: center;">Don't Forget Your Style!</h1>
+              <p>Hey ${cart.name},</p>
+              <p>We noticed you left some great items in your cart:</p>
+              <ul style="background-color: #222222; padding: 20px; border-radius: 4px; list-style: none; margin: 30px 0;">
+                ${cart.items.map((item: string) => `<li style="margin-bottom: 10px; color: #fff; border-bottom: 1px solid #333; padding-bottom: 10px;">${item}</li>`).join('')}
+              </ul>
+              <p>They're selling out fast! Complete your order now to secure your look.</p>
+              <div style="text-align: center; margin: 40px 0;">
+                <a href="https://mtrix.store/cart" style="background-color: #D4AF37; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Return to Cart</a>
+              </div>
+              <p>Stay stylish,<br>Team MTRIX</p>
+              <p style="font-size: 12px; color: #666; text-align: center; margin-top: 40px;">
+                © 2024 MTRIX. All rights reserved.
+              </p>
+              <div style="text-align: center; margin-top: 20px;">
+                <img src="https://tguflnxyewjuuzckcemo.supabase.co/storage/v1/object/public/assets/ezgif-7bee47465acb1993.gif" alt="Matrix Rain" width="100%" height="50" style="object-fit: cover; border-radius: 4px; opacity: 0.5;" />
+              </div>
+            </div>
+          </div>
+        `,
+        text: text
+      })
 
-return new Response(JSON.stringify({ results }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-})
+      if (error) {
+        console.error(`Failed to send email to ${cart.email}:`, error)
+        results.push({ userId, status: 'failed', error })
+      } else {
+        // 4. Update reminder_sent_at
+        const { error: updateError } = await supabase
+          .from('cart_items')
+          .update({ reminder_sent_at: new Date().toISOString() })
+          .in('id', cart.ids)
 
-    } catch (error: any) {
+        if (updateError) console.error('Failed to update timestamp:', updateError)
+
+        results.push({ userId, status: 'sent', id: data?.id })
+      }
+    }
+
+    return new Response(JSON.stringify({ results }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+
+  } catch (error: any) {
     console.error('Error processing abandoned carts:', error)
     return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
-}
+  }
 })

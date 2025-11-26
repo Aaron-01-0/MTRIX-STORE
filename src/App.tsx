@@ -52,6 +52,22 @@ import SiteSettingsManager from "./components/admin/SiteSettingsManager";
 
 const queryClient = new QueryClient();
 
+import ComingSoon from "./pages/ComingSoon";
+
+const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
+  const launchDate = new Date('2024-12-25T00:00:00');
+  const now = new Date();
+  const isPreLaunch = now < launchDate;
+  const isBypassed = localStorage.getItem('mtrix_bypass') === 'true';
+  const isAdmin = window.location.pathname.startsWith('/admin');
+
+  if (isPreLaunch && !isBypassed && !isAdmin) {
+    return <Navigate to="/coming-soon" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -60,22 +76,25 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/catalog" element={<Catalog />} />
-            <Route path="/categories" element={<Categories />} />
-            <Route path="/bundles" element={<Bundles />} />
-            <Route path="/bundle/:id" element={<BundleDetail />} />
-            <Route path="/promotions" element={<Promotions />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/product/:id" element={<Product />} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/wishlist" element={<Wishlist />} />
-            <Route path="/my-orders" element={<MyOrders />} />
-            <Route path="/order/:id" element={<OrderDetail />} />
-            {/* Main Admin Routes */}
+            <Route path="/coming-soon" element={<ComingSoon />} />
+
+            <Route path="/" element={<LaunchGuard><Index /></LaunchGuard>} />
+            <Route path="/catalog" element={<LaunchGuard><Catalog /></LaunchGuard>} />
+            <Route path="/categories" element={<LaunchGuard><Categories /></LaunchGuard>} />
+            <Route path="/bundles" element={<LaunchGuard><Bundles /></LaunchGuard>} />
+            <Route path="/bundle/:id" element={<LaunchGuard><BundleDetail /></LaunchGuard>} />
+            <Route path="/promotions" element={<LaunchGuard><Promotions /></LaunchGuard>} />
+            <Route path="/support" element={<LaunchGuard><Support /></LaunchGuard>} />
+            <Route path="/product/:id" element={<LaunchGuard><Product /></LaunchGuard>} />
+            <Route path="/cart" element={<LaunchGuard><Cart /></LaunchGuard>} />
+            <Route path="/checkout" element={<LaunchGuard><Checkout /></LaunchGuard>} />
+            <Route path="/auth" element={<LaunchGuard><Auth /></LaunchGuard>} />
+            <Route path="/profile" element={<LaunchGuard><Profile /></LaunchGuard>} />
+            <Route path="/wishlist" element={<LaunchGuard><Wishlist /></LaunchGuard>} />
+            <Route path="/my-orders" element={<LaunchGuard><MyOrders /></LaunchGuard>} />
+            <Route path="/order/:id" element={<LaunchGuard><OrderDetail /></LaunchGuard>} />
+
+            {/* Main Admin Routes - No Guard Needed (handled by AdminAuth) */}
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
@@ -91,11 +110,9 @@ const App = () => (
               <Route path="social" element={<SocialContentManager />} />
               <Route path="coupons" element={<CouponManager />} />
               <Route path="users" element={<UserManager />} />
-              <Route path="support" element={<SupportManager />} />
               <Route path="reviews" element={<ReviewManager />} />
               <Route path="designs" element={<DesignManager />} />
               <Route path="settings" element={<SiteSettingsManager />} />
-              <Route path="social" element={<SocialContentManager />} />
             </Route>
 
             {/* Drop Admin Routes */}
