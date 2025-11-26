@@ -182,7 +182,7 @@ export const InvoicePdf = ({ order }: InvoiceProps) => (
             <View style={styles.footer}>
                 <Text>Thank you for your business!</Text>
                 <Text>MTRIX Store - Premium Gaming Gear</Text>
-                <Text>support@mtrix.com | www.mtrix.com</Text>
+                <Text>support@mtrix.store | www.mtrix.store</Text>
             </View>
         </Page>
     </Document>

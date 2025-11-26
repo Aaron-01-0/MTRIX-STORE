@@ -27,7 +27,7 @@ export const OrderConfirmationEmail = ({
     order,
     customerName,
 }: OrderConfirmationEmailProps) => {
-    const baseUrl = 'https://mtrix.com'; // Replace with actual domain
+    const baseUrl = 'https://mtrix.store'; // Replace with actual domain
 
     return (
         <Html>
