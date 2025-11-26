@@ -1,0 +1,248 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* MTRIX Design System - Dark theme with golden yellow accents */
+
+@layer base {
+  :root {
+    /* MTRIX Brand Colors */
+    --mtrix-black: 0 0% 8%;
+    --mtrix-dark: 0 0% 12%;
+    --mtrix-gold: 51 100% 50%;
+    --mtrix-gold-light: 51 100% 60%;
+    --mtrix-gold-dark: 45 100% 40%;
+    --mtrix-gray: 0 0% 20%;
+    --mtrix-gray-light: 0 0% 30%;
+
+    /* Base System */
+    --background: var(--mtrix-black);
+    --foreground: 0 0% 98%;
+
+    --card: var(--mtrix-dark);
+    --card-foreground: 0 0% 95%;
+
+    --popover: var(--mtrix-dark);
+    --popover-foreground: 0 0% 95%;
+
+    --primary: var(--mtrix-gold);
+    --primary-foreground: var(--mtrix-black);
+
+    --secondary: var(--mtrix-gray);
+    --secondary-foreground: 0 0% 90%;
+
+    --muted: var(--mtrix-gray);
+    --muted-foreground: 0 0% 60%;
+
+    --accent: var(--mtrix-gold-light);
+    --accent-foreground: var(--mtrix-black);
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: var(--mtrix-gray);
+    --input: var(--mtrix-gray);
+    --ring: var(--mtrix-gold);
+
+    --radius: 0.75rem;
+
+    /* MTRIX Gradients */
+    --gradient-gold: linear-gradient(135deg, hsl(var(--mtrix-gold)), hsl(var(--mtrix-gold-light)));
+    --gradient-dark: linear-gradient(135deg, hsl(var(--mtrix-black)), hsl(var(--mtrix-dark)));
+    --gradient-glow: radial-gradient(circle, hsl(var(--mtrix-gold) / 0.3), transparent 70%);
+
+    /* MTRIX Shadows & Effects */
+    --shadow-gold: 0 0 20px hsl(var(--mtrix-gold) / 0.5);
+    --shadow-gold-intense: 0 0 40px hsl(var(--mtrix-gold) / 0.8);
+    --glow-gold: 0 0 30px hsl(var(--mtrix-gold) / 0.6);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-inter;
+    overflow-x: hidden;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* MTRIX Glitch Animation */
+  .mtrix-glitch {
+    position: relative;
+    color: hsl(var(--mtrix-gold));
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    text-transform: uppercase;
+    animation: glitch 2s infinite;
+  }
+
+  .mtrix-glitch::before,
+  .mtrix-glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .mtrix-glitch::before {
+    animation: glitch-1 0.5s infinite;
+    color: #ff0040;
+    z-index: -1;
+  }
+
+  .mtrix-glitch::after {
+    animation: glitch-2 0.5s infinite;
+    color: #00ffff;
+    z-index: -2;
+  }
+
+  /* Gold Glow Hover Effect */
+  .mtrix-glow {
+    transition: var(--transition-smooth);
+    position: relative;
+  }
+
+  .mtrix-glow:hover {
+    color: hsl(var(--mtrix-gold));
+    text-shadow: 0 0 10px hsl(25 100% 60%), 0 0 20px hsl(25 100% 50%), 0 0 30px hsl(25 100% 40%);
+    transform: scale(1.05);
+  }
+
+  .mtrix-glow:hover::before {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    background: radial-gradient(circle, hsl(25 100% 50% / 0.3), transparent 70%);
+    border-radius: inherit;
+    z-index: -1;
+    opacity: 0.7;
+  }
+
+  /* Hide scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Endless Scroll Animation */
+  .endless-scroll {
+    animation: scroll-left 20s linear infinite;
+  }
+
+  /* Shopping Cart Cursor */
+  .shopping-cursor {
+    cursor: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23FFD700' stroke-width='2'%3E%3Cpath d='M7 4V1C7 0.45 7.45 0 8 0H16C16.55 0 17 0.45 17 1V4H20C20.55 4 21 4.45 21 5S20.55 6 20 6H19V19C19 20.1 18.1 21 17 21H7C5.9 21 5 20.1 5 19V6H4C3.45 6 3 5.55 3 5S3.45 4 4 4H7Z'/%3E%3C/svg%3E") 12 12, auto;
+  }
+
+  /* Fade on Scroll Navbar */
+  .navbar-fade {
+    transition: var(--transition-smooth);
+  }
+
+  .navbar-hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  .navbar-visible {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  /* Typography */
+  .font-orbitron {
+    font-family: 'Orbitron', monospace;
+  }
+
+  .font-inter {
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Gradients */
+  .bg-gradient-gold {
+    background: var(--gradient-gold);
+  }
+
+  .bg-gradient-dark {
+    background: var(--gradient-dark);
+  }
+
+  .text-gradient-gold {
+    background: var(--gradient-gold);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* Keyframes */
+@keyframes glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+}
+
+@keyframes glitch-1 {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-1px, 1px); }
+  40% { transform: translate(-1px, -1px); }
+  60% { transform: translate(1px, 1px); }
+  80% { transform: translate(1px, -1px); }
+}
+
+@keyframes glitch-2 {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(1px, -1px); }
+  40% { transform: translate(1px, 1px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(-1px, 1px); }
+}
+
+@keyframes scroll-left {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
