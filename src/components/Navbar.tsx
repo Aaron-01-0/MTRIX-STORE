@@ -119,12 +119,12 @@ const Navbar = () => {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="ghost"
-                      className="relative h-10 w-10 rounded-full border border-white/10 hover:border-gold/50 transition-all overflow-hidden"
+                      className="relative h-10 w-10 min-w-[2.5rem] aspect-square rounded-full border border-primary/30 hover:border-primary hover:shadow-[0_0_15px_-3px_rgba(234,179,8,0.4)] transition-all duration-500 overflow-hidden shrink-0 p-0 group"
                     >
                       <Avatar className="h-full w-full">
-                        <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || ''} />
-                        <AvatarFallback className="bg-zinc-800 text-white">
-                          <User className="w-5 h-5" />
+                        <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || ''} className="object-cover" />
+                        <AvatarFallback className="w-full h-full bg-zinc-950 text-primary font-orbitron font-bold flex items-center justify-center text-sm leading-none pb-0.5 group-hover:bg-zinc-900 transition-colors">
+                          {user.email?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
                         </AvatarFallback>
                       </Avatar>
                     </Button>

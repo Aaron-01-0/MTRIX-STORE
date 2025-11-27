@@ -5,13 +5,22 @@ import { Link } from 'react-router-dom';
 const BrandStory = () => {
     return (
         <section className="relative min-h-[80vh] flex items-center bg-black overflow-hidden">
-            {/* Background Image */}
+            {/* Background Video */}
             <div className="absolute inset-0 z-0">
-                <img
-                    src="https://images.unsplash.com/photo-1616469829581-73993eb86b02?auto=format&fit=crop&q=80"
-                    alt="MTRIX Studio"
+                <video
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
                     className="w-full h-full object-cover opacity-60"
-                />
+                >
+                    {/* To use your own video:
+                        1. Create a 'videos' folder in 'public'
+                        2. Upload your video there (e.g., background.mp4)
+                        3. Change src below to: "/videos/background.mp4" 
+                    */}
+                    <source src="https://cdn.pixabay.com/video/2023/10/22/186175-877653483_large.mp4" type="video/mp4" />
+                </video>
                 <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent" />
             </div>
 

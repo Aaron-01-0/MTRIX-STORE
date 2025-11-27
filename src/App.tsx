@@ -2,8 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Catalog from "./pages/Catalog";
 import Bundles from "./pages/Bundles";
@@ -31,6 +31,12 @@ import DropDashboard from "./pages/admin/drop/DropDashboard";
 import DropEditor from "./pages/admin/drop/DropEditor";
 import WaitlistManager from "./pages/admin/drop/WaitlistManager";
 import UGCModeration from "./pages/admin/drop/UGCModeration";
+import Shipping from "./pages/Shipping";
+import Terms from "./pages/Terms";
+import Returns from "./pages/Returns";
+import Privacy from "./pages/Privacy";
+import FAQ from "./pages/FAQ";
+import Cookies from "./pages/Cookies";
 
 // New Admin Imports
 import AdminLayout from "./components/admin/layout/AdminLayout";
@@ -55,15 +61,39 @@ const queryClient = new QueryClient();
 import ComingSoon from "./pages/ComingSoon";
 
 const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
   const targetDate = new Date('2025-12-25T00:00:00');
   const now = new Date();
   const isPreLaunch = now < targetDate;
   const isBypassed = localStorage.getItem('mtrix_bypass') === 'true';
-  const isAdmin = window.location.pathname.startsWith('/admin');
 
-  console.log('LaunchGuard Check:', { isPreLaunch, isBypassed, isAdmin, path: window.location.pathname });
+  // Whitelisted paths that are always accessible
+  const publicPaths = [
+    '/auth',
+    '/shipping',
+    '/terms',
+    '/returns',
+    '/privacy',
+    '/cookies',
+    '/faq',
+    '/support',
+    '/admin' // Admin routes handle their own auth
+  ];
 
-  if (isPreLaunch && !isBypassed && !isAdmin) {
+  const isPublicPath = publicPaths.some(path => location.pathname.startsWith(path));
+
+  // Allow access if:
+  // 1. It's not pre-launch (site is live)
+  // 2. User has bypassed via secret code
+  // 3. User is on a public/legal page
+  // 4. User is an Admin (checked via email or role - placeholder logic)
+  const userEmail = user?.email?.toLowerCase();
+  const isAuthorizedUser = userEmail?.includes('admin') || userEmail?.includes('demo') || userEmail === 'raj00.mkv@gmail.com';
+
+  if (loading) return <div className="min-h-screen bg-black" />; // Prevent flash
+
+  if (isPreLaunch && !isBypassed && !isPublicPath && !isAuthorizedUser) {
     return <Navigate to="/coming-soon" replace />;
   }
 
@@ -95,6 +125,14 @@ const App = () => (
             <Route path="/wishlist" element={<LaunchGuard><Wishlist /></LaunchGuard>} />
             <Route path="/my-orders" element={<LaunchGuard><MyOrders /></LaunchGuard>} />
             <Route path="/order/:id" element={<LaunchGuard><OrderDetail /></LaunchGuard>} />
+
+            {/* Legal & Support Pages */}
+            <Route path="/shipping" element={<LaunchGuard><Shipping /></LaunchGuard>} />
+            <Route path="/terms" element={<LaunchGuard><Terms /></LaunchGuard>} />
+            <Route path="/returns" element={<LaunchGuard><Returns /></LaunchGuard>} />
+            <Route path="/privacy" element={<LaunchGuard><Privacy /></LaunchGuard>} />
+            <Route path="/cookies" element={<LaunchGuard><Cookies /></LaunchGuard>} />
+            <Route path="/faq" element={<LaunchGuard><FAQ /></LaunchGuard>} />
 
             {/* Main Admin Routes - No Guard Needed (handled by AdminAuth) */}
             <Route path="/admin" element={<AdminLayout />}>

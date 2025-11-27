@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 // Define outside to avoid initialization errors
 const TARGET_DATE = new Date('2025-12-25T00:00:00');
@@ -132,6 +133,8 @@ const ComingSoon = () => {
         };
     }, []);
 
+    const { user } = useAuth(); // Get user from auth context
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email) return;
@@ -206,30 +209,48 @@ const ComingSoon = () => {
                     ))}
                 </div>
 
-                {/* Notify Form */}
+                {/* Notify Form or Welcome Message */}
                 <div className="mb-16 max-w-md mx-auto">
-                    <p className="text-neutral-400 mb-6 text-sm">Be the first to know when the collection drops.</p>
-                    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="Enter your email"
-                            className="flex-1 bg-white/5 border border-white/10 text-white px-4 py-3 rounded-lg focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all placeholder:text-neutral-600"
-                            required
-                        />
-                        <button
-                            type="submit"
-                            disabled={status === 'loading' || status === 'success'}
-                            className="bg-white text-black font-bold px-8 py-3 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {status === 'loading' ? 'Joining...' : status === 'success' ? 'Joined' : 'Notify Me'}
-                        </button>
-                    </form>
-                    {status === 'success' && (
-                        <p className="text-emerald-400 mt-4 text-sm font-medium animate-in fade-in duration-500">
-                            You're on the list.
-                        </p>
+                    {user ? (
+                        <div className="bg-white/5 border border-white/10 p-6 rounded-xl backdrop-blur-md animate-in fade-in zoom-in duration-500">
+                            <p className="text-xl font-bold text-white mb-2">Welcome, {user.user_metadata?.full_name || user.email}</p>
+                            <p className="text-neutral-400 text-sm mb-4">You are on the exclusive list. Get ready.</p>
+                            <div className="flex justify-center gap-4">
+                                <a href="/auth" className="text-xs text-neutral-500 hover:text-white transition-colors">Account Settings</a>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-neutral-400 mb-6 text-sm">Be the first to know when the collection drops.</p>
+                            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="Enter your email"
+                                    className="flex-1 bg-white/5 border border-white/10 text-white px-4 py-3 rounded-lg focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all placeholder:text-neutral-600"
+                                    required
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={status === 'loading' || status === 'success'}
+                                    className="bg-white text-black font-bold px-8 py-3 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {status === 'loading' ? 'Joining...' : status === 'success' ? 'Joined' : 'Notify Me'}
+                                </button>
+                            </form>
+                            {status === 'success' && (
+                                <p className="text-emerald-400 mt-4 text-sm font-medium animate-in fade-in duration-500">
+                                    You're on the list.
+                                </p>
+                            )}
+
+                            <div className="mt-8">
+                                <a href="/auth" className="text-sm text-neutral-500 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5">
+                                    Already have an account? Sign In
+                                </a>
+                            </div>
+                        </>
                     )}
                 </div>
 
