@@ -11,6 +11,9 @@ import {
     Preview,
     Section,
     Text,
+    Column,
+    Row,
+    Link,
 } from 'https://esm.sh/@react-email/components@0.0.7';
 
 interface OrderConfirmationEmailProps {
@@ -18,6 +21,15 @@ interface OrderConfirmationEmailProps {
         id: string;
         order_number: string;
         created_at: string;
+        total_amount: number;
+        order_items: Array<{
+            quantity: number;
+            price: number;
+            product: {
+                name: string;
+                product_images: Array<{ image_url: string }>;
+            };
+        }>;
         [key: string]: any;
     };
     customerName: string;
@@ -27,7 +39,7 @@ export const OrderConfirmationEmail = ({
     order,
     customerName,
 }: OrderConfirmationEmailProps) => {
-    const baseUrl = 'https://mtrix.store'; // Replace with actual domain
+    const baseUrl = 'https://mtrix.store';
 
     return (
         <Html>
@@ -53,6 +65,40 @@ export const OrderConfirmationEmail = ({
                             <Text style={orderDate}>{new Date(order.created_at).toLocaleDateString()}</Text>
                         </Section>
 
+                        <Hr style={hr} />
+
+                        <Section>
+                            <Text style={sectionTitle}>Order Summary</Text>
+                            {order.order_items?.map((item, index) => (
+                                <Row key={index} style={{ marginBottom: '16px', borderBottom: '1px solid #333', paddingBottom: '16px' }}>
+                                    <Column style={{ width: '64px' }}>
+                                        <Img
+                                            src={item.product?.product_images?.[0]?.image_url || 'https://via.placeholder.com/64'}
+                                            width="64"
+                                            height="64"
+                                            alt={item.product?.name}
+                                            style={{ borderRadius: '8px', objectFit: 'cover' }}
+                                        />
+                                    </Column>
+                                    <Column style={{ paddingLeft: '16px' }}>
+                                        <Text style={productName}>{item.product?.name || 'Product'}</Text>
+                                        <Text style={productMeta}>Qty: {item.quantity}</Text>
+                                    </Column>
+                                    <Column style={{ textAlign: 'right' }}>
+                                        <Text style={productPrice}>₹{item.price * item.quantity}</Text>
+                                    </Column>
+                                </Row>
+                            ))}
+                            <Row style={{ marginTop: '16px' }}>
+                                <Column>
+                                    <Text style={totalLabel}>Total</Text>
+                                </Column>
+                                <Column style={{ textAlign: 'right' }}>
+                                    <Text style={totalValue}>₹{order.total_amount}</Text>
+                                </Column>
+                            </Row>
+                        </Section>
+
                         <Section style={btnContainer}>
                             <Button
                                 style={button}
@@ -64,21 +110,23 @@ export const OrderConfirmationEmail = ({
 
                         <Hr style={hr} />
 
+                        <Section style={{ textAlign: 'center' as const }}>
+                            <Text style={footerText}>
+                                Follow us for updates
+                            </Text>
+                            <Row style={{ width: 'auto', display: 'inline-block' }}>
+                                <Column style={{ padding: '0 8px' }}>
+                                    <Link href="https://instagram.com/mtrixstore" style={socialLink}>Instagram</Link>
+                                </Column>
+                            </Row>
+                        </Section>
+
                         <Text style={footerText}>
                             If you have any questions, reply to this email or contact our support team.
                         </Text>
                         <Text style={footerText}>
                             © 2024 MTRIX. All rights reserved.
                         </Text>
-                        <Section style={{ textAlign: 'center' as const, marginTop: '20px' }}>
-                            <Img
-                                src="https://tguflnxyewjuuzckcemo.supabase.co/storage/v1/object/public/assets/ezgif-7bee47465acb1993.gif"
-                                alt="Matrix Rain"
-                                width="100%"
-                                height="50"
-                                style={{ objectFit: 'cover', borderRadius: '4px', opacity: 0.5 }}
-                            />
-                        </Section>
                     </Section>
                 </Container>
             </Body>
@@ -103,17 +151,20 @@ const header = {
 };
 
 const logo = {
-    fontSize: '24px',
+    fontSize: '32px',
     fontWeight: 'bold',
     color: '#D4AF37',
-    letterSpacing: '2px',
+    letterSpacing: '4px',
+    fontFamily: 'Orbitron, sans-serif',
+    textShadow: '0 0 10px rgba(212, 175, 55, 0.5)',
 };
 
 const content = {
     backgroundColor: '#111111',
     padding: '40px',
-    borderRadius: '8px',
+    borderRadius: '12px',
     border: '1px solid #333',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
 };
 
 const h1 = {
@@ -135,9 +186,10 @@ const text = {
 const orderInfo = {
     backgroundColor: '#222',
     padding: '20px',
-    borderRadius: '4px',
+    borderRadius: '8px',
     marginBottom: '24px',
     textAlign: 'center' as const,
+    border: '1px solid #333',
 };
 
 const orderId = {
@@ -153,26 +205,69 @@ const orderDate = {
     margin: '5px 0 0',
 };
 
+const sectionTitle = {
+    color: '#fff',
+    fontSize: '18px',
+    fontWeight: 'bold',
+    marginBottom: '16px',
+    borderBottom: '1px solid #333',
+    paddingBottom: '8px',
+};
+
+const productName = {
+    color: '#fff',
+    fontSize: '14px',
+    fontWeight: '500',
+    margin: '0',
+};
+
+const productMeta = {
+    color: '#888',
+    fontSize: '12px',
+    margin: '4px 0 0',
+};
+
+const productPrice = {
+    color: '#fff',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    margin: '0',
+};
+
+const totalLabel = {
+    color: '#888',
+    fontSize: '16px',
+    fontWeight: 'bold',
+};
+
+const totalValue = {
+    color: '#D4AF37',
+    fontSize: '20px',
+    fontWeight: 'bold',
+};
+
 const btnContainer = {
     textAlign: 'center' as const,
+    marginTop: '32px',
     marginBottom: '24px',
 };
 
 const button = {
     backgroundColor: '#D4AF37',
-    borderRadius: '4px',
+    borderRadius: '6px',
     color: '#000',
     fontSize: '16px',
     fontWeight: 'bold',
     textDecoration: 'none',
     textAlign: 'center' as const,
-    display: 'block',
-    padding: '12px 24px',
+    display: 'inline-block',
+    padding: '14px 32px',
+    boxShadow: '0 0 15px rgba(212, 175, 55, 0.3)',
 };
 
 const hr = {
     borderColor: '#333',
-    margin: '20px 0',
+    margin: '24px 0',
 };
 
 const footerText = {
@@ -181,4 +276,11 @@ const footerText = {
     lineHeight: '16px',
     textAlign: 'center' as const,
     margin: '0 0 10px',
+};
+
+const socialLink = {
+    color: '#D4AF37',
+    fontSize: '14px',
+    textDecoration: 'none',
+    fontWeight: 'bold',
 };

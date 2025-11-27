@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
+import React from 'https://esm.sh/react@18.2.0';
+import { render } from 'https://esm.sh/@react-email/render@0.0.10';
+import { WelcomeEmail } from './_templates/WelcomeEmail.tsx';
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -20,21 +23,13 @@ serve(async (req) => {
             throw new Error("Email is required");
         }
 
+        const emailHtml = render(React.createElement(WelcomeEmail, { email }));
+
         const { data, error } = await resend.emails.send({
             from: "MTRIX <onboarding@resend.dev>",
             to: [email],
             subject: "Welcome to the Resistance",
-            html: `
-        <div style="font-family: monospace; background-color: #000; color: #0f0; padding: 20px;">
-          <h1 style="text-align: center;">MTRIX</h1>
-          <p>The system has accepted your signal.</p>
-          <p>We are currently loading the simulation. The breach is scheduled for <strong>December 25, 2024</strong>.</p>
-          <p>You will be notified when the portal opens.</p>
-          <br/>
-          <p>Stay vigilant.</p>
-          <p style="opacity: 0.5;">- The Operator</p>
-        </div>
-      `,
+            html: emailHtml,
         });
 
         if (error) {

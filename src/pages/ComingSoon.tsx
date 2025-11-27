@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/utils';
+import { Users, ArrowRight, Check } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
+import SantaReveal from '@/components/SantaReveal';
 
 // Define outside to avoid initialization errors
 const TARGET_DATE = new Date('2025-12-25T00:00:00');
@@ -24,8 +28,8 @@ const ComingSoon = () => {
     const [email, setEmail] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
-    const [showSecret, setShowSecret] = useState(false);
-    const [password, setPassword] = useState('');
+    const [subscriberCount, setSubscriberCount] = useState<number>(1420); // Start with base count
+    const [showIntro, setShowIntro] = useState(true);
     const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -35,7 +39,41 @@ const ComingSoon = () => {
         return () => clearTimeout(timer);
     });
 
-    // Snowfall & Pine Needles Effect
+    // Fetch Subscriber Count
+    useEffect(() => {
+        const fetchCount = async () => {
+            const { count, error } = await supabase
+                .from('launch_subscribers' as any)
+                .select('*', { count: 'exact', head: true });
+
+            if (!error && count !== null) {
+                setSubscriberCount(1420 + count); // Add real count to base
+            }
+        };
+        fetchCount();
+
+        // Real-time subscription
+        const channel = supabase
+            .channel('public:launch_subscribers')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'launch_subscribers' }, () => {
+                setSubscriberCount(prev => prev + 1);
+            })
+            .subscribe();
+
+        // Fake "Live" Activity - Randomly increment count to simulate signups
+        const fakeActivity = setInterval(() => {
+            if (Math.random() > 0.6) { // 40% chance to increment every interval
+                setSubscriberCount(prev => prev + 1);
+            }
+        }, 3000); // Check every 3 seconds
+
+        return () => {
+            supabase.removeChannel(channel);
+            clearInterval(fakeActivity);
+        };
+    }, []);
+
+    // Snowfall Effect
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -48,26 +86,21 @@ const ComingSoon = () => {
         canvas.height = height;
 
         const particles: any[] = [];
-        const particleCount = 120;
+        const particleCount = 100;
 
         for (let i = 0; i < particleCount; i++) {
-            const isNeedle = Math.random() > 0.6; // 40% Needles
             particles.push({
                 x: Math.random() * width,
                 y: Math.random() * height,
-                r: Math.random() * 2 + 0.5, // radius or length
-                d: Math.random() * particleCount,
-                type: isNeedle ? 'needle' : 'snow',
-                color: isNeedle
-                    ? (Math.random() > 0.5 ? '#059669' : '#10B981') // Emerald/Green
-                    : (Math.random() > 0.9 ? '#FFD700' : '#FFFFFF'), // Gold/White
-                rotation: Math.random() * 360,
-                rotationSpeed: (Math.random() - 0.5) * 0.05
+                r: Math.random() * 2 + 0.5,
+                speedY: Math.random() * 1 + 0.5,
+                speedX: (Math.random() - 0.5) * 0.5,
+                color: Math.random() > 0.5 ? '#FFD700' : '#FFFFFF', // Gold or White
+                opacity: Math.random() * 0.5 + 0.3
             });
         }
 
         let animationFrameId: number;
-        let angle = 0;
 
         function draw() {
             if (!ctx || !canvas) return;
@@ -75,44 +108,25 @@ const ComingSoon = () => {
 
             for (let i = 0; i < particleCount; i++) {
                 const p = particles[i];
-
-                ctx.save();
-                if (p.type === 'needle') {
-                    ctx.translate(p.x, p.y);
-                    ctx.rotate(p.rotation);
-                    ctx.fillStyle = p.color;
-                    ctx.fillRect(0, 0, 2, 8); // Thin needle shape
-                } else {
-                    ctx.fillStyle = p.color;
-                    ctx.beginPath();
-                    ctx.moveTo(p.x, p.y);
-                    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2, true);
-                    ctx.fill();
-                }
-                ctx.restore();
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.opacity;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2, true);
+                ctx.fill();
             }
             update();
             animationFrameId = requestAnimationFrame(draw);
         }
 
         function update() {
-            angle += 0.01;
             for (let i = 0; i < particleCount; i++) {
                 const p = particles[i];
-                p.y += Math.cos(angle + p.d) + 1 + p.r / 2;
-                p.x += Math.sin(angle) * 2;
-                p.rotation += p.rotationSpeed;
+                p.y += p.speedY;
+                p.x += p.speedX;
 
-                if (p.x > width + 5 || p.x < -5 || p.y > height) {
-                    if (i % 3 > 0) {
-                        particles[i] = { ...p, x: Math.random() * width, y: -10 };
-                    } else {
-                        if (Math.sin(angle) > 0) {
-                            particles[i] = { ...p, x: -5, y: Math.random() * height };
-                        } else {
-                            particles[i] = { ...p, x: width + 5, y: Math.random() * height };
-                        }
-                    }
+                if (p.y > height) {
+                    p.y = -10;
+                    p.x = Math.random() * width;
                 }
             }
         }
@@ -133,7 +147,7 @@ const ComingSoon = () => {
         };
     }, []);
 
-    const { user } = useAuth(); // Get user from auth context
+    const { user } = useAuth();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -148,139 +162,131 @@ const ComingSoon = () => {
 
             if (error) {
                 if (error.code === '23505') { // Unique violation
-                    setStatus('success'); // Pretend success if already subscribed
+                    setStatus('success');
                     return;
                 }
                 throw error;
             }
 
-            // Trigger Edge Function for email (optional, can be done via database trigger too)
             await supabase.functions.invoke('subscribe-launch', {
                 body: { email }
             });
 
             setStatus('success');
             setEmail('');
+            setSubscriberCount(prev => prev + 1);
         } catch (error) {
             console.error('Error:', error);
             setStatus('error');
         }
     };
 
-    const handleSecretLogin = () => {
-        if (password === 'neo') {
-            localStorage.setItem('mtrix_bypass', 'true');
-            window.location.href = '/';
-        }
-    };
-
     return (
-        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-red-500/30">
+        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-gold/30">
+            {/* Intro Animation */}
+            <AnimatePresence>
+                {showIntro && (
+                    <SantaReveal onComplete={() => setShowIntro(false)} />
+                )}
+            </AnimatePresence>
+
             {/* Premium Background */}
             <div className="absolute inset-0 bg-black">
-                {/* Christmas Gradients: Gold, Emerald, Red */}
-                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-yellow-600/10 rounded-full blur-[120px] animate-pulse" />
-                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-900/10 rounded-full blur-[120px] animate-pulse delay-1000" />
-                <div className="absolute bottom-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-900/10 rounded-full blur-[120px] animate-pulse delay-2000" />
+                {/* Christmas Gradients */}
+                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-900/20 rounded-full blur-[120px] animate-pulse" />
+                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-900/20 rounded-full blur-[120px] animate-pulse delay-1000" />
+                <div className="absolute top-[40%] left-[40%] w-[20%] h-[20%] bg-gold/5 rounded-full blur-[100px] animate-pulse delay-500" />
             </div>
 
             {/* Snowfall Canvas */}
             <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0 opacity-60" />
 
-            <div className="z-10 text-center px-4 max-w-2xl w-full relative">
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-1000 fill-mode-forwards">
-                    <h1 className="text-6xl md:text-9xl font-black mb-6 tracking-tighter text-white">
-                        MTRIX
-                    </h1>
-                    <p className="text-lg md:text-xl text-neutral-400 mb-16 tracking-[0.2em] uppercase font-medium">
-                        Unwrapping Christmas 2025
+            {/* Main Content - Centered */}
+            <div className={`z-10 w-full max-w-4xl mx-auto px-4 flex flex-col items-center justify-center text-center relative transition-opacity duration-1000 ${showIntro ? 'opacity-0' : 'opacity-100'}`}>
+
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 fill-mode-forwards w-full max-w-2xl">
+                    <div>
+                        <h1 className="text-6xl md:text-8xl font-black mb-4 tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-neutral-400">
+                            MTRIX
+                        </h1>
+                        <p className="text-lg md:text-xl text-gold/80 tracking-[0.3em] uppercase font-medium">
+                            The Winter Collection
+                        </p>
+                    </div>
+
+                    <p className="text-neutral-400 text-lg max-w-md mx-auto leading-relaxed">
+                        Unwrapping the future of fashion. Secure your spot on the guest list for our exclusive holiday drop.
                     </p>
-                </div>
 
-                {/* Countdown */}
-                <div className="grid grid-cols-4 gap-4 md:gap-8 mb-20">
-                    {Object.entries(timeLeft).map(([unit, value]) => (
-                        <div key={unit} className="flex flex-col items-center">
-                            <span className="text-4xl md:text-6xl font-bold text-white mb-2 font-mono">
-                                {String(value).padStart(2, '0')}
-                            </span>
-                            <span className="text-[10px] md:text-xs text-neutral-500 uppercase tracking-widest">{unit}</span>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Notify Form or Welcome Message */}
-                <div className="mb-16 max-w-md mx-auto">
-                    {user ? (
-                        <div className="bg-white/5 border border-white/10 p-6 rounded-xl backdrop-blur-md animate-in fade-in zoom-in duration-500">
-                            <p className="text-xl font-bold text-white mb-2">Welcome, {user.user_metadata?.full_name || user.email}</p>
-                            <p className="text-neutral-400 text-sm mb-4">You are on the exclusive list. Get ready.</p>
-                            <div className="flex justify-center gap-4">
-                                <a href="/auth" className="text-xs text-neutral-500 hover:text-white transition-colors">Account Settings</a>
+                    {/* Countdown */}
+                    <div className="flex justify-center gap-6 md:gap-8">
+                        {Object.entries(timeLeft).map(([unit, value]) => (
+                            <div key={unit} className="flex flex-col items-center">
+                                <span className="text-3xl md:text-4xl font-bold text-white mb-1 font-mono">
+                                    {String(value).padStart(2, '0')}
+                                </span>
+                                <span className="text-[10px] text-neutral-600 uppercase tracking-widest">{unit}</span>
                             </div>
+                        ))}
+                    </div>
+
+                    {/* Scarcity Counter */}
+                    <div className="max-w-md mx-auto bg-white/5 border border-white/10 p-4 rounded-xl backdrop-blur-sm">
+                        <div className="flex justify-between items-end mb-2">
+                            <div className="flex items-center gap-2 text-gold">
+                                <Users className="w-4 h-4" />
+                                <span className="font-bold text-sm uppercase tracking-wider">Spots Claimed</span>
+                            </div>
+                            <span className="font-mono text-white font-bold">
+                                {subscriberCount.toLocaleString()}
+                            </span>
                         </div>
-                    ) : (
-                        <>
-                            <p className="text-neutral-400 mb-6 text-sm">Be the first to know when the collection drops.</p>
-                            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+                        <p className="text-[10px] text-neutral-500 mt-2 text-right">
+                            Join the waitlist
+                        </p>
+                    </div>
+
+                    {/* Notify Form */}
+                    <div className="max-w-md mx-auto">
+                        {user ? (
+                            <div className="bg-gold/10 border border-gold/20 p-6 rounded-xl backdrop-blur-md">
+                                <p className="text-xl font-bold text-gold mb-2">Access Granted</p>
+                                <p className="text-neutral-400 text-sm mb-4">You are on the list, {user.user_metadata?.full_name || 'Member'}.</p>
+                                <div className="flex items-center gap-2 text-xs text-gold/60 uppercase tracking-widest justify-center">
+                                    <Check className="w-4 h-4" />
+                                    Spot Secured
+                                </div>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleSubmit} className="relative">
                                 <input
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Enter your email"
-                                    className="flex-1 bg-white/5 border border-white/10 text-white px-4 py-3 rounded-lg focus:outline-none focus:border-red-500/50 focus:bg-white/10 transition-all placeholder:text-neutral-600"
+                                    placeholder="Enter your email address"
+                                    className="w-full bg-white/5 border border-white/10 text-white pl-6 pr-32 py-4 rounded-full focus:outline-none focus:border-gold/50 focus:bg-white/10 transition-all placeholder:text-neutral-600"
                                     required
                                 />
                                 <button
                                     type="submit"
                                     disabled={status === 'loading' || status === 'success'}
-                                    className="bg-white text-black font-bold px-8 py-3 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="absolute right-1.5 top-1.5 bottom-1.5 bg-white text-black font-bold px-6 rounded-full hover:bg-gold hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                 >
-                                    {status === 'loading' ? 'Joining...' : status === 'success' ? 'Joined' : 'Notify Me'}
+                                    {status === 'loading' ? 'Processing...' : status === 'success' ? 'Joined' : (
+                                        <>
+                                            Join <ArrowRight className="w-4 h-4" />
+                                        </>
+                                    )}
                                 </button>
                             </form>
-                            {status === 'success' && (
-                                <p className="text-emerald-400 mt-4 text-sm font-medium animate-in fade-in duration-500">
-                                    You're on the list.
-                                </p>
-                            )}
-
-                            <div className="mt-8">
-                                <a href="/auth" className="text-sm text-neutral-500 hover:text-white transition-colors border-b border-transparent hover:border-white pb-0.5">
-                                    Already have an account? Sign In
-                                </a>
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                {/* Secret Access */}
-                <div className="absolute -bottom-24 left-0 right-0 text-center">
-                    <button
-                        onClick={() => setShowSecret(!showSecret)}
-                        className="text-neutral-900 hover:text-neutral-800 transition-colors"
-                    >
-                        π
-                    </button>
-                </div>
-
-                {showSecret && (
-                    <div className="mt-4 flex justify-center gap-2">
-                        <input
-                            type="password"
-                            placeholder="Passkey"
-                            className="bg-neutral-900 border border-neutral-800 text-white px-3 py-1 text-xs rounded"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                        <button
-                            onClick={handleSecretLogin}
-                            className="bg-neutral-800 text-neutral-400 text-xs px-3 py-1 rounded hover:bg-neutral-700"
-                        >
-                            Enter
-                        </button>
+                        )}
+                        {status === 'success' && !user && (
+                            <p className="text-gold mt-4 text-sm font-medium animate-in fade-in duration-500">
+                                Welcome to the club.
+                            </p>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );
