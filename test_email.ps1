@@ -1,35 +1,20 @@
-# Read .env file
-$envContent = Get-Content .env
-$anonKey = $null
+$anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRndWZsbnh5ZXdqdXV6Y2tjZW1vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5OTczNjQsImV4cCI6MjA3OTU3MzM2NH0.guRpNkR1srNhpJYMxafT21gL-pwpTYiCRaydrFb-2nU"
 $supabaseUrl = "https://tguflnxyewjuuzckcemo.supabase.co"
 
-foreach ($line in $envContent) {
-    if ($line -match "SUPABASE_ANON_KEY=(.*)") {
-        $anonKey = $matches[1]
-    }
-    if ($line -match "VITE_SUPABASE_PUBLISHABLE_KEY=(.*)") {
-        $anonKey = $matches[1]
-    }
-}
+$email = "raj00.mkv@gmail.com"
+$url = "$supabaseUrl/functions/v1/subscribe-launch"
 
-if (-not $anonKey) {
-    Write-Host "Error: Could not find SUPABASE_ANON_KEY in .env file" -ForegroundColor Red
-    exit
-}
-
-$orderId = "5d227cdd-03b7-4ba6-98d0-d65a70777415"
-$url = "$supabaseUrl/functions/v1/send-order-confirmation"
-
-Write-Host "Testing email function for order: $orderId"
+Write-Host "Testing subscribe-launch function for email: $email"
 Write-Host "URL: $url"
 
 $headers = @{
     "Authorization" = "Bearer $anonKey"
+    "apikey" = "$anonKey"
     "Content-Type" = "application/json"
 }
 
 $body = @{
-    order_id = $orderId
+    email = $email
 } | ConvertTo-Json
 
 try {

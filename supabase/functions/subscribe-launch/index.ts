@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
-import React from 'https://esm.sh/react@18.2.0';
-import { render } from 'https://esm.sh/@react-email/render@0.0.10';
+import React from 'npm:react@18.3.1';
+import { render } from 'npm:@react-email/render@0.0.10';
 import { WelcomeEmail } from './_templates/WelcomeEmail.tsx';
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
@@ -26,9 +26,9 @@ serve(async (req) => {
         const emailHtml = render(React.createElement(WelcomeEmail, { email }));
 
         const { data, error } = await resend.emails.send({
-            from: "MTRIX <onboarding@resend.dev>",
+            from: "MTRIX <noa@mtrix.store>",
             to: [email],
-            subject: "Welcome to the Resistance",
+            subject: "Welcome to the Collective",
             html: emailHtml,
         });
 

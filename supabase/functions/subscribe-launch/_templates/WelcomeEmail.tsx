@@ -1,4 +1,4 @@
-import * as React from 'https://esm.sh/react@18.2.0';
+import * as React from 'npm:react@18.3.1';
 import {
     Body,
     Button,
@@ -14,7 +14,8 @@ import {
     Column,
     Row,
     Link,
-} from 'https://esm.sh/@react-email/components@0.0.7';
+    Tailwind,
+} from 'npm:@react-email/components@0.0.12';
 
 interface WelcomeEmailProps {
     email: string;
@@ -28,26 +29,47 @@ export const WelcomeEmail = ({
     return (
         <Html>
             <Head />
-            <Preview>Welcome to the Resistance - MTRIX</Preview>
+            <Preview>Access Granted: Welcome to MTRIX</Preview>
             <Body style={main}>
                 <Container style={container}>
+                    {/* Header */}
                     <Section style={header}>
                         <Text style={logo}>MTRIX</Text>
+                        <Text style={subtitle}>OFFICIAL LAUNCH</Text>
                     </Section>
 
+                    {/* Main Content */}
                     <Section style={content}>
-                        <Heading style={h1}>Signal Accepted</Heading>
-                        <Text style={text}>
-                            Welcome, {email}.
+                        <div style={glowBar} />
+
+                        <Heading style={h1}>ACCESS GRANTED</Heading>
+
+                        <Text style={greeting}>
+                            Welcome to the inner circle,
                         </Text>
-                        <Text style={text}>
-                            The system has processed your entry. You are now part of the inner circle.
+                        <Text style={emailText}>
+                            {email}
                         </Text>
+
                         <Text style={text}>
-                            We are currently loading the simulation. The breach is scheduled for <strong>December 25, 2024</strong>.
+                            Your signal has been received and processed. You have secured your position on the waitlist for our exclusive holiday drop.
                         </Text>
+
+                        <Section style={statsContainer}>
+                            <Row>
+                                <Column style={statCol}>
+                                    <Text style={statLabel}>STATUS</Text>
+                                    <Text style={statValue}>CONFIRMED</Text>
+                                </Column>
+                                <Column style={statCol}>
+                                    <Text style={statLabel}>ACCESS LEVEL</Text>
+                                    <Text style={statValue}>MEMBER</Text>
+                                </Column>
+                            </Row>
+                        </Section>
+
                         <Text style={text}>
-                            You will be the first to know when the portal opens.
+                            The portal opens on <strong>December 25, 2025</strong>. Prepare yourself.
                         </Text>
 
                         <Section style={btnContainer}>
@@ -55,29 +77,30 @@ export const WelcomeEmail = ({
                                 style={button}
                                 href={baseUrl}
                             >
-                                Visit Mainframe
+                                VIEW STATUS
                             </Button>
                         </Section>
 
                         <Hr style={hr} />
 
-                        <Section style={{ textAlign: 'center' as const }}>
-                            <Text style={footerText}>
-                                Follow the white rabbit
+                        {/* Footer */}
+                        <Section style={footer}>
+                            <Text style={footerQuote}>
+                                "There is no spoon."
                             </Text>
-                            <Row style={{ width: 'auto', display: 'inline-block' }}>
-                                <Column style={{ padding: '0 8px' }}>
-                                    <Link href="https://instagram.com/mtrixstore" style={socialLink}>Instagram</Link>
-                                </Column>
-                            </Row>
-                        </Section>
 
-                        <Text style={footerText}>
-                            Stay vigilant.
-                        </Text>
-                        <Text style={footerText}>
-                            © 2024 MTRIX. All rights reserved.
-                        </Text>
+                            <Row style={socialContainer}>
+                                <Column>
+                                    <Link href="https://instagram.com/mtrixstore" style={socialLink}>INSTAGRAM</Link>
+                                </Column>
+
+                            </Row>
+
+                            <Text style={footerText}>
+                                © 2024 MTRIX. All rights reserved.<br />
+                                You are receiving this because you joined the Collective.
+                            </Text>
+                        </Section>
                     </Section>
                 </Container>
             </Body>
@@ -85,90 +108,176 @@ export const WelcomeEmail = ({
     );
 };
 
+// Styles
 const main = {
     backgroundColor: '#000000',
     fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
+    color: '#ffffff',
 };
 
 const container = {
     margin: '0 auto',
-    padding: '20px 0 48px',
-    width: '560px',
+    padding: '40px 20px',
+    maxWidth: '600px',
 };
 
 const header = {
     textAlign: 'center' as const,
-    padding: '20px',
+    marginBottom: '30px',
 };
 
 const logo = {
-    fontSize: '32px',
-    fontWeight: 'bold',
+    fontSize: '42px',
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: '8px',
+    margin: '0',
+    fontFamily: 'Arial Black, sans-serif',
+    textShadow: '0 0 20px rgba(255, 255, 255, 0.3)',
+};
+
+const subtitle = {
+    fontSize: '10px',
     color: '#D4AF37',
     letterSpacing: '4px',
-    fontFamily: 'Orbitron, sans-serif',
-    textShadow: '0 0 10px rgba(212, 175, 55, 0.5)',
+    marginTop: '8px',
+    fontWeight: 'bold',
 };
 
 const content = {
-    backgroundColor: '#111111',
+    backgroundColor: '#0a0a0a',
     padding: '40px',
-    borderRadius: '12px',
-    border: '1px solid #333',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+    borderRadius: '2px',
+    border: '1px solid #222',
+    position: 'relative' as const,
+    overflow: 'hidden',
+};
+
+const glowBar = {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '2px',
+    background: 'linear-gradient(90deg, transparent, #D4AF37, transparent)',
+    boxShadow: '0 0 15px #D4AF37',
 };
 
 const h1 = {
-    color: '#ffffff',
-    fontSize: '24px',
-    fontWeight: '600',
-    lineHeight: '1.3',
-    margin: '0 0 20px',
+    color: '#D4AF37',
+    fontSize: '28px',
+    fontWeight: '800',
+    letterSpacing: '2px',
     textAlign: 'center' as const,
+    margin: '0 0 30px',
+    textTransform: 'uppercase' as const,
+};
+
+const greeting = {
+    color: '#666',
+    fontSize: '14px',
+    textAlign: 'center' as const,
+    margin: '0',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '1px',
+};
+
+const emailText = {
+    color: '#fff',
+    fontSize: '18px',
+    textAlign: 'center' as const,
+    margin: '5px 0 30px',
+    fontWeight: '500',
 };
 
 const text = {
     color: '#cccccc',
-    fontSize: '16px',
-    lineHeight: '24px',
+    fontSize: '15px',
+    lineHeight: '26px',
+    textAlign: 'center' as const,
     margin: '0 0 20px',
+};
+
+const statsContainer = {
+    margin: '30px 0',
+    padding: '20px 0',
+    borderTop: '1px solid #222',
+    borderBottom: '1px solid #222',
+};
+
+const statCol = {
+    textAlign: 'center' as const,
+    width: '50%',
+};
+
+const statLabel = {
+    color: '#666',
+    fontSize: '10px',
+    letterSpacing: '2px',
+    marginBottom: '5px',
+};
+
+const statValue = {
+    color: '#D4AF37',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    letterSpacing: '1px',
 };
 
 const btnContainer = {
     textAlign: 'center' as const,
-    marginTop: '32px',
-    marginBottom: '24px',
+    marginTop: '40px',
+    marginBottom: '20px',
 };
 
 const button = {
-    backgroundColor: '#D4AF37',
-    borderRadius: '6px',
+    backgroundColor: '#fff',
     color: '#000',
-    fontSize: '16px',
+    fontSize: '14px',
     fontWeight: 'bold',
     textDecoration: 'none',
     textAlign: 'center' as const,
     display: 'inline-block',
-    padding: '14px 32px',
-    boxShadow: '0 0 15px rgba(212, 175, 55, 0.3)',
+    padding: '16px 40px',
+    letterSpacing: '2px',
+    textTransform: 'uppercase' as const,
+    transition: 'all 0.3s ease',
 };
 
 const hr = {
-    borderColor: '#333',
-    margin: '24px 0',
+    borderColor: '#222',
+    margin: '40px 0',
 };
 
-const footerText = {
-    color: '#666',
-    fontSize: '12px',
-    lineHeight: '16px',
+const footer = {
     textAlign: 'center' as const,
-    margin: '0 0 10px',
+};
+
+const footerQuote = {
+    color: '#444',
+    fontStyle: 'italic',
+    fontSize: '12px',
+    marginBottom: '20px',
+};
+
+const socialContainer = {
+    marginBottom: '20px',
+    width: '200px',
+    margin: '0 auto 20px',
 };
 
 const socialLink = {
-    color: '#D4AF37',
-    fontSize: '14px',
+    color: '#666',
+    fontSize: '10px',
     textDecoration: 'none',
+    letterSpacing: '2px',
     fontWeight: 'bold',
+};
+
+const footerText = {
+    color: '#333',
+    fontSize: '10px',
+    lineHeight: '16px',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '1px',
 };
