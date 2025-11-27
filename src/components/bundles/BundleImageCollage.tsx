@@ -1,4 +1,4 @@
-import { ImageWithFallback } from '@/components/ImageWithFallback';
+import { OptimizedImage } from '@/components/OptimizedImage';
 
 interface BundleImageCollageProps {
     images: string[];
@@ -19,7 +19,7 @@ const BundleImageCollage = ({ images, name }: BundleImageCollageProps) => {
 
     if (count === 1) {
         return (
-            <ImageWithFallback
+            <OptimizedImage
                 src={validImages[0]}
                 alt={name}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
@@ -33,7 +33,7 @@ const BundleImageCollage = ({ images, name }: BundleImageCollageProps) => {
             <div className="w-full h-full grid grid-cols-2 gap-0.5">
                 {validImages.map((img, i) => (
                     <div key={i} className="relative overflow-hidden">
-                        <ImageWithFallback
+                        <OptimizedImage
                             src={img}
                             alt={`${name} ${i + 1}`}
                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
@@ -49,7 +49,7 @@ const BundleImageCollage = ({ images, name }: BundleImageCollageProps) => {
         return (
             <div className="w-full h-full grid grid-cols-2 gap-0.5">
                 <div className="relative overflow-hidden">
-                    <ImageWithFallback
+                    <OptimizedImage
                         src={validImages[0]}
                         alt={`${name} 1`}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
@@ -59,7 +59,7 @@ const BundleImageCollage = ({ images, name }: BundleImageCollageProps) => {
                 <div className="grid grid-rows-2 gap-0.5">
                     {validImages.slice(1).map((img, i) => (
                         <div key={i} className="relative overflow-hidden">
-                            <ImageWithFallback
+                            <OptimizedImage
                                 src={img}
                                 alt={`${name} ${i + 2}`}
                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
@@ -77,7 +77,7 @@ const BundleImageCollage = ({ images, name }: BundleImageCollageProps) => {
         <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-0.5">
             {validImages.map((img, i) => (
                 <div key={i} className="relative overflow-hidden">
-                    <ImageWithFallback
+                    <OptimizedImage
                         src={img}
                         alt={`${name} ${i + 1}`}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"

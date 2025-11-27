@@ -18,14 +18,14 @@ import Profile from "./pages/Profile";
 import Wishlist from "./pages/Wishlist";
 import MyOrders from "./pages/MyOrders";
 import OrderDetail from "./pages/OrderDetail";
-import Admin from "./pages/Admin";
-import AdminAuth from "./pages/AdminAuth";
+
+
 import Categories from "./pages/Categories";
+import CategoryPage from "./pages/CategoryPage";
+import CommunityPage from "./pages/CommunityPage";
 import NotFound from "./pages/NotFound";
-import Themes from "./pages/Themes";
-import FlexDesign from "./pages/FlexDesign";
-import MyCustomOrders from "./pages/MyCustomOrders";
-import Drop from "./pages/Drop";
+
+
 import DropAdminLayout from "./layouts/DropAdminLayout";
 import DropDashboard from "./pages/admin/drop/DropDashboard";
 import DropEditor from "./pages/admin/drop/DropEditor";
@@ -39,6 +39,9 @@ import FAQ from "./pages/FAQ";
 import Cookies from "./pages/Cookies";
 
 // New Admin Imports
+import ReturnManager from "./components/admin/ReturnManager";
+import CommunityManager from "./components/admin/CommunityManager";
+import BundleManager from "./components/admin/BundleManager";
 import AdminLayout from "./components/admin/layout/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProductManager from "./components/admin/ProductManager";
@@ -55,10 +58,17 @@ import UserManager from "./components/admin/UserManager";
 import ReviewManager from "./components/admin/ReviewManager";
 import DesignManager from "./components/admin/DesignManager";
 import SiteSettingsManager from "./components/admin/SiteSettingsManager";
+import BrandKitManager from "./components/admin/BrandKitManager";
+import MediaLibrary from "./components/admin/MediaLibrary";
+import CampaignBuilder from "./components/admin/CampaignBuilder";
 
 const queryClient = new QueryClient();
 
 import ComingSoon from "./pages/ComingSoon";
+import Arena from "./pages/Arena";
+import ArenaLobby from "./pages/ArenaLobby";
+import ArenaSubmit from "./pages/ArenaSubmit";
+import ArenaRules from "./pages/ArenaRules";
 
 const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -94,7 +104,8 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   // 3. User is on a public/legal page
   // 4. User is an Admin (checked via email or role - placeholder logic)
   const userEmail = user?.email?.toLowerCase();
-  const isAuthorizedUser = userEmail?.includes('admin') || userEmail?.includes('demo') || userEmail === 'raj00.mkv@gmail.com';
+  const authorizedEmails = ['raj00.mkv@gmail.com', 'admin.gamma@mtrix.store'];
+  const isAuthorizedUser = userEmail && authorizedEmails.includes(userEmail);
 
   if (loading || isOAuthCallback) return <div className="min-h-screen bg-black" />; // Prevent flash & allow OAuth to process
 
@@ -117,9 +128,12 @@ const App = () => (
 
             <Route path="/" element={<LaunchGuard><Index /></LaunchGuard>} />
             <Route path="/catalog" element={<LaunchGuard><Catalog /></LaunchGuard>} />
+            <Route path="/category/:slug" element={<CategoryPage />} />
+            <Route path="/community" element={<CommunityPage />} />
+            <Route path="/collections/:slug" element={<CategoryPage />} />
             <Route path="/categories" element={<LaunchGuard><Categories /></LaunchGuard>} />
-            <Route path="/bundles" element={<LaunchGuard><Bundles /></LaunchGuard>} />
-            <Route path="/bundle/:id" element={<LaunchGuard><BundleDetail /></LaunchGuard>} />
+            <Route path="/bundles" element={<Bundles />} />
+            <Route path="/bundle/:id" element={<BundleDetail />} />
             <Route path="/promotions" element={<LaunchGuard><Promotions /></LaunchGuard>} />
             <Route path="/support" element={<LaunchGuard><Support /></LaunchGuard>} />
             <Route path="/product/:id" element={<LaunchGuard><Product /></LaunchGuard>} />
@@ -130,6 +144,12 @@ const App = () => (
             <Route path="/wishlist" element={<LaunchGuard><Wishlist /></LaunchGuard>} />
             <Route path="/my-orders" element={<LaunchGuard><MyOrders /></LaunchGuard>} />
             <Route path="/order/:id" element={<LaunchGuard><OrderDetail /></LaunchGuard>} />
+
+            {/* MTRIX ARENA Routes */}
+            <Route path="/arena" element={<Arena />} />
+            <Route path="/arena/lobby" element={<ArenaLobby />} />
+            <Route path="/arena/submit" element={<LaunchGuard><ArenaSubmit /></LaunchGuard>} />
+            <Route path="/arena/rules" element={<ArenaRules />} />
 
             {/* Legal & Support Pages */}
             <Route path="/shipping" element={<LaunchGuard><Shipping /></LaunchGuard>} />
@@ -155,9 +175,15 @@ const App = () => (
               <Route path="social" element={<SocialContentManager />} />
               <Route path="coupons" element={<CouponManager />} />
               <Route path="users" element={<UserManager />} />
+              <Route path="returns" element={<ReturnManager />} />
+              <Route path="community" element={<CommunityManager />} />
+              <Route path="bundles" element={<BundleManager />} />
               <Route path="reviews" element={<ReviewManager />} />
               <Route path="designs" element={<DesignManager />} />
               <Route path="settings" element={<SiteSettingsManager />} />
+              <Route path="brand-kit" element={<BrandKitManager />} />
+              <Route path="media" element={<MediaLibrary />} />
+              <Route path="campaigns" element={<CampaignBuilder />} />
             </Route>
 
             {/* Drop Admin Routes */}

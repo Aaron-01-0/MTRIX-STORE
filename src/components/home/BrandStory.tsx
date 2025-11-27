@@ -1,26 +1,21 @@
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ResponsiveVideo } from '@/components/ResponsiveVideo';
 
 const BrandStory = () => {
     return (
         <section className="relative min-h-[80vh] flex items-center bg-black overflow-hidden">
             {/* Background Video */}
             <div className="absolute inset-0 z-0">
-                <video
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
+                <ResponsiveVideo
+                    src="https://cdn.pixabay.com/video/2023/10/22/186175-877653483_large.mp4"
                     className="w-full h-full object-cover opacity-60"
-                >
-                    {/* To use your own video:
-                        1. Create a 'videos' folder in 'public'
-                        2. Upload your video there (e.g., background.mp4)
-                        3. Change src below to: "/videos/background.mp4" 
-                    */}
-                    <source src="https://cdn.pixabay.com/video/2023/10/22/186175-877653483_large.mp4" type="video/mp4" />
-                </video>
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                />
                 <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent" />
             </div>
 

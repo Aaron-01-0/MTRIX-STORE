@@ -34,6 +34,26 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
+
+    // Rate Limit Check: Max 5 pending orders in last 15 minutes
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { count: pendingCount, error: rateLimitError } = await supabaseAdmin
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .gt('created_at', fifteenMinutesAgo);
+
+    if (rateLimitError) {
+      console.error('Rate limit check failed:', rateLimitError);
+      throw new Error('System busy. Please try again.');
+    }
+
+    if (pendingCount && pendingCount >= 5) {
+      console.warn(`Rate limit exceeded for user ${user.id}: ${pendingCount} pending orders`);
+      throw new Error('You have too many pending orders. Please complete or cancel them before creating a new one.');
+    }
+
     const { shippingAddress, couponCode } = await req.json();
 
     // Validate shipping address
@@ -50,12 +70,18 @@ serve(async (req) => {
         product_id,
         quantity,
         variant_id,
+        bundle_id,
         products:product_id (
           id,
           name,
           base_price,
           discount_price,
           stock_quantity
+        ),
+        bundles:bundle_id (
+          id,
+          price_type,
+          price_value
         )
       `)
       .eq('user_id', user.id);
@@ -74,6 +100,10 @@ serve(async (req) => {
     let calculatedTotal = 0;
     const inventoryItems = [];
 
+    // Group items for bundle calculation
+    const bundleGroups: Record<string, { bundle: any, items: any[], totalItemPrice: number }> = {};
+    const standaloneItems = [];
+
     for (const item of cartItems) {
       const product = item.products;
 
@@ -84,7 +114,7 @@ serve(async (req) => {
         quantity: item.quantity
       });
 
-      // Get variant price if variant_id exists
+      // Calculate individual item price
       let itemPrice = product.discount_price || product.base_price;
 
       if (item.variant_id) {
@@ -103,7 +133,41 @@ serve(async (req) => {
         }
       }
 
-      calculatedTotal += itemPrice * item.quantity;
+      const lineItemTotal = itemPrice * item.quantity;
+
+      if (item.bundle_id && item.bundles) {
+        if (!bundleGroups[item.bundle_id]) {
+          bundleGroups[item.bundle_id] = {
+            bundle: item.bundles,
+            items: [],
+            totalItemPrice: 0
+          };
+        }
+        bundleGroups[item.bundle_id].items.push(item);
+        bundleGroups[item.bundle_id].totalItemPrice += lineItemTotal;
+      } else {
+        standaloneItems.push({ ...item, price: itemPrice, lineTotal: lineItemTotal });
+        calculatedTotal += lineItemTotal;
+      }
+    }
+
+    // Calculate Bundle Prices
+    for (const bundleId in bundleGroups) {
+      const group = bundleGroups[bundleId];
+      const bundle = group.bundle;
+
+      let bundlePrice = group.totalItemPrice;
+      const bundleQty = group.items[0]?.quantity || 1;
+
+      if (bundle.price_type === 'fixed') {
+        bundlePrice = bundle.price_value * bundleQty;
+      } else if (bundle.price_type === 'percentage_discount') {
+        bundlePrice = group.totalItemPrice * (1 - bundle.price_value / 100);
+      } else if (bundle.price_type === 'fixed_discount') {
+        bundlePrice = Math.max(0, group.totalItemPrice - (bundle.price_value * bundleQty));
+      }
+
+      calculatedTotal += bundlePrice;
     }
 
     // Reserve Inventory (Atomic Lock)

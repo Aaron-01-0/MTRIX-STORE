@@ -28,22 +28,130 @@ serve(async (req) => {
             throw new Error('No signature provided');
         }
 
-        const bodyText = await req.text();
-        const expectedSignature = createHmac('sha256', webhookSecret)
-            .update(bodyText)
-            .digest('hex');
+        const event = await req.json();
 
-        if (signature !== expectedSignature) {
-            console.error('Invalid webhook signature');
-            throw new Error('Invalid signature');
+        // 2. Handle Events
+        const { event: eventType, payload } = event;
+        const payment = payload.payment.entity;
+        const orderId = payment.notes?.order_id;
+        const userId = payment.notes?.user_id;
+
+        console.log(`Received webhook event: ${eventType} for Order: ${orderId}`);
+
+        if (!orderId) {
+            console.warn('No order_id found in webhook payload');
+            return new Response(JSON.stringify({ received: true }), { headers: corsHeaders });
         }
+
+        // Admin client for DB operations
+        const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+
+        if (eventType === 'payment.captured') {
+            // Check current order status
+            const { data: order, error: fetchError } = await supabaseAdmin
+                .from('orders')
+                .select('status, payment_status')
+                .eq('id', orderId)
+                .single();
+
+            if (fetchError) {
+                console.error('Error fetching order:', fetchError);
+                throw fetchError;
+            }
+
+            // If already processed, ignore
+            if (order.payment_status === 'success' || order.status === 'order_created') {
+                console.log('Order already processed, ignoring webhook');
+                return new Response(JSON.stringify({ received: true }), { headers: corsHeaders });
+            }
+
+            // Update Order Status
+            const { error: updateError } = await supabaseAdmin
+                .from('orders')
+                .update({
+                    payment_status: 'success',
+                    status: 'order_created',
+                    razorpay_payment_id: payment.id,
+                    razorpay_order_id: payment.order_id,
+                    razorpay_signature: signature // Webhook signature as proof
+                })
+                .eq('id', orderId);
+
+            if (updateError) {
+                console.error('Failed to update order status:', updateError);
+                throw updateError;
+            }
+
+            // Update Transaction
+            await supabaseAdmin
+                .from('payment_transactions')
+                .update({
+                    razorpay_payment_id: payment.id,
+                    status: 'success',
+                    razorpay_signature: signature
+                })
+                .eq('order_id', orderId);
+
+            // Clear Cart (if user ID exists)
+            if (userId) {
+                await supabaseAdmin
+                    .from('cart_items')
+                    .delete()
+                    .eq('user_id', userId);
+            }
+
+            console.log('Order successfully updated via webhook');
+
+        } else if (eventType === 'payment.failed') {
+            // Release Inventory
+            const { data: order, error: fetchError } = await supabaseAdmin
+                .from('orders')
+                .select(`
+                    *,
+                    order_items (
+                        product_id,
+                        variant_id,
+                        quantity
+                    )
+                `)
+                .eq('id', orderId)
+                .single();
+
+            if (!fetchError && order && order.status === 'pending') {
+                // Release Inventory
+                const inventoryItems = order.order_items.map((item: any) => ({
+                    product_id: item.product_id,
+                    variant_id: item.variant_id,
+                    quantity: item.quantity
+                }));
+
+                await supabaseAdmin.rpc('release_inventory', {
+                    p_items: inventoryItems
+                });
+
+                // Mark order as failed
+                await supabaseAdmin
+                    .from('orders')
+                    .update({
+                        status: 'cancelled',
+                        payment_status: 'failed'
+                    })
+                    .eq('id', orderId);
+
+                console.log('Order cancelled and inventory released via webhook');
+            }
+        }
+
+        return new Response(JSON.stringify({ received: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200
+        });
+
     } catch (error: any) {
         console.error('Webhook processing error:', error);
         return new Response(JSON.stringify({ error: error.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400 // Return 400 to let Razorpay know something went wrong? Or 200 to stop retries?
-            // Usually 200 is safer to stop retries if it's a logic error, 500 if temporary.
-            // But for signature failure, 400 is appropriate.
+            status: 400
         });
     }
 });

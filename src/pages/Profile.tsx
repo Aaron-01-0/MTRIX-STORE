@@ -8,8 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import MyOrders from './MyOrders';
+import MyCoupons from '@/components/profile/MyCoupons';
 import { toast } from 'sonner';
-import { User, MapPin, Plus, Edit2, Trash2, Clock } from 'lucide-react';
+import { User, Package, Heart, LogOut, Settings, Ticket, MapPin, Plus, Edit2, Trash2, Clock } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
@@ -208,14 +210,14 @@ const Profile = () => {
           .from('addresses')
           .update(addressPayload)
           .eq('id', editingAddress.id);
-        
+
         if (error) throw error;
         toast.success('Address updated successfully');
       } else {
         const { error } = await supabase
           .from('addresses')
           .insert(addressPayload);
-        
+
         if (error) throw error;
         toast.success('Address added successfully');
       }
@@ -289,7 +291,7 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <div className="container mx-auto px-4 py-8 mt-20">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
@@ -375,6 +377,14 @@ const Profile = () => {
                   </form>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="orders" className="mt-6">
+              <MyOrders />
+            </TabsContent>
+
+            <TabsContent value="coupons" className="mt-6">
+              <MyCoupons />
             </TabsContent>
 
             {/* Addresses Tab */}
@@ -471,7 +481,7 @@ const Profile = () => {
                             <Label htmlFor="addressType">Address Type</Label>
                             <Select
                               value={addressData.address_type}
-                              onValueChange={(value: 'home' | 'work' | 'other') => 
+                              onValueChange={(value: 'home' | 'work' | 'other') =>
                                 setAddressData({ ...addressData, address_type: value })
                               }
                             >

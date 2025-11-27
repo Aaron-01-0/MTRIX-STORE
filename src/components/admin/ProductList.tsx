@@ -4,26 +4,30 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Edit, Trash2, Image, Video, Eye } from 'lucide-react';
+import { Edit, Trash2, Image, Video, Eye, EyeOff, Globe } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import ProductImageManager from './ProductImageManager';
 import ProductVideoManager from './ProductVideoManager';
 import { ProductVariantManager } from './ProductVariantManager';
 import { InlineStockEditor } from './InlineStockEditor';
+import { cn } from '@/lib/utils';
 
 type Product = Tables<'products'> & {
   categories?: { name: string } | null;
   brands?: { name: string } | null;
 };
 
+type ProductStatus = 'draft' | 'published' | 'archived';
+
 interface ProductListProps {
   products: Product[];
   onEdit: (product: Product) => void;
   onDelete: (productId: string) => void;
   onRefresh?: () => void;
+  onStatusChange?: (productId: string, newStatus: ProductStatus) => void;
 }
 
-const ProductList = ({ products, onEdit, onDelete, onRefresh }: ProductListProps) => {
+const ProductList = ({ products, onEdit, onDelete, onRefresh, onStatusChange }: ProductListProps) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
   const [mediaType, setMediaType] = useState<'images' | 'videos'>('images');
@@ -151,6 +155,16 @@ const ProductList = ({ products, onEdit, onDelete, onRefresh }: ProductListProps
 
                 <Button
                   size="sm"
+                  variant={product.status === 'published' ? 'default' : 'secondary'}
+                  onClick={() => onStatusChange?.(product.id, product.status === 'published' ? 'draft' : 'published')}
+                  className={cn("flex items-center space-x-1", product.status === 'published' ? "bg-green-600 hover:bg-green-700" : "bg-yellow-600 hover:bg-yellow-700")}
+                >
+                  {product.status === 'published' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  <span>{product.status === 'published' ? 'Live' : 'Hidden'}</span>
+                </Button>
+
+                <Button
+                  size="sm"
                   variant="outline"
                   onClick={() => openMediaManager(product, 'images')}
                   className="flex items-center space-x-1"
@@ -165,7 +179,7 @@ const ProductList = ({ products, onEdit, onDelete, onRefresh }: ProductListProps
                   onClick={() => window.open(`/product/${product.id}`, '_blank')}
                   className="flex items-center space-x-1"
                 >
-                  <Eye className="w-4 h-4" />
+                  <Globe className="w-4 h-4" />
                   <span>Preview</span>
                 </Button>
 

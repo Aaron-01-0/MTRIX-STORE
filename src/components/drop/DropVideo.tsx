@@ -1,3 +1,5 @@
+import { ResponsiveVideo } from '@/components/ResponsiveVideo';
+
 const DropVideo = () => {
     return (
         <section className="relative h-[80vh] w-full bg-black overflow-hidden">
@@ -8,21 +10,16 @@ const DropVideo = () => {
                 </h2>
             </div>
 
-            {/* Video Placeholder (Using an image for now as requested, but structured for video) */}
+            {/* Video Placeholder */}
             <div className="absolute inset-0 z-0">
-                {/* In a real scenario, this would be a <video> tag */}
-                <img
-                    src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=2080&auto=format&fit=crop"
-                    alt="Promo Video Background"
+                <ResponsiveVideo
+                    src="https://cdn.pixabay.com/video/2023/10/22/186175-877653483_large.mp4"
                     className="w-full h-full object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-1000"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
                 />
-
-                {/* Play Button Overlay */}
-                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                    <div className="w-20 h-20 rounded-full border-2 border-white/30 flex items-center justify-center backdrop-blur-sm">
-                        <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[20px] border-l-white border-b-[10px] border-b-transparent ml-1" />
-                    </div>
-                </div>
             </div>
 
             {/* Marquee Text at Bottom */}

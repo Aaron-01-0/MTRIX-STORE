@@ -115,18 +115,7 @@ interface InvoiceProps {
 export const InvoicePdf = ({ order }: InvoiceProps) => (
     <Document>
         <Page size="A4" style={styles.page}>
-            {/* Header */}
-            <View style={styles.header}>
-                <View>
-                    {/* Placeholder for Logo - replace with actual URL if available */}
-                    <Text style={styles.title}>MTRIX</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 16, fontWeight: 'bold' }}>INVOICE</Text>
-                    <Text>#{order.order_number}</Text>
-                    <Text>{new Date(order.created_at).toLocaleDateString()}</Text>
-                </View>
-            </View>
+
 
             {/* Addresses */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>

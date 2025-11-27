@@ -28,15 +28,34 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
   const [showCropper, setShowCropper] = useState(false);
   const [imageToCrop, setImageToCrop] = useState<string>('');
   const [currentFile, setCurrentFile] = useState<File | null>(null);
-  
+
   const [newImage, setNewImage] = useState({
     image_url: '',
     alt_text: '',
     is_main: false,
-    variant_type: '',
+    variant_type: 'color',
     variant_value: '',
     display_order: 0
   });
+
+  // Fetch available colors from variants
+  const [availableColors, setAvailableColors] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadColors();
+  }, [productId]);
+
+  const loadColors = async () => {
+    const { data } = await supabase
+      .from('product_variants')
+      .select('color')
+      .eq('product_id', productId);
+
+    if (data) {
+      const uniqueColors = Array.from(new Set(data.map(v => v.color)));
+      setAvailableColors(uniqueColors);
+    }
+  };
 
   useEffect(() => {
     loadImages();
@@ -77,13 +96,13 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
 
   const handleCroppedImage = async (croppedBlob: Blob) => {
     setShowCropper(false);
-    
+
     if (!currentFile) return;
-    
+
     try {
       // Create a File from the Blob
       const croppedFile = new File([croppedBlob], currentFile.name, { type: currentFile.type });
-      
+
       // Upload using the storage hook
       const publicUrl = await uploadFile(croppedFile, {
         bucket: 'product-images',
@@ -126,7 +145,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    
+
     // For single file, open cropper
     if (files.length === 1) {
       openCropper(files[0]);
@@ -155,7 +174,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
       });
 
       const newImages = await Promise.all(uploadPromises);
-      
+
       const { error } = await supabase
         .from('product_images')
         .insert(newImages);
@@ -262,7 +281,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
     try {
       // Get the image to extract the storage path
       const image = images.find(img => img.id === imageId);
-      
+
       // Delete from database
       const { error } = await supabase
         .from('product_images')
@@ -331,8 +350,8 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
     const currentImage = images.find(img => img.id === imageId);
     if (!currentImage) return;
 
-    const targetOrder = direction === 'up' 
-      ? currentImage.display_order - 1 
+    const targetOrder = direction === 'up'
+      ? currentImage.display_order - 1
       : currentImage.display_order + 1;
 
     const targetImage = images.find(img => img.display_order === targetOrder);
@@ -379,7 +398,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
       <Card className="bg-mtrix-black border-mtrix-gray">
         <CardContent className="p-4">
           <h3 className="text-lg font-semibold text-foreground mb-4">Add New Images</h3>
-          
+
           {/* File Upload */}
           <div className="space-y-4">
             <div>
@@ -411,7 +430,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                   className="bg-mtrix-dark border-mtrix-gray"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="alt_text">Alt Text</Label>
                 <Input
@@ -422,41 +441,32 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                   className="bg-mtrix-dark border-mtrix-gray"
                 />
               </div>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="variant_type">Variant Type</Label>
+                <Label htmlFor="variant_value">Color Variant</Label>
                 <Select
-                  value={newImage.variant_type || "none"}
-                  onValueChange={(value) => setNewImage(prev => ({ 
-                    ...prev, 
-                    variant_type: value === "none" ? '' : value 
+                  value={newImage.variant_value || "all"}
+                  onValueChange={(value) => setNewImage(prev => ({
+                    ...prev,
+                    variant_type: value === "all" ? null : 'color',
+                    variant_value: value === "all" ? null : value
                   }))}
                 >
                   <SelectTrigger className="bg-mtrix-dark border-mtrix-gray">
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder="All Colors" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="color">Color</SelectItem>
-                    <SelectItem value="size">Size</SelectItem>
-                    <SelectItem value="style">Style</SelectItem>
-                    <SelectItem value="material">Material</SelectItem>
+                    <SelectItem value="all">All Colors</SelectItem>
+                    {availableColors.map(color => (
+                      <SelectItem key={color} value={color}>{color}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="variant_value">Variant Value</Label>
-                <Input
-                  id="variant_value"
-                  value={newImage.variant_value}
-                  onChange={(e) => setNewImage(prev => ({ ...prev, variant_value: e.target.value }))}
-                  placeholder="e.g., Red, Large"
-                  className="bg-mtrix-dark border-mtrix-gray"
-                />
-              </div>
+
+
             </div>
-            
+
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <Switch
@@ -466,7 +476,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                 />
                 <Label htmlFor="is_main">Set as main image</Label>
               </div>
-              
+
               <Button
                 onClick={addImageByUrl}
                 className="bg-gradient-gold text-mtrix-black hover:shadow-gold"
@@ -495,21 +505,21 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                     target.src = '/api/placeholder/300/300';
                   }}
                 />
-                
+
                 {image.is_main && (
                   <Badge className="absolute top-2 left-2 bg-green-500 text-white">
                     <Star className="w-3 h-3 mr-1" />
                     Main
                   </Badge>
                 )}
-                
+
                 {image.variant_type && image.variant_value && (
                   <Badge className="absolute top-2 right-2 bg-blue-500 text-white">
                     {image.variant_type}: {image.variant_value}
                   </Badge>
                 )}
               </div>
-              
+
               <div className="mt-4 space-y-3">
                 <div>
                   <Label className="text-xs text-muted-foreground">Alt Text</Label>
@@ -520,7 +530,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                     placeholder="Image description"
                   />
                 </div>
-                
+
                 <div className="flex flex-wrap gap-2">
                   {!image.is_main && (
                     <Button
@@ -533,7 +543,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                       Set Main
                     </Button>
                   )}
-                  
+
                   <Button
                     size="sm"
                     variant="outline"
@@ -543,7 +553,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                   >
                     <MoveUp className="w-3 h-3" />
                   </Button>
-                  
+
                   <Button
                     size="sm"
                     variant="outline"
@@ -553,7 +563,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                   >
                     <MoveDown className="w-3 h-3" />
                   </Button>
-                  
+
                   <Button
                     size="sm"
                     variant="destructive"

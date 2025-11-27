@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import SupportInbox from './SupportInbox';
 
 interface FAQ {
   id: string;
@@ -145,17 +146,22 @@ const SupportManager = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-orbitron font-bold text-gradient-gold">Support & Legal</h2>
-        <p className="text-muted-foreground">Manage FAQs, contact info, and legal policies.</p>
+        <p className="text-muted-foreground">Manage messages, FAQs, contact info, and legal policies.</p>
       </div>
 
       <Card className="bg-mtrix-dark border-mtrix-gray">
         <CardContent className="p-6">
-          <Tabs defaultValue="contact">
+          <Tabs defaultValue="inbox">
             <TabsList className="bg-mtrix-black border border-mtrix-gray mb-6">
+              <TabsTrigger value="inbox">Inbox</TabsTrigger>
               <TabsTrigger value="contact">Contact Info</TabsTrigger>
               <TabsTrigger value="faqs">FAQs</TabsTrigger>
               <TabsTrigger value="policies">Policies</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="inbox">
+              <SupportInbox />
+            </TabsContent>
 
             <TabsContent value="contact" className="space-y-4">
               {settings && (

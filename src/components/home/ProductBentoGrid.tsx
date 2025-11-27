@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { OptimizedImage } from "@/components/OptimizedImage";
 
 interface Product {
     id: string;
@@ -99,7 +100,7 @@ const ProductBentoGrid = () => {
                         >
                             {/* Image */}
                             <div className="absolute inset-0">
-                                <img
+                                <OptimizedImage
                                     src={product.image_url || '/placeholder.svg'}
                                     alt={product.name}
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"

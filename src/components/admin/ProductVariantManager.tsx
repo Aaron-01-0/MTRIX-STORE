@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, Plus, Upload, Save, X, Wand2, Image as ImageIcon } from 'lucide-react';
+import { Trash2, Plus, Upload, Save, X, Wand2, Image as ImageIcon, Layers } from 'lucide-react';
 import { useStorageUpload } from '@/hooks/useStorageUpload';
 import { Badge } from '@/components/ui/badge';
 
@@ -38,7 +38,7 @@ interface ProductVariant {
 
 interface Props {
   productId: string;
-  productSku?: string; // Passed from parent to help with auto-SKU
+  productSku?: string;
 }
 
 export const ProductVariantManager = ({ productId, productSku }: Props) => {
@@ -47,6 +47,7 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
 
   // Inline editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -60,6 +61,14 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
     stock_quantity: '',
     sku: '',
     image_url: ''
+  });
+
+  // Bulk form state
+  const [bulkForm, setBulkForm] = useState({
+    colors: '',
+    sizes: '',
+    price: '',
+    stock: ''
   });
 
   useEffect(() => {
@@ -109,56 +118,86 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
     if (isNew) {
       setNewVariant(prev => ({ ...prev, image_url: imageUrl }));
     } else if (variantId) {
-      // If inline editing, update immediately
       await updateVariantField(variantId, 'image_url', imageUrl);
     }
   };
 
   const addVariant = async () => {
     if (!newVariant.color || !newVariant.size || !newVariant.absolute_price || !newVariant.sku) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
+      toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from('product_variants')
-        .insert({
-          product_id: productId,
-          color: newVariant.color,
-          size: newVariant.size,
-          absolute_price: parseFloat(newVariant.absolute_price),
-          stock_quantity: parseInt(newVariant.stock_quantity) || 0,
-          sku: newVariant.sku,
-          image_url: newVariant.image_url,
-          variant_type: 'color-size',
-          variant_name: `${newVariant.color} - ${newVariant.size}`,
-          is_active: true
-        });
+      const { error } = await supabase.from('product_variants').insert({
+        product_id: productId,
+        color: newVariant.color,
+        size: newVariant.size,
+        absolute_price: parseFloat(newVariant.absolute_price),
+        stock_quantity: parseInt(newVariant.stock_quantity) || 0,
+        sku: newVariant.sku,
+        image_url: newVariant.image_url,
+        variant_type: 'color-size',
+        variant_name: `${newVariant.color} - ${newVariant.size}`,
+        is_active: true
+      });
 
       if (error) throw error;
 
       toast({ title: "Success", description: "Variant added successfully" });
-      setNewVariant({
-        color: '',
-        size: '',
-        absolute_price: '',
-        stock_quantity: '',
-        sku: '',
-        image_url: ''
-      });
+      setNewVariant({ color: '', size: '', absolute_price: '', stock_quantity: '', sku: '', image_url: '' });
       setIsDialogOpen(false);
       fetchVariants();
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add variant",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: error.message || "Failed to add variant", variant: "destructive" });
+    }
+  };
+
+  const handleBulkGenerate = async () => {
+    if (!bulkForm.colors || !bulkForm.sizes || !bulkForm.price || !bulkForm.stock) {
+      toast({ title: "Error", description: "All fields are required", variant: "destructive" });
+      return;
+    }
+
+    const colors = bulkForm.colors.split(',').map(c => c.trim()).filter(c => c);
+    const sizes = bulkForm.sizes.split(',').map(s => s.trim()).filter(s => s);
+
+    if (colors.length === 0 || sizes.length === 0) {
+      toast({ title: "Error", description: "Enter at least one color and size", variant: "destructive" });
+      return;
+    }
+
+    const variantsToInsert = [];
+    for (const color of colors) {
+      for (const size of sizes) {
+        const sku = productSku
+          ? `${productSku}-${color.toUpperCase().slice(0, 3)}-${size.toUpperCase()}`
+          : `${color.toUpperCase().slice(0, 3)}-${size.toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+
+        variantsToInsert.push({
+          product_id: productId,
+          color: color,
+          size: size,
+          absolute_price: parseFloat(bulkForm.price),
+          stock_quantity: parseInt(bulkForm.stock),
+          sku: sku,
+          variant_type: 'color-size',
+          variant_name: `${color} - ${size}`,
+          is_active: true
+        });
+      }
+    }
+
+    try {
+      const { error } = await supabase.from('product_variants').insert(variantsToInsert);
+      if (error) throw error;
+
+      toast({ title: "Success", description: `Generated ${variantsToInsert.length} variants` });
+      setIsBulkOpen(false);
+      setBulkForm({ colors: '', sizes: '', price: '', stock: '' });
+      fetchVariants();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to generate variants", variant: "destructive" });
     }
   };
 
@@ -176,17 +215,14 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
     if (!editingId || !editForm) return;
 
     try {
-      const { error } = await supabase
-        .from('product_variants')
-        .update({
-          color: editForm.color,
-          size: editForm.size,
-          absolute_price: editForm.absolute_price,
-          stock_quantity: editForm.stock_quantity,
-          sku: editForm.sku,
-          variant_name: `${editForm.color} - ${editForm.size}`
-        })
-        .eq('id', editingId);
+      const { error } = await supabase.from('product_variants').update({
+        color: editForm.color,
+        size: editForm.size,
+        absolute_price: editForm.absolute_price,
+        stock_quantity: editForm.stock_quantity,
+        sku: editForm.sku,
+        variant_name: `${editForm.color} - ${editForm.size}`
+      }).eq('id', editingId);
 
       if (error) throw error;
 
@@ -194,24 +230,14 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
       setEditingId(null);
       fetchVariants();
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "Failed to update variant",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to update variant", variant: "destructive" });
     }
   };
 
   const updateVariantField = async (id: string, field: string, value: any) => {
     try {
-      const { error } = await supabase
-        .from('product_variants')
-        .update({ [field]: value })
-        .eq('id', id);
-
+      const { error } = await supabase.from('product_variants').update({ [field]: value }).eq('id', id);
       if (error) throw error;
-
-      // Optimistic update or refetch
       fetchVariants();
     } catch (error) {
       console.error('Error updating variant:', error);
@@ -221,23 +247,13 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
 
   const deleteVariant = async (variantId: string) => {
     if (!confirm('Are you sure you want to delete this variant?')) return;
-
     try {
-      const { error } = await supabase
-        .from('product_variants')
-        .delete()
-        .eq('id', variantId);
-
+      const { error } = await supabase.from('product_variants').delete().eq('id', variantId);
       if (error) throw error;
-
       toast({ title: "Success", description: "Variant deleted" });
       fetchVariants();
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "Failed to delete variant",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to delete variant", variant: "destructive" });
     }
   };
 
@@ -251,110 +267,167 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
           <p className="text-sm text-muted-foreground">Manage colors, sizes, and stock levels.</p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-gold text-mtrix-black hover:shadow-gold">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Variant
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="bg-mtrix-black border-white/10 text-white sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="text-gradient-gold">Add New Variant</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+        <div className="flex gap-2">
+          <Dialog open={isBulkOpen} onOpenChange={setIsBulkOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
+                <Layers className="w-4 h-4 mr-2" /> Bulk Generate
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-mtrix-black border-white/10 text-white sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="text-gradient-gold">Bulk Generate Variants</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Color</Label>
+                  <Label>Colors (comma separated)</Label>
                   <Input
-                    value={newVariant.color}
-                    onChange={(e) => setNewVariant({ ...newVariant, color: e.target.value })}
-                    className="bg-white/5 border-white/10"
-                    placeholder="e.g. Red"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Size</Label>
-                  <Input
-                    value={newVariant.size}
-                    onChange={(e) => setNewVariant({ ...newVariant, size: e.target.value })}
-                    className="bg-white/5 border-white/10"
-                    placeholder="e.g. XL"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>SKU</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={newVariant.sku}
-                    onChange={(e) => setNewVariant({ ...newVariant, sku: e.target.value })}
-                    className="bg-white/5 border-white/10"
-                    placeholder="PROD-RED-XL"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={generateSku}
-                    title="Auto-generate SKU"
-                    className="border-white/10 hover:bg-white/5"
-                  >
-                    <Wand2 className="w-4 h-4 text-primary" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Price (₹)</Label>
-                  <Input
-                    type="number"
-                    value={newVariant.absolute_price}
-                    onChange={(e) => setNewVariant({ ...newVariant, absolute_price: e.target.value })}
+                    value={bulkForm.colors}
+                    onChange={(e) => setBulkForm({ ...bulkForm, colors: e.target.value })}
+                    placeholder="Red, Blue, Black"
                     className="bg-white/5 border-white/10"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Stock</Label>
+                  <Label>Sizes (comma separated)</Label>
                   <Input
-                    type="number"
-                    value={newVariant.stock_quantity}
-                    onChange={(e) => setNewVariant({ ...newVariant, stock_quantity: e.target.value })}
+                    value={bulkForm.sizes}
+                    onChange={(e) => setBulkForm({ ...bulkForm, sizes: e.target.value })}
+                    placeholder="S, M, L, XL"
                     className="bg-white/5 border-white/10"
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Image</Label>
-                <div className="flex items-center gap-4">
-                  <div className="relative w-16 h-16 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden group">
-                    {newVariant.image_url ? (
-                      <img src={newVariant.image_url} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                    )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Base Price</Label>
                     <Input
-                      type="file"
-                      accept="image/*"
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      onChange={(e) => handleImageUpload(e, true)}
-                      disabled={uploading}
+                      type="number"
+                      value={bulkForm.price}
+                      onChange={(e) => setBulkForm({ ...bulkForm, price: e.target.value })}
+                      className="bg-white/5 border-white/10"
                     />
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Click to upload variant specific image
+                  <div className="space-y-2">
+                    <Label>Base Stock</Label>
+                    <Input
+                      type="number"
+                      value={bulkForm.stock}
+                      onChange={(e) => setBulkForm({ ...bulkForm, stock: e.target.value })}
+                      className="bg-white/5 border-white/10"
+                    />
                   </div>
                 </div>
+                <Button onClick={handleBulkGenerate} className="w-full bg-primary text-black hover:bg-primary/90 mt-4">
+                  Generate Variants
+                </Button>
               </div>
+            </DialogContent>
+          </Dialog>
 
-              <Button onClick={addVariant} className="w-full bg-primary text-black hover:bg-primary/90 mt-4">
-                Create Variant
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-gold text-mtrix-black hover:shadow-gold">
+                <Plus className="w-4 h-4 mr-2" /> Add Variant
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="bg-mtrix-black border-white/10 text-white sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="text-gradient-gold">Add New Variant</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Color</Label>
+                    <Input
+                      value={newVariant.color}
+                      onChange={(e) => setNewVariant({ ...newVariant, color: e.target.value })}
+                      className="bg-white/5 border-white/10"
+                      placeholder="e.g. Red"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Size</Label>
+                    <Input
+                      value={newVariant.size}
+                      onChange={(e) => setNewVariant({ ...newVariant, size: e.target.value })}
+                      className="bg-white/5 border-white/10"
+                      placeholder="e.g. XL"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>SKU</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={newVariant.sku}
+                      onChange={(e) => setNewVariant({ ...newVariant, sku: e.target.value })}
+                      className="bg-white/5 border-white/10"
+                      placeholder="PROD-RED-XL"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={generateSku}
+                      title="Auto-generate SKU"
+                      className="border-white/10 hover:bg-white/5"
+                    >
+                      <Wand2 className="w-4 h-4 text-primary" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Price (₹)</Label>
+                    <Input
+                      type="number"
+                      value={newVariant.absolute_price}
+                      onChange={(e) => setNewVariant({ ...newVariant, absolute_price: e.target.value })}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Stock</Label>
+                    <Input
+                      type="number"
+                      value={newVariant.stock_quantity}
+                      onChange={(e) => setNewVariant({ ...newVariant, stock_quantity: e.target.value })}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Image</Label>
+                  <div className="flex items-center gap-4">
+                    <div className="relative w-16 h-16 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center overflow-hidden group">
+                      {newVariant.image_url ? (
+                        <img src={newVariant.image_url} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                      )}
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                        onChange={(e) => handleImageUpload(e, true)}
+                        disabled={uploading}
+                      />
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Click to upload variant specific image
+                    </div>
+                  </div>
+                </div>
+
+                <Button onClick={addVariant} className="w-full bg-primary text-black hover:bg-primary/90 mt-4">
+                  Create Variant
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="rounded-xl border border-white/10 overflow-hidden bg-black/40 backdrop-blur-sm">

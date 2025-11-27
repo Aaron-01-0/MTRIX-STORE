@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
     { icon: Package, label: 'Products', path: '/admin/products' },
+    { icon: Package, label: 'Bundles', path: '/admin/bundles' },
     { icon: AlertTriangle, label: 'Inventory', path: '/admin/inventory' },
     { icon: ShoppingCart, label: 'Orders', path: '/admin/orders' },
     { icon: CreditCard, label: 'Payments', path: '/admin/payments' },
@@ -31,8 +32,11 @@ const menuItems = [
     { icon: Users, label: 'Users', path: '/admin/users' },
     { icon: HelpCircle, label: 'Support', path: '/admin/support' },
     { icon: Star, label: 'Reviews', path: '/admin/reviews' },
-    { icon: Palette, label: 'Designs', path: '/admin/designs' },
+    { icon: Palette, label: 'Brand Kit', path: '/admin/brand-kit' },
+    { icon: ImageIcon, label: 'Media Library', path: '/admin/media' },
+    { icon: Zap, label: 'Campaigns', path: '/admin/campaigns' },
     { icon: Instagram, label: 'Social', path: '/admin/social' },
+    { icon: Users, label: 'Community', path: '/admin/community' },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },
 ];
 

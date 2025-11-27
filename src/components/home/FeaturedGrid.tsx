@@ -6,6 +6,7 @@ import { ShoppingCart, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
+import { OptimizedImage } from "@/components/OptimizedImage";
 
 interface Product {
     id: string;
@@ -90,10 +91,10 @@ const FeaturedGrid = () => {
                         <Link key={product.id} to={`/product/${product.id}`} className="group">
                             <Card className="bg-mtrix-black border-mtrix-gray overflow-hidden transition-all duration-300 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10">
                                 <div className="relative aspect-square overflow-hidden bg-mtrix-dark">
-                                    <img
+                                    <OptimizedImage
                                         src={product.image_url || '/placeholder.svg'}
                                         alt={product.name}
-                                        loading="lazy"
+                                        aspectRatio="square"
                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                     />
 

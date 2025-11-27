@@ -4,7 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { Users, ArrowRight, Check, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
-import SantaReveal from '@/components/SantaReveal';
 
 // Define outside to avoid initialization errors
 const TARGET_DATE = new Date('2025-12-25T00:00:00');
@@ -311,12 +310,7 @@ const ComingSoon = () => {
 
     return (
         <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-gold/30">
-            {/* Intro Animation */}
-            <AnimatePresence>
-                {showIntro && (
-                    <SantaReveal onComplete={() => setShowIntro(false)} />
-                )}
-            </AnimatePresence>
+            {/* Intro Animation Removed */}
 
             {/* Premium Background */}
             <div className="absolute inset-0 bg-black">
@@ -419,12 +413,7 @@ const ComingSoon = () => {
                         </AnimatePresence>
                     </div>
 
-                    {/* Admin Login Link */}
-                    <div className="absolute top-4 right-4 z-50">
-                        <a href="/auth" className="text-xs text-neutral-600 hover:text-gold transition-colors uppercase tracking-widest opacity-50 hover:opacity-100">
-                            Admin Access
-                        </a>
-                    </div>
+
                 </div>
             </div>
         </div>

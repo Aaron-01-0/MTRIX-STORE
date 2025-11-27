@@ -21,11 +21,11 @@ const ReviewManager = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('reviews' as any)
+        .from('product_reviews')
         .select(`
           *,
           products (name),
-          profiles (full_name, email)
+          profiles (first_name, last_name)
         `)
         .order('created_at', { ascending: false });
 
@@ -39,27 +39,27 @@ const ReviewManager = () => {
     }
   };
 
-  const handleStatusUpdate = async (id: string, status: 'approved' | 'rejected') => {
+  const handleStatusUpdate = async (id: string, isApproved: boolean) => {
     try {
       const { error } = await supabase
-        .from('reviews' as any)
-        .update({ status })
+        .from('product_reviews')
+        .update({ is_approved: isApproved })
         .eq('id', id);
 
       if (error) throw error;
 
-      setReviews(reviews.map(r => r.id === id ? { ...r, status } : r));
+      setReviews(reviews.map(r => r.id === id ? { ...r, is_approved: isApproved } : r));
       toast({
-        title: status === 'approved' ? "Review Approved" : "Review Rejected",
-        description: `Review has been ${status}.`
+        title: isApproved ? "Review Approved" : "Review Rejected",
+        description: `Review has been ${isApproved ? 'approved' : 'rejected'}.`
       });
     } catch (error) {
       toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
     }
   };
 
-  const pendingReviews = reviews.filter(r => r.status === 'pending');
-  const processedReviews = reviews.filter(r => r.status !== 'pending');
+  const pendingReviews = reviews.filter(r => !r.is_approved);
+  const approvedReviews = reviews.filter(r => r.is_approved);
 
   return (
     <Card className="bg-mtrix-black border-mtrix-gray">
@@ -93,7 +93,7 @@ const ReviewManager = () => {
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
-            {processedReviews.map((review) => (
+            {approvedReviews.map((review) => (
               <ReviewCard key={review.id} review={review} onAction={handleStatusUpdate} readOnly />
             ))}
           </TabsContent>
@@ -103,44 +103,51 @@ const ReviewManager = () => {
   );
 };
 
-const ReviewCard = ({ review, onAction, readOnly }: { review: any, onAction: any, readOnly?: boolean }) => (
-  <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col md:flex-row gap-4 items-start md:items-center">
-    <div className="flex-1 space-y-2">
+const ReviewCard = ({ review, onAction, readOnly }: { review: any, onAction: any, readOnly?: boolean }) => {
+  const authorName = review.profiles
+    ? `${review.profiles.first_name || ''} ${review.profiles.last_name || ''}`.trim() || 'Anonymous'
+    : 'Anonymous';
+
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-lg p-4 flex flex-col md:flex-row gap-4 items-start md:items-center">
+      <div className="flex-1 space-y-2">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="border-white/20">
+            {review.products?.name || 'Unknown Product'}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            by {authorName} • {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {[...Array(5)].map((_, i) => (
+            <Star key={i} className={`w-4 h-4 ${i < review.rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`} />
+          ))}
+        </div>
+
+        {review.title && <p className="font-medium text-white">{review.title}</p>}
+        <p className="text-sm text-gray-300">{review.review_text}</p>
+      </div>
+
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="border-white/20">
-          {review.products?.name || 'Unknown Product'}
-        </Badge>
-        <span className="text-xs text-muted-foreground">
-          by {review.profiles?.full_name || review.profiles?.email || 'Anonymous'} • {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}
-        </span>
+        {readOnly ? (
+          <Badge className={review.is_approved ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}>
+            {review.is_approved ? 'APPROVED' : 'REJECTED'}
+          </Badge>
+        ) : (
+          <>
+            <Button size="sm" variant="outline" className="border-green-500/50 text-green-500 hover:bg-green-500 hover:text-white" onClick={() => onAction(review.id, true)}>
+              <Check className="w-4 h-4 mr-1" /> Approve
+            </Button>
+            <Button size="sm" variant="outline" className="border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white" onClick={() => onAction(review.id, false)}>
+              <X className="w-4 h-4 mr-1" /> Reject
+            </Button>
+          </>
+        )}
       </div>
-
-      <div className="flex items-center gap-1">
-        {[...Array(5)].map((_, i) => (
-          <Star key={i} className={`w-4 h-4 ${i < review.rating ? "fill-primary text-primary" : "text-muted-foreground/30"}`} />
-        ))}
-      </div>
-
-      <p className="text-sm text-gray-300">{review.comment}</p>
     </div>
-
-    <div className="flex items-center gap-2">
-      {readOnly ? (
-        <Badge className={review.status === 'approved' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}>
-          {review.status.toUpperCase()}
-        </Badge>
-      ) : (
-        <>
-          <Button size="sm" variant="outline" className="border-green-500/50 text-green-500 hover:bg-green-500 hover:text-white" onClick={() => onAction(review.id, 'approved')}>
-            <Check className="w-4 h-4 mr-1" /> Approve
-          </Button>
-          <Button size="sm" variant="outline" className="border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white" onClick={() => onAction(review.id, 'rejected')}>
-            <X className="w-4 h-4 mr-1" /> Reject
-          </Button>
-        </>
-      )}
-    </div>
-  </div>
-);
+  );
+};
 
 export default ReviewManager;

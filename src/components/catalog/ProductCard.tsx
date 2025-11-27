@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWishlist } from '@/hooks/useWishlist';
 import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
+import { OptimizedImage } from "@/components/OptimizedImage";
 
 interface ProductCardProps {
     product: {
@@ -30,26 +31,6 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
     const { toast } = useToast();
     const isOutOfStock = product.stockStatus === 'out_of_stock';
     const isInWishlistState = isInWishlist(product.id);
-
-    const handleWishlist = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (isInWishlistState) {
-            // We need the wishlist item ID to remove it. 
-            // Since isInWishlist only checks presence, we might need to find the ID or update the hook.
-            // For now, assuming the hook handles it or we need to fetch it.
-            // Actually, looking at useWishlist, removeFromWishlist takes an itemId, not productId.
-            // This is a limitation. Let's check if we can find the item ID from the hook's state.
-            // A better approach for the hook would be to expose a toggle function or findItemByProductId.
-            // Let's try to find it from the wishlistItems list if exposed, or just add for now if not present.
-            // Wait, useWishlist exposes wishlistItems.
-            const wishlistItem = useWishlist().wishlistItems.find(item => item.product_id === product.id);
-            if (wishlistItem) {
-                await removeFromWishlist(wishlistItem.id);
-            }
-        } else {
-            await addToWishlist(product.id);
-        }
-    };
 
     // Optimized handleWishlist that gets fresh state
     const { wishlistItems } = useWishlist();
@@ -91,7 +72,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
         >
             {/* Image Container */}
             <div className={`relative overflow-hidden bg-black/50 ${viewMode === 'list' ? 'w-48 shrink-0' : 'aspect-[4/5]'}`}>
-                <img
+                <OptimizedImage
                     src={product.image}
                     alt={product.name}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
@@ -128,8 +109,8 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
                             size="icon"
                             variant="secondary"
                             className={`backdrop-blur-md hover:bg-white hover:text-black ${isInWishlistState
-                                    ? 'bg-primary text-black'
-                                    : 'bg-white/20 text-white'
+                                ? 'bg-primary text-black'
+                                : 'bg-white/20 text-white'
                                 }`}
                             onClick={toggleWishlist}
                         >

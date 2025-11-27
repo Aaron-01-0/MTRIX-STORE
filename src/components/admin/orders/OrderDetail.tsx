@@ -74,19 +74,7 @@ interface OrderDetail {
 const InvoiceView = ({ order }: { order: OrderDetail }) => {
     return (
         <div className="p-8 bg-white text-black font-sans min-h-screen flex flex-col">
-            {/* Header */}
-            <div className="flex justify-between items-start mb-8">
-                <div>
-                    <h1 className="text-4xl font-bold tracking-tight text-black mb-2">INVOICE</h1>
-                    <p className="text-gray-600">#{order.order_number}</p>
-                </div>
-                <div className="text-right">
-                    <h2 className="text-2xl font-bold text-black">Mtrix</h2>
-                    <p className="text-sm text-gray-600">Premium Tech & Lifestyle</p>
-                </div>
-            </div>
 
-            <Separator className="my-6 border-gray-200" />
 
             {/* Info Grid */}
             <div className="grid grid-cols-2 gap-8 mb-8">
@@ -172,7 +160,12 @@ const InvoiceView = ({ order }: { order: OrderDetail }) => {
             {/* Footer */}
             <div className="text-center text-sm text-gray-500 mt-auto pt-8 border-t border-gray-200">
                 <p>Thank you for your business!</p>
-                <p className="mt-1">For support, contact support@mtrix.com</p>
+                <p className="mt-1">For support, contact noa@mtrix.store</p>
+                <p className="text-gray-600 mt-2">
+                    MTRIX Store<br />
+                    Redefining aesthetics<br />
+                    noa@mtrix.store
+                </p>
             </div>
         </div>
     );

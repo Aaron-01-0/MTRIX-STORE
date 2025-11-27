@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import ProductCard from '@/components/ProductCard';
+import ProductCard from '@/components/catalog/ProductCard';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface RelatedProductsProps {
@@ -74,15 +74,18 @@ const RelatedProducts = ({ categoryId, currentProductId }: RelatedProductsProps)
                 {products.map((product) => (
                     <ProductCard
                         key={product.id}
-                        id={product.id}
-                        name={product.name}
-                        price={`₹${product.discount_price || product.base_price}`}
-                        originalPrice={product.discount_price ? `₹${product.base_price}` : undefined}
-                        image={product.product_images?.find((img: any) => img.is_main)?.image_url || product.product_images?.[0]?.image_url || '/placeholder.png'}
-                        rating={product.ratings_avg || 0}
-                        isNew={product.is_new}
-                        isTrending={product.is_trending}
-                        stockStatus={product.stock_status}
+                        product={{
+                            id: product.id,
+                            name: product.name,
+                            price: `₹${product.discount_price || product.base_price}`,
+                            originalPrice: product.discount_price ? `₹${product.base_price}` : undefined,
+                            image: product.product_images?.find((img: any) => img.is_main)?.image_url || product.product_images?.[0]?.image_url || '/placeholder.png',
+                            rating: product.ratings_avg || 0,
+                            stockStatus: product.stock_status,
+                            isNew: product.is_new,
+                            isTrending: product.is_trending,
+                            category: '' // Category not fetched in this query
+                        }}
                     />
                 ))}
             </div>

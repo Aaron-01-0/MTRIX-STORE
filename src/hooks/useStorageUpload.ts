@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface UploadOptions {
-  bucket: 'hero-images' | 'promotion-images' | 'category-images' | 'product-images' | 'product-videos' | 'design-submissions';
+  bucket: 'hero-images' | 'promotion-images' | 'category-images' | 'product-images' | 'product-videos' | 'design-submissions' | 'community-content';
   folder?: string;
   maxSizeMB?: number;
 }
@@ -40,7 +40,7 @@ export const useStorageUpload = () => {
         .replace(/\.[^/.]+$/, '')
         .replace(/[^a-z0-9]/gi, '_')
         .toLowerCase();
-      
+
       const filename = folder
         ? `${folder}/${sanitizedName}_${timestamp}_${randomId}.${extension}`
         : `${sanitizedName}_${timestamp}_${randomId}.${extension}`;
@@ -87,7 +87,7 @@ export const useStorageUpload = () => {
       // Extract filename from URL
       const urlParts = url.split('/');
       const bucketIndex = urlParts.findIndex(part => part === bucket);
-      
+
       if (bucketIndex === -1 || bucketIndex === urlParts.length - 1) {
         console.error('Could not extract filename from URL');
         return false;

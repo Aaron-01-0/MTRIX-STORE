@@ -71,19 +71,6 @@ serve(async (req) => {
         console.log(`Processing order ${order.order_number} for ${customerEmail}`);
 
         // 4. Generate PDF Invoice
-        console.log("Generating PDF...");
-        // Use React.createElement to avoid JSX in .ts file
-        const pdfBuffer = await renderToBuffer(React.createElement(InvoicePdf, { order: order }));
-        console.log(`PDF generated.Length: ${pdfBuffer.length} `);
-
-        // 5. Upload to Supabase Storage
-        const fileName = `invoices / ${order.order_number}.pdf`;
-        const { error: uploadError } = await supabase.storage
-            .from('invoices')
-            .upload(fileName, pdfBuffer, {
-                contentType: 'application/pdf',
-                upsert: true
-            });
 
         if (uploadError) {
             console.error("Error uploading invoice:", uploadError);

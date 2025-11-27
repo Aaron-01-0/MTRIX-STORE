@@ -88,6 +88,8 @@ const Product = () => {
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -136,7 +138,7 @@ const Product = () => {
           *,
           categories(id, name),
           brands(name),
-          product_images(image_url, alt_text, is_main, display_order)
+          product_images(image_url, alt_text, is_main, display_order, variant_value)
         `)
         .eq('id', id)
         .eq('is_active', true)
@@ -158,10 +160,27 @@ const Product = () => {
         .eq('is_active', true);
 
       setVariants(variantData as Variant[] || []);
+      setVariants(variantData as Variant[] || []);
+
       if (variantData && variantData.length > 0) {
-        // Auto-select first in-stock variant if possible
-        const inStockVariant = variantData.find((v: any) => (v.stock_quantity || 0) > 0);
-        setSelectedVariantId(inStockVariant ? inStockVariant.id : variantData[0].id);
+        // Auto-select first color and its available size
+        const firstVariant = variantData[0];
+        if (firstVariant.color) {
+          setSelectedColor(firstVariant.color);
+          // Find first available size for this color
+          const sizeVariant = variantData.find((v: any) => v.color === firstVariant.color && v.stock_quantity > 0);
+          if (sizeVariant) {
+            setSelectedSize(sizeVariant.size);
+            setSelectedVariantId(sizeVariant.id);
+          } else {
+            // Fallback if all out of stock
+            const anySize = variantData.find((v: any) => v.color === firstVariant.color);
+            if (anySize) {
+              setSelectedSize(anySize.size);
+              setSelectedVariantId(anySize.id);
+            }
+          }
+        }
       }
 
 
@@ -179,7 +198,26 @@ const Product = () => {
   };
 
   // --- Derived State ---
+  // Update selected variant ID when color/size changes
+  useEffect(() => {
+    if (selectedColor && selectedSize) {
+      const variant = variants.find(v => v.color === selectedColor && v.size === selectedSize);
+      setSelectedVariantId(variant ? variant.id : null);
+    }
+  }, [selectedColor, selectedSize, variants]);
+
   const selectedVariant = variants.find(v => v.id === selectedVariantId) || null;
+
+  // Filter variants by selected color to get available sizes
+  const availableSizes = variants
+    .filter(v => v.color === selectedColor)
+    .sort((a, b) => {
+      const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+      return sizes.indexOf(a.size || '') - sizes.indexOf(b.size || '');
+    });
+
+  // Get unique colors
+  const availableColors = Array.from(new Set(variants.map(v => v.color))).filter(Boolean) as string[];
 
   // Images logic
   const baseImages = product?.product_images?.length
@@ -188,10 +226,30 @@ const Product = () => {
       .map(img => img.image_url)
     : ["/api/placeholder/500/500"];
 
-  // If variant has specific image, put it first
-  const productImages = selectedVariant?.image_url
-    ? [selectedVariant.image_url, ...baseImages.filter(img => img !== selectedVariant.image_url)]
-    : baseImages;
+  // If color is selected, show images for that color first
+  // We need to match images that have variant_value === selectedColor
+  // But currently product_images table stores this. 
+  // The fetch above gets all images. We need to filter/sort them.
+  // Assuming product_images has variant_value field (we need to update the fetch to include it)
+
+  // Let's update the fetch first to include variant_value
+  // ... (See next chunk for fetch update)
+
+  // Filtered images based on color
+  const filteredImages = product?.product_images?.filter(img => {
+    if (!selectedColor) return true;
+    // If image has no variant assigned, show it (common images)
+    // If image has variant assigned, only show if it matches selected color
+    // Note: We need to cast types or update interface to include variant_value
+    const imgAny = img as any;
+    return !imgAny.variant_value || imgAny.variant_value === selectedColor;
+  }) || [];
+
+  const displayImages = filteredImages.length > 0
+    ? filteredImages.sort((a, b) => a.display_order - b.display_order).map(img => img.image_url)
+    : ["/api/placeholder/500/500"];
+
+  const productImages = displayImages;
 
   // Price logic
   const currentPrice = selectedVariant?.absolute_price != null
@@ -420,23 +478,34 @@ const Product = () => {
                 {variants.length > 0 && (
                   <div className="space-y-6 mb-6">
                     {/* Colors */}
-                    {variants.some(v => v.color) && (
+                    {availableColors.length > 0 && (
                       <div className="space-y-3">
-                        <span className="text-sm font-medium text-muted-foreground">Color: <span className="text-white ml-1">{selectedVariant?.color}</span></span>
+                        <span className="text-sm font-medium text-muted-foreground">Color: <span className="text-white ml-1">{selectedColor}</span></span>
                         <div className="flex flex-wrap gap-3">
-                          {Array.from(new Set(variants.map(v => v.color))).filter(Boolean).map(color => {
-                            const variant = variants.find(v => v.color === color);
-                            const isSelected = selectedVariant?.color === color;
+                          {availableColors.map(color => {
+                            const isSelected = selectedColor === color;
                             return (
                               <button
                                 key={color}
-                                onClick={() => variant && setSelectedVariantId(variant.id)}
+                                onClick={() => {
+                                  setSelectedColor(color);
+                                  // Reset size if current size not available in new color?
+                                  // Or try to keep same size?
+                                  // Let's try to keep same size if possible
+                                  const exists = variants.some(v => v.color === color && v.size === selectedSize);
+                                  if (!exists) {
+                                    // Select first available size
+                                    const firstSize = variants.find(v => v.color === color)?.size;
+                                    setSelectedSize(firstSize || null);
+                                  }
+                                  setSelectedImageIndex(0); // Reset image gallery
+                                }}
                                 className={cn(
                                   "w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all",
                                   isSelected ? "border-primary scale-110" : "border-transparent hover:scale-105"
                                 )}
-                                style={{ backgroundColor: color?.toLowerCase() }}
-                                title={color || ''}
+                                style={{ backgroundColor: color.toLowerCase() }}
+                                title={color}
                               >
                                 {isSelected && <div className="w-2 h-2 bg-white rounded-full shadow-sm" />}
                               </button>
@@ -447,28 +516,31 @@ const Product = () => {
                     )}
 
                     {/* Sizes */}
-                    {variants.some(v => v.size) && (
+                    {selectedColor && availableSizes.length > 0 && (
                       <div className="space-y-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-muted-foreground">Size: <span className="text-white ml-1">{selectedVariant?.size}</span></span>
+                          <span className="text-sm font-medium text-muted-foreground">Size: <span className="text-white ml-1">{selectedSize}</span></span>
                           <button className="text-xs text-primary hover:underline">Size Guide</button>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {Array.from(new Set(variants.map(v => v.size))).filter(Boolean).map(size => {
-                            const variant = variants.find(v => v.size === size);
-                            const isSelected = selectedVariant?.size === size;
+                          {availableSizes.map(variant => {
+                            const isSelected = selectedSize === variant.size;
+                            const isOutOfStock = (variant.stock_quantity || 0) <= 0;
                             return (
                               <button
-                                key={size}
-                                onClick={() => variant && setSelectedVariantId(variant.id)}
+                                key={variant.id}
+                                onClick={() => !isOutOfStock && setSelectedSize(variant.size)}
+                                disabled={isOutOfStock}
                                 className={cn(
                                   "px-4 py-2 rounded-lg border text-sm font-medium transition-all min-w-[3rem]",
                                   isSelected
                                     ? "border-primary bg-primary/10 text-primary shadow-[0_0_10px_rgba(255,215,0,0.1)]"
-                                    : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30 hover:text-white"
+                                    : isOutOfStock
+                                      ? "border-white/5 bg-white/5 text-muted-foreground/50 cursor-not-allowed decoration-slice line-through"
+                                      : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30 hover:text-white"
                                 )}
                               >
-                                {size}
+                                {variant.size}
                               </button>
                             );
                           })}
@@ -629,7 +701,7 @@ const Product = () => {
       )}>
         <div className="container mx-auto flex items-center justify-between gap-4">
           <div className="hidden md:flex items-center gap-4">
-            <img src={productImages[0]} alt={product.name} className="w-12 h-12 rounded-md object-cover" />
+            <OptimizedImage src={productImages[0]} alt={product.name} className="w-12 h-12 rounded-md object-cover" />
             <div>
               <h4 className="font-medium text-white">{product.name}</h4>
               <span className="text-primary font-bold">₹{currentPrice.toLocaleString()}</span>

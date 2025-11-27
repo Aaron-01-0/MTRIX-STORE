@@ -8,9 +8,7 @@ export interface CartItem {
   product_id: string;
   quantity: number;
   variant_id?: string;
-  is_bundle?: boolean;
-  bundle_price?: number;
-  bundle_name?: string;
+  bundle_id?: string;
   product: {
     id: string;
     name: string;
@@ -18,6 +16,12 @@ export interface CartItem {
     discount_price?: number;
     image_url?: string;
     stock_quantity: number;
+  };
+  bundle?: {
+    id: string;
+    name: string;
+    price_value: number;
+    price_type: string;
   };
 }
 
@@ -43,13 +47,10 @@ export const useCart = () => {
     try {
       const { data: cartRows, error } = await supabase
         .from('cart_items')
-        .select('id, product_id, quantity, variant_id')
+        .select('id, product_id, quantity, variant_id, bundle_id')
         .eq('user_id', user.id);
 
-      if (error) {
-        console.error('Error fetching cart items:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       if (!cartRows || cartRows.length === 0) {
         setCartItems([]);
@@ -58,13 +59,13 @@ export const useCart = () => {
 
       const productIds = Array.from(new Set(cartRows.map((i: any) => i.product_id)));
       const variantIds = Array.from(new Set(cartRows.map((i: any) => i.variant_id).filter(Boolean)));
+      const bundleIds = Array.from(new Set(cartRows.map((i: any) => i.bundle_id).filter(Boolean)));
 
-      const [productsRes, imagesRes, variantsRes] = await Promise.all([
+      const [productsRes, imagesRes, variantsRes, bundlesRes] = await Promise.all([
         supabase
           .from('products')
           .select('id, name, base_price, discount_price, stock_quantity')
-          .in('id', productIds)
-          .eq('is_active', true),
+          .in('id', productIds),
         supabase
           .from('product_images')
           .select('product_id, image_url, is_main')
@@ -75,16 +76,24 @@ export const useCart = () => {
             .from('product_variants')
             .select('id, stock_quantity, absolute_price, image_url')
             .in('id', variantIds)
+          : Promise.resolve({ data: [] }),
+        bundleIds.length > 0
+          ? supabase
+            .from('bundles')
+            .select('id, name, price_value, price_type')
+            .in('id', bundleIds)
           : Promise.resolve({ data: [] })
       ]);
 
       const productsData = productsRes.data || [];
       const imagesData = imagesRes.data || [];
       const variantsData = variantsRes.data || [];
+      const bundlesData = bundlesRes.data || [];
 
       const productMap = new Map(productsData.map((p: any) => [p.id, p]));
       const imageMap = new Map(imagesData.map((img: any) => [img.product_id, img.image_url]));
       const variantMap = new Map(variantsData.map((v: any) => [v.id, v]));
+      const bundleMap = new Map(bundlesData.map((b: any) => [b.id, b]));
 
       const itemsWithData: CartItem[] = cartRows
         .map((item: any) => {
@@ -109,14 +118,16 @@ export const useCart = () => {
             product_id: item.product_id,
             quantity: item.quantity,
             variant_id: item.variant_id,
+            bundle_id: item.bundle_id,
             product: {
               id: p.id,
               name: p.name,
-              base_price: price, // Use variant price if applicable
+              base_price: price,
               discount_price: p.discount_price,
-              stock_quantity: stockQuantity, // Use variant stock if applicable
+              stock_quantity: stockQuantity,
               image_url: imageUrl,
-            }
+            },
+            bundle: item.bundle_id ? bundleMap.get(item.bundle_id) : undefined
           } as CartItem;
         })
         .filter(Boolean) as CartItem[];
@@ -156,7 +167,7 @@ export const useCart = () => {
     };
   };
 
-  const addToCart = async (productId: string, quantity: number = 1, variantId?: string, bundleInfo?: { isBundle: boolean; bundlePrice: number; bundleName: string }) => {
+  const addToCart = async (productId: string, quantity: number = 1, variantId?: string, bundleId?: string) => {
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -204,37 +215,29 @@ export const useCart = () => {
         }
       }
 
-      // For bundles, always insert as new item (don't combine with existing)
-      if (bundleInfo?.isBundle) {
-        const { error } = await supabase
-          .from('cart_items')
-          .insert({
-            user_id: user.id,
-            product_id: productId,
-            quantity,
-            variant_id: variantId || null
-          });
-
-        if (error) throw error;
+      if (bundleId) {
+        await supabase.from('cart_items').insert({
+          user_id: user.id,
+          product_id: productId,
+          quantity,
+          variant_id: variantId || null,
+          bundle_id: bundleId
+        });
       } else {
-        // For regular products, use upsert to combine quantities
-        const { error } = await supabase
-          .from('cart_items')
-          .upsert({
-            user_id: user.id,
-            product_id: productId,
-            quantity,
-            variant_id: variantId || null
-          }, {
-            onConflict: 'user_id,product_id,variant_id'
-          });
-
-        if (error) throw error;
+        await supabase.from('cart_items').upsert({
+          user_id: user.id,
+          product_id: productId,
+          quantity,
+          variant_id: variantId || null,
+          bundle_id: null
+        }, {
+          onConflict: 'user_id,product_id,variant_id'
+        });
       }
 
       toast({
         title: "Success",
-        description: bundleInfo?.isBundle ? "Bundle added to cart" : "Item added to cart"
+        description: bundleId ? "Bundle item added" : "Item added to cart"
       });
     } catch (error: any) {
       console.error('Error adding to cart:', error);
@@ -246,10 +249,46 @@ export const useCart = () => {
     }
   };
 
+  const addBundleToCart = async (bundleId: string, items: { product_id: string; variant_id?: string; quantity: number }[]) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to add bundles",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const cartInserts = items.map(item => ({
+        user_id: user.id,
+        product_id: item.product_id,
+        variant_id: item.variant_id || null,
+        quantity: item.quantity,
+        bundle_id: bundleId
+      }));
+
+      const { error } = await supabase.from('cart_items').insert(cartInserts);
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Bundle added to cart"
+      });
+      fetchCartItems();
+    } catch (error: any) {
+      console.error('Error adding bundle:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add bundle to cart",
+        variant: "destructive"
+      });
+    }
+  };
+
   const updateQuantity = async (itemId: string, quantity: number) => {
     if (quantity < 1) return;
 
-    // Optimistic update: Update local state immediately
     const previousItems = [...cartItems];
     setCartItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, quantity } : item
@@ -264,7 +303,6 @@ export const useCart = () => {
       if (error) throw error;
     } catch (error: any) {
       console.error('Error updating quantity:', error);
-      // Revert on error
       setCartItems(previousItems);
       toast({
         title: "Error",
@@ -275,7 +313,6 @@ export const useCart = () => {
   };
 
   const removeFromCart = async (itemId: string) => {
-    // Optimistic update
     setCartItems(prev => prev.filter(item => item.id !== itemId));
 
     try {
@@ -285,15 +322,9 @@ export const useCart = () => {
         .eq('id', itemId);
 
       if (error) {
-        // Revert on error
         fetchCartItems();
         throw error;
       }
-
-      toast({
-        title: "Success",
-        description: "Item removed from cart"
-      });
     } catch (error: any) {
       console.error('Error removing from cart:', error);
       toast({
@@ -306,21 +337,15 @@ export const useCart = () => {
 
   const clearCart = async () => {
     if (!user) return;
-
     try {
       const { error } = await supabase
         .from('cart_items')
         .delete()
         .eq('user_id', user.id);
-
       if (error) throw error;
+      setCartItems([]);
     } catch (error: any) {
       console.error('Error clearing cart:', error);
-      toast({
-        title: "Error",
-        description: "Failed to clear cart",
-        variant: "destructive"
-      });
     }
   };
 
@@ -328,6 +353,7 @@ export const useCart = () => {
     cartItems,
     loading,
     addToCart,
+    addBundleToCart,
     updateQuantity,
     removeFromCart,
     clearCart

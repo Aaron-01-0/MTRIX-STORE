@@ -104,6 +104,7 @@ const HeroImageManager = ({ images, onChange }: HeroImageManagerProps) => {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selectedSlideId, setSelectedSlideId] = useState<string | null>(null);
   const [localImages, setLocalImages] = useState<HeroImage[]>(images);
+  const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
 
   // Sync props to local state
   useEffect(() => {
@@ -306,12 +307,12 @@ const HeroImageManager = ({ images, onChange }: HeroImageManagerProps) => {
                 key={img.id}
                 onClick={() => setSelectedSlideId(img.id)}
                 className={cn(
-                  "relative w-16 h-12 rounded border transition-all flex-shrink-0 overflow-hidden",
+                  "relative w-16 h-12 rounded border transition-all flex-shrink-0 overflow-hidden group",
                   selectedSlideId === img.id ? "border-primary ring-2 ring-primary/20" : "border-white/10 opacity-60 hover:opacity-100"
                 )}
               >
                 <img src={img.image_url} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-bold text-white">
+                <div className="absolute top-0 left-0 bg-black/60 text-[10px] font-bold text-white px-1.5 py-0.5 rounded-br">
                   {idx + 1}
                 </div>
               </button>
@@ -354,20 +355,24 @@ const HeroImageManager = ({ images, onChange }: HeroImageManagerProps) => {
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2"><Monitor className="w-4 h-4" /> Desktop Image</Label>
                     <div className="flex items-center gap-2">
-                      <Input value={activeSlide.image_url} readOnly className="bg-black/20 border-white/10 text-xs text-muted-foreground" />
+                      <Input value={activeSlide.image_url} readOnly className="flex-1 bg-black/20 border-white/10 text-xs text-muted-foreground" />
                       <div className="relative">
                         <input type="file" id="up-desk" className="hidden" onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0], 'desktop', activeSlide.id)} />
-                        <Label htmlFor="up-desk" className="cursor-pointer bg-white/10 hover:bg-white/20 p-2 rounded-md block"><ImageIcon className="w-4 h-4" /></Label>
+                        <Label htmlFor="up-desk" className="cursor-pointer bg-white/10 hover:bg-white/20 px-3 py-2 rounded-md flex items-center gap-2 text-sm text-white transition-colors">
+                          <ImageIcon className="w-4 h-4" /> Change
+                        </Label>
                       </div>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2"><Smartphone className="w-4 h-4" /> Mobile Image</Label>
                     <div className="flex items-center gap-2">
-                      <Input value={activeSlide.mobile_image_url || 'Not set'} readOnly className="bg-black/20 border-white/10 text-xs text-muted-foreground" />
+                      <Input value={activeSlide.mobile_image_url || 'Not set'} readOnly className="flex-1 bg-black/20 border-white/10 text-xs text-muted-foreground" />
                       <div className="relative">
                         <input type="file" id="up-mob" className="hidden" onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0], 'mobile', activeSlide.id)} />
-                        <Label htmlFor="up-mob" className="cursor-pointer bg-white/10 hover:bg-white/20 p-2 rounded-md block"><ImageIcon className="w-4 h-4" /></Label>
+                        <Label htmlFor="up-mob" className="cursor-pointer bg-white/10 hover:bg-white/20 px-3 py-2 rounded-md flex items-center gap-2 text-sm text-white transition-colors">
+                          <ImageIcon className="w-4 h-4" /> Change
+                        </Label>
                       </div>
                     </div>
                   </div>
@@ -506,18 +511,42 @@ const HeroImageManager = ({ images, onChange }: HeroImageManagerProps) => {
             <Eye className="w-4 h-4 text-primary" />
             <span className="text-sm font-medium text-white">Live Preview</span>
           </div>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="text-xs">Desktop Mode</Badge>
+          <div className="flex gap-1 bg-black/50 p-1 rounded-lg border border-white/10">
+            <button
+              onClick={() => setPreviewMode('desktop')}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5",
+                previewMode === 'desktop' ? "bg-primary text-black shadow-sm" : "text-gray-400 hover:text-white hover:bg-white/5"
+              )}
+            >
+              <Monitor className="w-3 h-3" /> Desktop
+            </button>
+            <button
+              onClick={() => setPreviewMode('mobile')}
+              className={cn(
+                "px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5",
+                previewMode === 'mobile' ? "bg-primary text-black shadow-sm" : "text-gray-400 hover:text-white hover:bg-white/5"
+              )}
+            >
+              <Smartphone className="w-3 h-3" /> Mobile
+            </button>
           </div>
         </div>
 
-        <div className="flex-1 bg-black border-x border-b border-white/10 rounded-b-xl overflow-hidden relative group">
+        <div className="flex-1 bg-black border-x border-b border-white/10 rounded-b-xl overflow-hidden relative group flex items-center justify-center p-4 lg:p-8">
           {activeSlide ? (
-            <div className="w-full h-full relative">
+            <div
+              className={cn(
+                "relative transition-all duration-500 ease-in-out shadow-2xl overflow-hidden bg-black",
+                previewMode === 'mobile'
+                  ? "w-[375px] h-[667px] rounded-[2.5rem] border-[8px] border-gray-800 ring-1 ring-white/10"
+                  : "w-full h-full rounded-none border-0"
+              )}
+            >
               {/* Background Image */}
               <img
-                key={activeSlide.image_url} // Force re-render on URL change
-                src={activeSlide.image_url}
+                key={`${activeSlide.id}-${previewMode}`} // Force re-render on mode change
+                src={previewMode === 'mobile' ? (activeSlide.mobile_image_url || activeSlide.image_url) : activeSlide.image_url}
                 className={cn(
                   "w-full h-full object-cover transition-transform duration-1000",
                   activeSlide.config?.animation_style === 'zoom' && "scale-110"
@@ -535,16 +564,18 @@ const HeroImageManager = ({ images, onChange }: HeroImageManagerProps) => {
 
               {/* Content */}
               <div className={cn(
-                "absolute inset-0 flex flex-col justify-center p-12",
+                "absolute inset-0 flex flex-col justify-center p-6 md:p-12",
                 activeSlide.text_alignment === 'left' ? 'items-start text-left' :
                   activeSlide.text_alignment === 'right' ? 'items-end text-right' :
                     'items-center text-center'
               )}>
                 <div style={{ width: `${activeSlide.config?.content_width || 80}%` }}>
                   <h2
-                    className="font-orbitron mb-4 leading-tight text-white"
+                    className="font-orbitron mb-4 leading-tight text-white transition-all"
                     style={{
-                      fontSize: `${activeSlide.config?.headline_size || 5}rem`,
+                      fontSize: previewMode === 'mobile'
+                        ? `${Math.max(2, (activeSlide.config?.headline_size || 5) * 0.6)}rem` // Scale down for mobile
+                        : `${activeSlide.config?.headline_size || 5}rem`,
                       fontWeight: activeSlide.config?.headline_weight || '700',
                       color: activeSlide.text_color || '#ffffff'
                     }}
@@ -553,16 +584,20 @@ const HeroImageManager = ({ images, onChange }: HeroImageManagerProps) => {
                   </h2>
 
                   {activeSlide.subtitle && (
-                    <p className="text-xl md:text-2xl text-gray-200 mb-8 font-light">
+                    <p className={cn(
+                      "text-gray-200 mb-8 font-light transition-all",
+                      previewMode === 'mobile' ? "text-lg" : "text-xl md:text-2xl"
+                    )}>
                       {activeSlide.subtitle}
                     </p>
                   )}
 
                   {(activeSlide.button_text) && (
                     <Button
-                      size="lg"
+                      size={previewMode === 'mobile' ? "default" : "lg"}
                       className={cn(
-                        "text-lg px-8 py-6 rounded-none transition-all duration-300",
+                        "rounded-none transition-all duration-300",
+                        previewMode === 'mobile' ? "text-sm px-6 py-4" : "text-lg px-8 py-6",
                         activeSlide.config?.button_style === 'outline' ? "bg-transparent border-2 border-white text-white hover:bg-white hover:text-black" :
                           activeSlide.config?.button_style === 'ghost' ? "bg-transparent text-white hover:bg-white/10" :
                             "bg-white text-black hover:bg-primary hover:text-black border-2 border-transparent"

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { OptimizedImage } from "@/components/OptimizedImage";
 
 interface Collection {
     id: string;
@@ -65,7 +66,7 @@ const TrendingCollections = () => {
                             className="lg:col-span-6 relative group rounded-3xl overflow-hidden border border-white/10"
                         >
                             <div className="absolute inset-0">
-                                <img
+                                <OptimizedImage
                                     src={collections[0].image_url || '/placeholder.svg'}
                                     alt={collections[0].name}
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
@@ -95,7 +96,7 @@ const TrendingCollections = () => {
                                 className="flex-1 relative group rounded-3xl overflow-hidden border border-white/10"
                             >
                                 <div className="absolute inset-0">
-                                    <img
+                                    <OptimizedImage
                                         src={collection.image_url || '/placeholder.svg'}
                                         alt={collection.name}
                                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"

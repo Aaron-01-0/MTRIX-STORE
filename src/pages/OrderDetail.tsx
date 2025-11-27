@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import ProductReview from '@/components/ProductReview';
 import { Button } from '@/components/ui/button';
 import confetti from 'canvas-confetti';
+import { logger } from '@/lib/logger';
 
 interface OrderItem {
   id: string;
@@ -25,7 +26,8 @@ interface OrderItem {
     image_url?: string;
   };
   product_variants?: {
-    variant_name: string;
+    color: string;
+    size: string;
   };
 }
 
@@ -95,7 +97,7 @@ const OrderDetail = () => {
           filter: `id=eq.${id}`,
         },
         (payload) => {
-          console.log('Order updated:', payload);
+          logger.debug('Order updated:', payload);
           setOrder((prev) => prev ? { ...prev, ...payload.new } : null);
           toast({
             title: "Order Updated",
@@ -158,7 +160,8 @@ const OrderDetail = () => {
               name
             ),
             product_variants (
-              variant_name
+              color,
+              size
             )
           )
         `)
@@ -394,7 +397,7 @@ const OrderDetail = () => {
                       </h4>
                       {item.product_variants && (
                         <Badge variant="secondary" className="w-fit mt-1 bg-mtrix-gray/30 text-xs">
-                          {item.product_variants.variant_name}
+                          {item.product_variants.color} / {item.product_variants.size}
                         </Badge>
                       )}
                       <p className="text-sm text-muted-foreground mt-2">

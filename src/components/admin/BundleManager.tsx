@@ -1,405 +1,492 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Edit2, Save, X } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Loader2, Plus, Trash2, Package, Save, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useStorageUpload } from '@/hooks/useStorageUpload';
 
+// Types
 interface Bundle {
   id: string;
   name: string;
+  slug: string;
   description: string | null;
-  image_url: string | null;
-  bundle_price: number;
+  type: 'fixed' | 'custom' | 'quantity';
+  price_type: 'fixed' | 'percentage_discount' | 'fixed_discount';
+  price_value: number;
+  cover_image: string | null;
   is_active: boolean;
-  display_order: number;
 }
 
 interface BundleItem {
-  id: string;
-  product_id: string;
+  id?: string;
+  category_id?: string | null; // Added for UI filtering
+  product_id: string | null;
+  variant_id: string | null;
   quantity: number;
-  products: {
-    name: string;
-  };
+  slot_name?: string;
+  allowed_categories?: string[];
+}
+
+interface Product {
+  id: string;
+  name: string;
+  category_id: string; // Added to filter by category
+  variants?: { id: string; color: string; size: string }[];
+}
+
+interface Category {
+  id: string;
+  name: string;
 }
 
 const BundleManager = () => {
-  const { toast } = useToast();
-  const { uploadFile, deleteFile, uploading } = useStorageUpload();
   const [bundles, setBundles] = useState<Bundle[]>([]);
-  const [editingBundle, setEditingBundle] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    bundle_price: '',
-    image_url: '',
-    display_order: 0
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'list' | 'create' | 'edit'>('list');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const { toast } = useToast();
+  const { uploadFile, uploading } = useStorageUpload();
+
+  // Form State
+  const [formData, setFormData] = useState<Partial<Bundle>>({
+    type: 'fixed',
+    price_type: 'fixed',
+    is_active: true
   });
-  const [products, setProducts] = useState<any[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<{ product_id: string; quantity: number }[]>([]);
-  const [bundleItems, setBundleItems] = useState<{ [key: string]: BundleItem[] }>({});
+  const [bundleItems, setBundleItems] = useState<BundleItem[]>([]);
+  const [step, setStep] = useState(1);
 
   useEffect(() => {
     fetchBundles();
     fetchProducts();
+    fetchCategories();
   }, []);
 
   const fetchBundles = async () => {
-    const { data, error } = await supabase
-      .from('bundles')
-      .select('*')
-      .order('display_order', { ascending: true });
-
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from('bundles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setBundles(data as any);
+    } catch (error) {
       console.error('Error fetching bundles:', error);
-      return;
-    }
-
-    setBundles(data || []);
-    
-    // Fetch items for each bundle
-    data?.forEach(bundle => fetchBundleItems(bundle.id));
-  };
-
-  const fetchBundleItems = async (bundleId: string) => {
-    const { data, error } = await supabase
-      .from('bundle_items')
-      .select(`
-        id,
-        product_id,
-        quantity,
-        products:product_id (name)
-      `)
-      .eq('bundle_id', bundleId);
-
-    if (!error && data) {
-      setBundleItems(prev => ({ ...prev, [bundleId]: data as any }));
+    } finally {
+      setLoading(false);
     }
   };
 
   const fetchProducts = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('products')
-      .select('id, name, base_price')
-      .eq('is_active', true);
+      .select('id, name, category_id, product_variants(id, color, size)');
+    if (data) setProducts(data as any);
+  };
 
-    if (!error) {
-      setProducts(data || []);
-    }
+  const fetchCategories = async () => {
+    const { data } = await supabase
+      .from('categories')
+      .select('id, name')
+      .order('name');
+    if (data) setCategories(data as any);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const url = await uploadFile(file, {
-      bucket: 'hero-images',
-      folder: 'bundles'
-    });
-
-    if (url) {
-      setFormData(prev => ({ ...prev, image_url: url }));
+    if (e.target.files && e.target.files[0]) {
+      const url = await uploadFile(e.target.files[0], { bucket: 'product-images' });
+      if (url) setFormData({ ...formData, cover_image: url });
     }
   };
 
-  const handleSubmit = async () => {
-    if (!formData.name || !formData.bundle_price) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  const saveBundle = async () => {
     try {
-      if (editingBundle) {
-        const { error } = await supabase
-          .from('bundles')
-          .update({
-            name: formData.name,
-            description: formData.description,
-            bundle_price: parseFloat(formData.bundle_price),
-            image_url: formData.image_url,
-            display_order: formData.display_order
-          })
-          .eq('id', editingBundle);
+      setLoading(true);
 
+      // 1. Save Bundle
+      const bundleData = {
+        name: formData.name,
+        slug: formData.slug || formData.name?.toLowerCase().replace(/\s+/g, '-'),
+        description: formData.description,
+        type: formData.type,
+        price_type: formData.price_type,
+        price_value: formData.price_value,
+        cover_image: formData.cover_image,
+        is_active: formData.is_active
+      };
+
+      let bundleId = formData.id;
+
+      if (bundleId) {
+        const { error } = await supabase.from('bundles').update(bundleData).eq('id', bundleId);
         if (error) throw error;
-
-        // Update bundle items
-        await supabase
-          .from('bundle_items')
-          .delete()
-          .eq('bundle_id', editingBundle);
-
-        if (selectedProducts.length > 0) {
-          await supabase
-            .from('bundle_items')
-            .insert(selectedProducts.map(p => ({
-              bundle_id: editingBundle,
-              product_id: p.product_id,
-              quantity: p.quantity
-            })));
-        }
       } else {
-        const { data: newBundle, error } = await supabase
-          .from('bundles')
-          .insert({
-            name: formData.name,
-            description: formData.description,
-            bundle_price: parseFloat(formData.bundle_price),
-            image_url: formData.image_url,
-            display_order: formData.display_order
-          })
-          .select()
-          .single();
-
+        const { data, error } = await supabase.from('bundles').insert(bundleData).select().single();
         if (error) throw error;
-
-        if (newBundle && selectedProducts.length > 0) {
-          await supabase
-            .from('bundle_items')
-            .insert(selectedProducts.map(p => ({
-              bundle_id: newBundle.id,
-              product_id: p.product_id,
-              quantity: p.quantity
-            })));
-        }
+        bundleId = data.id;
       }
 
-      toast({
-        title: "Success",
-        description: editingBundle ? "Bundle updated" : "Bundle created"
-      });
+      // 2. Save Items
+      // First delete existing items if editing
+      if (formData.id) {
+        await supabase.from('bundle_items').delete().eq('bundle_id', bundleId);
+      }
 
-      resetForm();
+      const itemsToInsert = bundleItems.map(item => ({
+        bundle_id: bundleId,
+        product_id: item.product_id,
+        variant_id: item.variant_id,
+        quantity: item.quantity,
+        slot_name: item.slot_name,
+        allowed_categories: item.allowed_categories
+      }));
+
+      if (itemsToInsert.length > 0) {
+        const { error: itemsError } = await supabase.from('bundle_items').insert(itemsToInsert);
+        if (itemsError) throw itemsError;
+      }
+
+      toast({ title: "Success", description: "Bundle saved successfully" });
+      setView('list');
       fetchBundles();
+      setStep(1);
+      setFormData({ type: 'fixed', price_type: 'fixed', is_active: true });
+      setBundleItems([]);
+
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string, imageUrl: string | null) => {
-    if (!confirm('Are you sure you want to delete this bundle?')) return;
+  const addItem = () => {
+    setBundleItems([...bundleItems, { category_id: null, product_id: null, variant_id: null, quantity: 1 }]);
+  };
 
-    try {
-      if (imageUrl) {
-        await deleteFile(imageUrl, 'hero-images');
-      }
+  const updateItem = (index: number, field: keyof BundleItem, value: any) => {
+    const newItems = [...bundleItems];
 
-      const { error } = await supabase
-        .from('bundles')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Bundle deleted"
-      });
-
-      fetchBundles();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
+    // Reset downstream fields if upstream changes
+    if (field === 'category_id') {
+      newItems[index] = { ...newItems[index], category_id: value, product_id: null, variant_id: null };
+    } else if (field === 'product_id') {
+      newItems[index] = { ...newItems[index], product_id: value, variant_id: null };
+    } else {
+      newItems[index] = { ...newItems[index], [field]: value };
     }
+
+    setBundleItems(newItems);
   };
 
-  const handleEdit = (bundle: Bundle) => {
-    setEditingBundle(bundle.id);
-    setFormData({
-      name: bundle.name,
-      description: bundle.description || '',
-      bundle_price: bundle.bundle_price.toString(),
-      image_url: bundle.image_url || '',
-      display_order: bundle.display_order
-    });
-    
-    const items = bundleItems[bundle.id] || [];
-    setSelectedProducts(items.map(item => ({
-      product_id: item.product_id,
-      quantity: item.quantity
-    })));
+  const removeItem = (index: number) => {
+    setBundleItems(bundleItems.filter((_, i) => i !== index));
   };
 
-  const resetForm = () => {
-    setEditingBundle(null);
-    setFormData({
-      name: '',
-      description: '',
-      bundle_price: '',
-      image_url: '',
-      display_order: 0
-    });
-    setSelectedProducts([]);
-  };
+  if (view === 'list') {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-3xl font-bold tracking-tight">Bundle Manager</h2>
+          <Button onClick={() => setView('create')} className="bg-primary text-black hover:bg-primary/90">
+            <Plus className="w-4 h-4 mr-2" /> Create Bundle
+          </Button>
+        </div>
 
-  const addProduct = () => {
-    setSelectedProducts([...selectedProducts, { product_id: '', quantity: 1 }]);
-  };
-
-  const removeProduct = (index: number) => {
-    setSelectedProducts(selectedProducts.filter((_, i) => i !== index));
-  };
-
-  const updateProduct = (index: number, field: 'product_id' | 'quantity', value: any) => {
-    const updated = [...selectedProducts];
-    updated[index] = { ...updated[index], [field]: value };
-    setSelectedProducts(updated);
-  };
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {bundles.map(bundle => (
+            <Card key={bundle.id} className="bg-black/40 border-white/10 overflow-hidden group">
+              <div className="aspect-video relative">
+                {bundle.cover_image ? (
+                  <img src={bundle.cover_image} alt={bundle.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-white/5 flex items-center justify-center">
+                    <Package className="w-12 h-12 text-white/20" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <Button variant="secondary" onClick={() => {
+                    setFormData(bundle);
+                    // Fetch items for this bundle
+                    supabase.from('bundle_items').select('*').eq('bundle_id', bundle.id)
+                      .then(({ data }) => {
+                        if (data) {
+                          // We need to backfill category_id for existing items to make the UI work
+                          const itemsWithCategory = data.map((item: any) => {
+                            const product = products.find(p => p.id === item.product_id);
+                            return {
+                              ...item,
+                              category_id: product?.category_id || null
+                            };
+                          });
+                          setBundleItems(itemsWithCategory);
+                        }
+                        setView('edit');
+                      });
+                  }}>
+                    Edit
+                  </Button>
+                </div>
+              </div>
+              <div className="p-4">
+                <h3 className="font-bold text-lg">{bundle.name}</h3>
+                <p className="text-sm text-muted-foreground capitalize">{bundle.type} Bundle</p>
+                <div className="mt-2 flex justify-between items-center">
+                  <span className="font-mono text-primary">
+                    {bundle.price_type === 'fixed' ? `₹${bundle.price_value}` : `${bundle.price_value}% OFF`}
+                  </span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${bundle.is_active ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
+                    {bundle.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <Card className="bg-mtrix-dark border-mtrix-gray">
-      <CardHeader>
-        <CardTitle className="text-foreground">Bundle & Pack Manager</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-4 p-4 bg-background/50 rounded-lg">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Bundle Name *</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter bundle name"
-              />
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => setView('list')}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <h2 className="text-2xl font-bold">{view === 'create' ? 'Create New Bundle' : 'Edit Bundle'}</h2>
+      </div>
+
+      <div className="flex gap-4 mb-8">
+        {[1, 2, 3].map(s => (
+          <div key={s} className={`flex-1 h-2 rounded-full ${step >= s ? 'bg-primary' : 'bg-white/10'}`} />
+        ))}
+      </div>
+
+      {step === 1 && (
+        <Card className="p-6 space-y-6 bg-black/40 border-white/10">
+          <div className="space-y-2">
+            <Label>Bundle Name</Label>
+            <Input
+              value={formData.name || ''}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., Summer Essentials Pack"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select
+                value={formData.type}
+                onValueChange={(v: any) => setFormData({ ...formData, type: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed">Fixed Bundle (Pre-set items)</SelectItem>
+                  <SelectItem value="custom">Custom Bundle (Build your own)</SelectItem>
+                  <SelectItem value="quantity">Quantity Pack (Multi-buy)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label>Bundle Price *</Label>
+            <div className="space-y-2">
+              <Label>Slug</Label>
               <Input
-                type="number"
-                value={formData.bundle_price}
-                onChange={(e) => setFormData({ ...formData, bundle_price: e.target.value })}
-                placeholder="0.00"
+                value={formData.slug || ''}
+                onChange={e => setFormData({ ...formData, slug: e.target.value })}
+                placeholder="summer-essentials-pack"
               />
             </div>
           </div>
 
-          <div>
+          <div className="space-y-2">
             <Label>Description</Label>
             <Textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Bundle description"
+              value={formData.description || ''}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
             />
           </div>
 
-          <div>
-            <Label>Bundle Image</Label>
-            <Input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
-            {formData.image_url && (
-              <img src={formData.image_url} alt="Preview" className="mt-2 h-20 object-cover rounded" />
-            )}
-          </div>
-
-          <div>
-            <Label>Display Order</Label>
-            <Input
-              type="number"
-              value={formData.display_order}
-              onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) })}
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>Products in Bundle</Label>
-              <Button size="sm" onClick={addProduct}>
-                <Plus className="w-4 h-4 mr-1" /> Add Product
-              </Button>
+          <div className="space-y-2">
+            <Label>Cover Image</Label>
+            <div className="flex items-center gap-4">
+              {formData.cover_image && (
+                <img src={formData.cover_image} className="w-20 h-20 object-cover rounded-md" />
+              )}
+              <Input type="file" onChange={handleImageUpload} disabled={uploading} />
             </div>
-            {selectedProducts.map((item, index) => (
-              <div key={index} className="flex gap-2 mb-2">
-                <select
-                  className="flex-1 p-2 rounded bg-background border border-input"
-                  value={item.product_id}
-                  onChange={(e) => updateProduct(index, 'product_id', e.target.value)}
-                >
-                  <option value="">Select Product</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <Input
-                  type="number"
-                  className="w-24"
-                  value={item.quantity}
-                  onChange={(e) => updateProduct(index, 'quantity', parseInt(e.target.value))}
-                  min="1"
-                />
-                <Button size="sm" variant="destructive" onClick={() => removeProduct(index)}>
+          </div>
+        </Card>
+      )}
+
+      {step === 2 && (
+        <Card className="p-6 space-y-6 bg-black/40 border-white/10">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold">Bundle Items</h3>
+            <Button onClick={addItem} variant="outline" size="sm"><Plus className="w-4 h-4 mr-2" /> Add Item</Button>
+          </div>
+
+          <div className="space-y-4">
+            {bundleItems.map((item, index) => (
+              <div key={index} className="flex gap-4 items-start p-4 bg-white/5 rounded-lg border border-white/5">
+                <div className="flex-1 space-y-4">
+                  {formData.type === 'custom' && (
+                    <div className="space-y-2">
+                      <Label>Slot Name</Label>
+                      <Input
+                        value={item.slot_name || ''}
+                        onChange={e => updateItem(index, 'slot_name', e.target.value)}
+                        placeholder="e.g., Select a Hoodie"
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* Category Selection */}
+                    <div className="space-y-2">
+                      <Label>Category</Label>
+                      <Select
+                        value={item.category_id || ''}
+                        onValueChange={v => updateItem(index, 'category_id', v)}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select Category" /></SelectTrigger>
+                        <SelectContent>
+                          {categories.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Product Selection (Filtered) */}
+                    <div className="space-y-2">
+                      <Label>Product</Label>
+                      <Select
+                        value={item.product_id || ''}
+                        onValueChange={v => updateItem(index, 'product_id', v)}
+                        disabled={!item.category_id}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select Product" /></SelectTrigger>
+                        <SelectContent>
+                          {products
+                            .filter(p => p.category_id === item.category_id)
+                            .map(p => (
+                              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Variant Selection (Filtered) */}
+                    {formData.type === 'fixed' && (
+                      <div className="space-y-2">
+                        <Label>Variant</Label>
+                        <Select
+                          value={item.variant_id || ''}
+                          onValueChange={v => updateItem(index, 'variant_id', v)}
+                          disabled={!item.product_id}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Select Variant" /></SelectTrigger>
+                          <SelectContent>
+                            {products.find(p => p.id === item.product_id)?.variants?.map(v => (
+                              <SelectItem key={v.id} value={v.id}>{v.color} - {v.size}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="w-32 space-y-2">
+                    <Label>Quantity</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={e => updateItem(index, 'quantity', parseInt(e.target.value))}
+                    />
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" className="text-red-500" onClick={() => removeItem(index)}>
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
             ))}
           </div>
+        </Card>
+      )}
 
-          <div className="flex gap-2">
-            <Button onClick={handleSubmit} disabled={uploading}>
-              {editingBundle ? <><Save className="w-4 h-4 mr-2" /> Update</> : <><Plus className="w-4 h-4 mr-2" /> Create</>}
-            </Button>
-            {editingBundle && (
-              <Button variant="outline" onClick={resetForm}>
-                <X className="w-4 h-4 mr-2" /> Cancel
-              </Button>
-            )}
-          </div>
-        </div>
+      {step === 3 && (
+        <Card className="p-6 space-y-6 bg-black/40 border-white/10">
+          <h3 className="text-xl font-bold">Pricing & Activation</h3>
 
-        <div className="grid gap-4">
-          {bundles.map(bundle => (
-            <div key={bundle.id} className="p-4 bg-background/50 rounded-lg">
-              <div className="flex items-start justify-between">
-                <div className="flex gap-4 flex-1">
-                  {bundle.image_url && (
-                    <img src={bundle.image_url} alt={bundle.name} className="w-24 h-24 object-cover rounded" />
-                  )}
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg">{bundle.name}</h3>
-                    <p className="text-sm text-muted-foreground">{bundle.description}</p>
-                    <p className="text-lg font-bold text-primary mt-2">₹{bundle.bundle_price}</p>
-                    {bundleItems[bundle.id] && (
-                      <div className="mt-2">
-                        <p className="text-sm font-medium">Products:</p>
-                        <ul className="text-sm text-muted-foreground">
-                          {bundleItems[bundle.id].map(item => (
-                            <li key={item.id}>
-                              {item.products.name} (Qty: {item.quantity})
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => handleEdit(bundle)}>
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleDelete(bundle.id, bundle.image_url)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>Price Type</Label>
+              <Select
+                value={formData.price_type}
+                onValueChange={(v: any) => setFormData({ ...formData, price_type: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed">Fixed Price (₹)</SelectItem>
+                  <SelectItem value="percentage_discount">Percentage Discount (%)</SelectItem>
+                  <SelectItem value="fixed_discount">Fixed Amount Off (₹)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+            <div className="space-y-2">
+              <Label>Value</Label>
+              <Input
+                type="number"
+                value={formData.price_value || ''}
+                onChange={e => setFormData({ ...formData, price_value: parseFloat(e.target.value) })}
+                placeholder={formData.price_type === 'percentage_discount' ? '15' : '999'}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="is_active"
+              checked={formData.is_active}
+              onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
+              className="w-4 h-4 rounded border-gray-300"
+            />
+            <Label htmlFor="is_active">Activate Bundle immediately</Label>
+          </div>
+        </Card>
+      )}
+
+      <div className="flex justify-between pt-6">
+        <Button
+          variant="outline"
+          onClick={() => setStep(step - 1)}
+          disabled={step === 1}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" /> Previous
+        </Button>
+
+        {step < 3 ? (
+          <Button onClick={() => setStep(step + 1)} className="bg-primary text-black">
+            Next <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        ) : (
+          <Button onClick={saveBundle} className="bg-green-500 hover:bg-green-600 text-white" disabled={loading}>
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            <Save className="w-4 h-4 mr-2" /> Save Bundle
+          </Button>
+        )}
+      </div>
+    </div>
   );
 };
 

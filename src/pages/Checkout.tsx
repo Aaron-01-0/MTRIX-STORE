@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useCart } from '@/hooks/useCart';
+import { useCart, CartItem } from '@/hooks/useCart';
 import { useSavedAddresses } from '@/hooks/useSavedAddresses';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +14,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { addressSchema } from '@/lib/validation';
 import { logger } from '@/lib/logger';
-import { MapPin, Plus, Edit2, Check, ShieldCheck, CreditCard, Truck, ChevronRight, Tag } from 'lucide-react';
+import { MapPin, Plus, Edit2, Check, ShieldCheck, CreditCard, Truck, ChevronRight, Tag, Package } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
@@ -188,10 +188,53 @@ const Checkout = () => {
     fetchShippingSettings();
   }, []);
 
-  const subtotal = cartItems.reduce((sum, item) => {
-    const price = item.product.discount_price || item.product.base_price;
-    return sum + (price * item.quantity);
-  }, 0);
+  // --- Bundle Logic Start ---
+
+  // Group items by bundle_id
+  const groupedItems = cartItems.reduce((acc, item) => {
+    if (item.bundle_id) {
+      if (!acc.bundles[item.bundle_id]) {
+        acc.bundles[item.bundle_id] = {
+          bundle: item.bundle!,
+          items: []
+        };
+      }
+      acc.bundles[item.bundle_id].items.push(item);
+    } else {
+      acc.standalone.push(item);
+    }
+    return acc;
+  }, {
+    bundles: {} as Record<string, { bundle: NonNullable<CartItem['bundle']>, items: CartItem[] }>,
+    standalone: [] as CartItem[]
+  });
+
+  const calculateBundlePrice = (bundle: NonNullable<CartItem['bundle']>, items: CartItem[]) => {
+    const itemsTotal = items.reduce((sum, item) => {
+      const price = item.product.discount_price || item.product.base_price;
+      return sum + (price * item.quantity);
+    }, 0);
+
+    if (bundle.price_type === 'fixed') {
+      return itemsTotal; // Fallback
+    } else if (bundle.price_type === 'percentage_discount') {
+      return itemsTotal * (1 - bundle.price_value / 100);
+    } else if (bundle.price_type === 'fixed_discount') {
+      return Math.max(0, itemsTotal - bundle.price_value);
+    }
+    return itemsTotal;
+  };
+
+  const subtotal =
+    groupedItems.standalone.reduce((sum, item) => {
+      const price = item.product.discount_price || item.product.base_price;
+      return sum + (price * item.quantity);
+    }, 0) +
+    Object.values(groupedItems.bundles).reduce((sum, group) => {
+      return sum + calculateBundlePrice(group.bundle, group.items);
+    }, 0);
+
+  // --- Bundle Logic End ---
 
   const shippingCost = subtotal >= shippingSettings.threshold ? 0 : shippingSettings.cost;
 
@@ -240,6 +283,16 @@ const Checkout = () => {
       if (orderError) throw orderError;
 
       logger.debug('Order created', { orderId: orderData.orderId });
+
+      const cancelOrder = async (orderId: string) => {
+        try {
+          await supabase.functions.invoke('cancel-order', {
+            body: { orderId }
+          });
+        } catch (error) {
+          console.error('Failed to cancel order:', error);
+        }
+      };
 
       // Initialize Razorpay with server-provided key
       const options = {
@@ -301,9 +354,10 @@ const Checkout = () => {
         modal: {
           ondismiss: function () {
             logger.info('Payment modal dismissed by user');
+            cancelOrder(orderData.orderId); // Cancel order on dismiss
             toast({
               title: "Payment Cancelled",
-              description: "You cancelled the payment. Your cart items are still saved.",
+              description: "You cancelled the payment. The order has been cancelled.",
               variant: "destructive"
             });
             setLoading(false);
@@ -314,6 +368,7 @@ const Checkout = () => {
       const paymentObject = new window.Razorpay(options);
       paymentObject.on('payment.failed', function (response: any) {
         logger.error('Payment failed', response.error);
+        cancelOrder(orderData.orderId); // Cancel order on failure
         toast({
           title: "Payment Failed",
           description: response.error.description || "Payment was not successful. Please try again.",
@@ -530,7 +585,30 @@ const Checkout = () => {
 
                     {/* Items List */}
                     <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                      {cartItems.map(item => (
+
+                      {/* Bundles */}
+                      {Object.values(groupedItems.bundles).map(({ bundle, items }) => (
+                        <div key={bundle.id} className="p-3 bg-white/5 rounded-lg border border-gold/20">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Package className="w-4 h-4 text-gold" />
+                            <span className="font-bold text-sm text-gold">{bundle.name}</span>
+                          </div>
+                          <div className="space-y-2 pl-2 border-l border-white/10">
+                            {items.map(item => (
+                              <div key={item.id} className="flex gap-2 text-xs text-muted-foreground">
+                                <span>{item.quantity}x</span>
+                                <span className="line-clamp-1">{item.product.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-2 text-right font-bold text-gold">
+                            ₹{Math.round(calculateBundlePrice(bundle, items))}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Standalone Items */}
+                      {groupedItems.standalone.map(item => (
                         <div key={item.id} className="flex gap-3">
                           <div className="w-16 h-16 rounded-lg bg-mtrix-black border border-mtrix-gray overflow-hidden flex-shrink-0">
                             <img
@@ -558,7 +636,7 @@ const Checkout = () => {
                     <div className="space-y-3">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Subtotal</span>
-                        <span className="text-foreground font-medium">₹{subtotal}</span>
+                        <span className="text-foreground font-medium">₹{Math.round(subtotal)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Shipping</span>

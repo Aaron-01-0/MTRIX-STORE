@@ -59,18 +59,20 @@ const AdminLayout = () => {
     }
 
     return (
-        <div className="min-h-screen bg-black font-inter selection:bg-primary/30 selection:text-primary">
+        <div className="min-h-screen bg-black font-inter selection:bg-primary/30 selection:text-primary print:bg-white">
             {/* Ambient Background Glow */}
-            <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+            <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0 print:hidden">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] animate-pulse-slow" />
                 <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] animate-pulse-slow" style={{ animationDelay: '2s' }} />
             </div>
 
-            <AdminSidebar />
-            <AdminHeader />
+            <div className="print:hidden">
+                <AdminSidebar />
+                <AdminHeader />
+            </div>
 
-            <main className="pl-72 pt-20 min-h-screen relative z-10">
-                <div className="p-8 animate-fade-in max-w-[1600px] mx-auto">
+            <main className="pl-72 pt-20 min-h-screen relative z-10 print:pl-0 print:pt-0 print:min-h-0">
+                <div className="p-8 animate-fade-in max-w-[1600px] mx-auto print:p-0 print:max-w-none">
                     <Outlet />
                 </div>
             </main>
