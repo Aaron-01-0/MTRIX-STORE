@@ -55,11 +55,13 @@ const queryClient = new QueryClient();
 import ComingSoon from "./pages/ComingSoon";
 
 const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
-  const launchDate = new Date('2024-12-25T00:00:00');
+  const targetDate = new Date('2025-12-25T00:00:00');
   const now = new Date();
-  const isPreLaunch = now < launchDate;
+  const isPreLaunch = now < targetDate;
   const isBypassed = localStorage.getItem('mtrix_bypass') === 'true';
   const isAdmin = window.location.pathname.startsWith('/admin');
+
+  console.log('LaunchGuard Check:', { isPreLaunch, isBypassed, isAdmin, path: window.location.pathname });
 
   if (isPreLaunch && !isBypassed && !isAdmin) {
     return <Navigate to="/coming-soon" replace />;
