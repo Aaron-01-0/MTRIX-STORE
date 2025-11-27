@@ -83,6 +83,11 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
 
   const isPublicPath = publicPaths.some(path => location.pathname.startsWith(path));
 
+  // Check for OAuth redirect hash
+  const isOAuthCallback = window.location.hash.includes('access_token') ||
+    window.location.hash.includes('refresh_token') ||
+    window.location.hash.includes('error');
+
   // Allow access if:
   // 1. It's not pre-launch (site is live)
   // 2. User has bypassed via secret code
@@ -91,7 +96,7 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const userEmail = user?.email?.toLowerCase();
   const isAuthorizedUser = userEmail?.includes('admin') || userEmail?.includes('demo') || userEmail === 'raj00.mkv@gmail.com';
 
-  if (loading) return <div className="min-h-screen bg-black" />; // Prevent flash
+  if (loading || isOAuthCallback) return <div className="min-h-screen bg-black" />; // Prevent flash & allow OAuth to process
 
   if (isPreLaunch && !isBypassed && !isPublicPath && !isAuthorizedUser) {
     return <Navigate to="/coming-soon" replace />;
