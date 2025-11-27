@@ -6,6 +6,7 @@ interface SEOProps {
     image?: string;
     url?: string;
     type?: string;
+    structuredData?: any;
 }
 
 const SEO = ({
@@ -13,7 +14,8 @@ const SEO = ({
     description = "MTRIX - Premium Tech & Lifestyle Accessories",
     image = "/og-image.png",
     url = window.location.href,
-    type = "website"
+    type = "website",
+    structuredData
 }: SEOProps) => {
     const siteTitle = `${title} | MTRIX`;
 
@@ -35,6 +37,13 @@ const SEO = ({
             <meta name="twitter:title" content={siteTitle} />
             <meta name="twitter:description" content={description} />
             <meta name="twitter:image" content={image} />
+
+            {/* Structured Data (JSON-LD) */}
+            {structuredData && (
+                <script type="application/ld+json">
+                    {JSON.stringify(structuredData)}
+                </script>
+            )}
         </Helmet>
     );
 };

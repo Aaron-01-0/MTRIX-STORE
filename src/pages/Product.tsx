@@ -251,12 +251,40 @@ const Product = () => {
     );
   }
 
+  // --- Structured Data (JSON-LD) ---
+  const structuredData = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    "name": product.name,
+    "image": productImages,
+    "description": product.short_description || product.detailed_description,
+    "sku": product.sku,
+    "brand": {
+      "@type": "Brand",
+      "name": product.brands?.name || "MTRIX"
+    },
+    "offers": {
+      "@type": "Offer",
+      "url": window.location.href,
+      "priceCurrency": "INR",
+      "price": currentPrice,
+      "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      "itemCondition": "https://schema.org/NewCondition"
+    },
+    "aggregateRating": product.ratings_count > 0 ? {
+      "@type": "AggregateRating",
+      "ratingValue": product.ratings_avg,
+      "reviewCount": product.ratings_count
+    } : undefined
+  };
+
   return (
     <div className="min-h-screen bg-black text-white font-inter selection:bg-primary/30 selection:text-primary">
       <SEO
         title={product.name}
         description={product.short_description || product.detailed_description?.substring(0, 160) || `Buy ${product.name} at MTRIX.`}
         image={productImages[0]}
+        structuredData={structuredData}
       />
       <Navbar />
 
