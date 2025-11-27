@@ -421,7 +421,7 @@ const ComingSoon = () => {
 
                     {/* Admin Login Link */}
                     <div className="absolute top-4 right-4 z-50">
-                        <a href="/login" className="text-xs text-neutral-600 hover:text-gold transition-colors uppercase tracking-widest opacity-50 hover:opacity-100">
+                        <a href="/auth" className="text-xs text-neutral-600 hover:text-gold transition-colors uppercase tracking-widest opacity-50 hover:opacity-100">
                             Admin Access
                         </a>
                     </div>
