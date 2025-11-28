@@ -146,7 +146,7 @@ const BundleManager = () => {
         variant_id: item.variant_id,
         quantity: item.quantity,
         slot_name: item.slot_name,
-        allowed_categories: item.allowed_categories
+        allowed_category_id: item.category_id // Map UI category selection to DB column
       }));
 
       if (itemsToInsert.length > 0) {
@@ -221,6 +221,11 @@ const BundleManager = () => {
                         if (data) {
                           // We need to backfill category_id for existing items to make the UI work
                           const itemsWithCategory = data.map((item: any) => {
+                            // If it has allowed_category_id (custom bundle), use that
+                            if (item.allowed_category_id) {
+                              return { ...item, category_id: item.allowed_category_id };
+                            }
+                            // Otherwise try to infer from product (fixed bundle)
                             const product = products.find(p => p.id === item.product_id);
                             return {
                               ...item,

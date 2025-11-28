@@ -260,16 +260,67 @@ export const useCart = () => {
     }
 
     try {
-      const cartInserts = items.map(item => ({
-        user_id: user.id,
-        product_id: item.product_id,
-        variant_id: item.variant_id || null,
-        quantity: item.quantity,
-        bundle_id: bundleId
-      }));
+      // Filter out items without a product_id to prevent database errors
+      const validItems = items.filter(item => item.product_id);
 
-      const { error } = await supabase.from('cart_items').insert(cartInserts);
-      if (error) throw error;
+      if (validItems.length === 0) {
+        toast({
+          title: "Error",
+          description: "No valid items in this bundle",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // 1. Fetch existing items for this bundle in the cart to check for duplicates
+      const { data: existingItems, error: fetchError } = await supabase
+        .from('cart_items')
+        .select('id, product_id, variant_id, quantity')
+        .eq('user_id', user.id)
+        .eq('bundle_id', bundleId);
+
+      if (fetchError) throw fetchError;
+
+      const updates = [];
+      const inserts = [];
+
+      for (const item of validItems) {
+        const existingItem = existingItems?.find(
+          existing =>
+            existing.product_id === item.product_id &&
+            existing.variant_id === (item.variant_id || null)
+        );
+
+        if (existingItem) {
+          updates.push({
+            id: existingItem.id,
+            quantity: existingItem.quantity + item.quantity
+          });
+        } else {
+          inserts.push({
+            user_id: user.id,
+            product_id: item.product_id,
+            variant_id: item.variant_id || null,
+            quantity: item.quantity,
+            bundle_id: bundleId
+          });
+        }
+      }
+
+      // 2. Perform updates
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('cart_items')
+          .update({ quantity: update.quantity })
+          .eq('id', update.id);
+        if (error) throw error;
+      }
+
+      // 3. Perform inserts
+      if (inserts.length > 0) {
+        const { error } = await supabase.from('cart_items').insert(inserts);
+        if (error) throw error;
+      }
 
       toast({
         title: "Success",

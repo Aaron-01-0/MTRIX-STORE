@@ -5,6 +5,7 @@ GRANT SELECT ON user_roles TO authenticated;
 ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can read their own role
+DROP POLICY IF EXISTS "Users can read own role" ON user_roles;
 CREATE POLICY "Users can read own role"
 ON user_roles FOR SELECT
 USING (auth.uid() = user_id);
@@ -13,6 +14,7 @@ USING (auth.uid() = user_id);
 ALTER TABLE payment_transactions ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Admins can view all payment transactions
+DROP POLICY IF EXISTS "Admins can view all payment transactions" ON payment_transactions;
 CREATE POLICY "Admins can view all payment transactions"
 ON payment_transactions FOR ALL
 USING (

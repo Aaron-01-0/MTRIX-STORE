@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  MessageCircle, 
-  Mail, 
-  Phone, 
-  HelpCircle, 
+import {
+  MessageCircle,
+  Mail,
+  Phone,
+  HelpCircle,
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
@@ -27,9 +27,11 @@ interface SupportSettings {
   support_address?: string;
 }
 
+import { faqData } from '@/data/faqData';
+
 const Support = () => {
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
-  const [faqs, setFaqs] = useState<FAQ[]>([]);
+  // const [faqs, setFaqs] = useState<FAQ[]>([]); // Removed DB state
   const [settings, setSettings] = useState<SupportSettings | null>(null);
 
   useEffect(() => {
@@ -38,13 +40,8 @@ const Support = () => {
 
   const fetchData = async () => {
     try {
-      const [faqsRes, settingsRes] = await Promise.all([
-        supabase.from('faqs').select('*').eq('is_active', true).order('display_order'),
-        supabase.from('support_settings').select('*').single()
-      ]);
-
-      if (!faqsRes.error) setFaqs(faqsRes.data || []);
-      if (!settingsRes.error) setSettings(settingsRes.data);
+      const { data, error } = await supabase.from('support_settings').select('*').single();
+      if (!error) setSettings(data);
     } catch (error) {
       console.error('Error fetching support data:', error);
     }
@@ -58,7 +55,7 @@ const Support = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="pt-24">
         {/* Hero Section */}
         <section className="py-16 px-6 bg-gradient-dark">
@@ -78,7 +75,7 @@ const Support = () => {
             <h2 className="text-3xl font-orbitron font-bold text-gradient-gold mb-8 text-center">
               Get In Touch
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
               <Card className="bg-mtrix-dark border-mtrix-gray hover:border-primary transition-all duration-300 text-center">
                 <CardContent className="p-6">
@@ -89,7 +86,7 @@ const Support = () => {
                   <p className="text-muted-foreground mb-3">
                     {settings?.support_email || 'support@mtrix.com'}
                   </p>
-                  <Button 
+                  <Button
                     onClick={() => window.location.href = `mailto:${settings?.support_email || 'support@mtrix.com'}`}
                     className="w-full bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all duration-300"
                   >
@@ -106,7 +103,7 @@ const Support = () => {
                   <p className="text-muted-foreground mb-3">
                     {settings?.support_phone || '+91 XXXXXXXXXX'}
                   </p>
-                  <Button 
+                  <Button
                     onClick={() => window.location.href = `tel:${settings?.support_phone}`}
                     className="w-full bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all duration-300"
                   >
@@ -138,48 +135,51 @@ const Support = () => {
             <h2 className="text-3xl font-orbitron font-bold text-gradient-gold mb-8 text-center">
               Frequently Asked Questions
             </h2>
-            
-          <div className="max-w-3xl mx-auto space-y-4">
-            {faqs.length === 0 ? (
-              <Card className="bg-mtrix-dark border-mtrix-gray">
-                <CardContent className="p-12 text-center">
-                  <HelpCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No FAQs available yet</p>
-                </CardContent>
-              </Card>
-            ) : (
-              faqs.map((faq) => (
-                <Card
-                  key={faq.id}
-                  className="bg-mtrix-dark border-mtrix-gray hover:border-primary transition-all duration-300"
-                >
-                  <CardContent className="p-0">
-                    <button
-                      onClick={() => toggleFaq(faq.id)}
-                      className="w-full p-6 text-left flex items-center justify-between hover:bg-mtrix-gray/20 transition-colors"
-                    >
-                      <span className="text-foreground font-semibold">
-                        {faq.question}
-                      </span>
-                      {expandedFaq === faq.id ? (
-                        <ChevronUp className="w-5 h-5 text-primary" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                      )}
-                    </button>
-                    
-                    {expandedFaq === faq.id && (
-                      <div className="px-6 pb-6">
-                        <p className="text-muted-foreground leading-relaxed">
-                          {faq.answer}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
+
+            <div className="max-w-3xl mx-auto space-y-8">
+              {faqData.map((section, idx) => (
+                <div key={idx} className="space-y-4">
+                  <h3 className="text-xl font-orbitron font-semibold text-primary/80 border-b border-white/10 pb-2">
+                    {section.category}
+                  </h3>
+                  <div className="space-y-4">
+                    {section.questions.map((faq, qIdx) => {
+                      const id = `faq-${idx}-${qIdx}`;
+                      return (
+                        <Card
+                          key={id}
+                          className="bg-mtrix-dark border-mtrix-gray hover:border-primary transition-all duration-300"
+                        >
+                          <CardContent className="p-0">
+                            <button
+                              onClick={() => toggleFaq(id)}
+                              className="w-full p-6 text-left flex items-center justify-between hover:bg-mtrix-gray/20 transition-colors"
+                            >
+                              <span className="text-foreground font-semibold">
+                                {faq.q}
+                              </span>
+                              {expandedFaq === id ? (
+                                <ChevronUp className="w-5 h-5 text-primary" />
+                              ) : (
+                                <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                              )}
+                            </button>
+
+                            {expandedFaq === id && (
+                              <div className="px-6 pb-6">
+                                <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
+                                  {faq.a}
+                                </p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -190,7 +190,7 @@ const Support = () => {
               <h2 className="text-3xl font-orbitron font-bold text-gradient-gold mb-8 text-center">
                 Send Us a Message
               </h2>
-              
+
               <Card className="bg-mtrix-dark border-mtrix-gray">
                 <CardContent className="p-8">
                   <ContactForm />

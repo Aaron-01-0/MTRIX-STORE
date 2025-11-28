@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Package, CreditCard, Clock, Truck, MessageSquare, CheckCircle, ArrowRight, Download, XCircle, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { MapPin, Package, CreditCard, Clock, Truck, MessageSquare, CheckCircle, ArrowRight, Download, XCircle, AlertTriangle, RefreshCcw, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import ProductReview from '@/components/ProductReview';
 import { Button } from '@/components/ui/button';
@@ -42,9 +42,13 @@ interface Order {
   tracking_number?: string;
   tracking_url?: string;
   estimated_delivery_date?: string;
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
   created_at: string;
   updated_at: string;
   order_items: OrderItem[];
+  invoice_url?: string;
+  invoice_number?: string;
 }
 
 const statusSteps = [
@@ -150,6 +154,10 @@ const OrderDetail = () => {
         .from('orders')
         .select(`
           *,
+          invoices (
+            pdf_url,
+            invoice_number
+          ),
           order_items (
             id,
             quantity,
@@ -166,12 +174,24 @@ const OrderDetail = () => {
           )
         `)
         .eq('id', id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid throwing on 404 immediately
 
       if (error) throw error;
 
+      if (!data) {
+        console.warn('Order not found in DB:', id);
+        // Check if it exists but RLS is blocking (requires admin client or separate check, but we can hint)
+        toast({
+          title: "Order Not Found",
+          description: "The order could not be found. You may not have permission to view it.",
+          variant: "destructive",
+        });
+        setOrder(null);
+        return;
+      }
+
       // Fetch product images
-      if (data?.order_items) {
+      if (data.order_items) {
         const productIds = data.order_items.map((item: any) => item.product_id);
         const { data: images } = await supabase
           .from('product_images')
@@ -188,13 +208,70 @@ const OrderDetail = () => {
         }));
       }
 
+      // Map invoice URL
+      if (data.invoices && data.invoices.length > 0) {
+        // Handle array or single object depending on relationship
+        const invoice = Array.isArray(data.invoices) ? data.invoices[0] : data.invoices;
+        data.invoice_url = invoice.pdf_url;
+        data.invoice_number = invoice.invoice_number;
+      } else if (data.invoices && !Array.isArray(data.invoices)) {
+        // Handle single object case if maybeSingle returns it that way
+        data.invoice_url = data.invoices.pdf_url;
+        data.invoice_number = data.invoices.invoice_number;
+      }
+
       setOrder(data as Order);
     } catch (error: any) {
       console.error('Error fetching order:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch order details",
+        description: error.message || "Failed to fetch order details",
         variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    try {
+      setLoading(true);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No active session');
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-invoice`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ order_id: id })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate invoice');
+      }
+
+      const { url } = await response.json();
+
+      toast({
+        title: "Success",
+        description: "Invoice generated successfully",
+      });
+
+      // Update local state immediately
+      if (order) {
+        setOrder({ ...order, invoice_url: url });
+      }
+    } catch (error: any) {
+      console.error('Error generating invoice:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate invoice",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -275,28 +352,22 @@ const OrderDetail = () => {
               Continue Shopping <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
             {!isCancelled && (
-              <Button
-                variant="outline"
-                className="border-mtrix-gray hover:bg-mtrix-gray/20"
-                onClick={async () => {
-                  if (!order) return;
-                  const { data } = supabase.storage
-                    .from('invoices')
-                    .getPublicUrl(`${order.order_number}.pdf`);
-
-                  if (data?.publicUrl) {
-                    window.open(data.publicUrl, '_blank');
-                  } else {
-                    toast({
-                      title: "Error",
-                      description: "Invoice not found",
-                      variant: "destructive"
-                    });
-                  }
-                }}
-              >
-                <Download className="mr-2 w-4 h-4" /> Invoice
-              </Button>
+              order.invoice_url ? (
+                <Button
+                  variant="outline"
+                  className="border-mtrix-gray hover:bg-mtrix-gray/20"
+                  onClick={() => window.open(order.invoice_url, '_blank')}
+                >
+                  <Download className="mr-2 w-4 h-4" /> Download Invoice
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleGenerateInvoice}
+                  className="bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all"
+                >
+                  <FileText className="mr-2 w-4 h-4" /> Generate Invoice
+                </Button>
+              )
             )}
           </div>
         </div>
@@ -542,9 +613,9 @@ const OrderDetail = () => {
             </Card>
           </div>
         </div>
-      </main>
+      </main >
       <Footer />
-    </div>
+    </div >
   );
 };
 

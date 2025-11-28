@@ -50,7 +50,14 @@ serve(async (req) => {
             // Check current order status
             const { data: order, error: fetchError } = await supabaseAdmin
                 .from('orders')
-                .select('status, payment_status')
+                .select(`
+                    *,
+                    order_items (
+                        quantity,
+                        price,
+                        products ( name )
+                    )
+                `)
                 .eq('id', orderId)
                 .single();
 
@@ -59,27 +66,100 @@ serve(async (req) => {
                 throw fetchError;
             }
 
-            // If already processed, ignore
-            if (order.payment_status === 'success' || order.status === 'order_created') {
-                console.log('Order already processed, ignoring webhook');
-                return new Response(JSON.stringify({ received: true }), { headers: corsHeaders });
-            }
+            // Generate Invoice Number
+            const { data: invoiceNumber, error: invNumError } = await supabaseAdmin.rpc('generate_invoice_number');
+            if (invNumError) throw invNumError;
 
-            // Update Order Status
-            const { error: updateError } = await supabaseAdmin
-                .from('orders')
-                .update({
-                    payment_status: 'success',
-                    status: 'order_created',
-                    razorpay_payment_id: payment.id,
-                    razorpay_order_id: payment.order_id,
-                    razorpay_signature: signature // Webhook signature as proof
-                })
-                .eq('id', orderId);
+            // Generate PDF
+            try {
+                const { PDFDocument, StandardFonts, rgb } = await import("https://cdn.skypack.dev/pdf-lib");
+                const pdfDoc = await PDFDocument.create();
+                const page = pdfDoc.addPage();
+                const { width, height } = page.getSize();
+                const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+                const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-            if (updateError) {
-                console.error('Failed to update order status:', updateError);
-                throw updateError;
+                // Header
+                page.drawText('INVOICE', { x: 50, y: height - 50, size: 24, font: boldFont });
+                page.drawText(`Invoice #: ${invoiceNumber}`, { x: 50, y: height - 80, size: 12, font });
+                page.drawText(`Date: ${new Date().toLocaleDateString()}`, { x: 50, y: height - 95, size: 12, font });
+                page.drawText(`Order #: ${order.order_number}`, { x: 50, y: height - 110, size: 12, font });
+
+                // Bill To
+                page.drawText('Bill To:', { x: 50, y: height - 150, size: 12, font: boldFont });
+                const address = order.shipping_address || {};
+                let yPos = height - 165;
+                const addressLines = [
+                    address.address_line1,
+                    address.address_line2,
+                    `${address.city}, ${address.state} ${address.pincode}`,
+                    address.country
+                ].filter(Boolean);
+
+                addressLines.forEach(line => {
+                    page.drawText(line, { x: 50, y: yPos, size: 10, font });
+                    yPos -= 15;
+                });
+
+                // Items Table Header
+                yPos -= 20;
+                page.drawText('Item', { x: 50, y: yPos, size: 10, font: boldFont });
+                page.drawText('Qty', { x: 300, y: yPos, size: 10, font: boldFont });
+                page.drawText('Price', { x: 400, y: yPos, size: 10, font: boldFont });
+                page.drawText('Total', { x: 500, y: yPos, size: 10, font: boldFont });
+
+                // Items
+                yPos -= 20;
+                let total = 0;
+                order.order_items.forEach((item: any) => {
+                    const itemTotal = item.quantity * item.price;
+                    total += itemTotal;
+                    page.drawText(item.products?.name || 'Item', { x: 50, y: yPos, size: 10, font });
+                    page.drawText(item.quantity.toString(), { x: 300, y: yPos, size: 10, font });
+                    page.drawText(item.price.toString(), { x: 400, y: yPos, size: 10, font });
+                    page.drawText(itemTotal.toString(), { x: 500, y: yPos, size: 10, font });
+                    yPos -= 20;
+                });
+
+                // Total
+                yPos -= 10;
+                page.drawLine({ start: { x: 50, y: yPos }, end: { x: 550, y: yPos }, thickness: 1, color: rgb(0, 0, 0) });
+                yPos -= 20;
+                page.drawText(`Total: ${total.toFixed(2)}`, { x: 450, y: yPos, size: 12, font: boldFont });
+
+                const pdfBytes = await pdfDoc.save();
+
+                // Upload to Storage
+                const fileName = `${order.order_number}.pdf`;
+                const { error: uploadError } = await supabaseAdmin
+                    .storage
+                    .from('invoices')
+                    .upload(fileName, pdfBytes, {
+                        contentType: 'application/pdf',
+                        upsert: true
+                    });
+
+                if (uploadError) {
+                    console.error('PDF Upload Error:', uploadError);
+                    // Don't throw, just log. We still want to record the payment.
+                } else {
+                    // Get Public URL
+                    const { data: { publicUrl } } = supabaseAdmin.storage.from('invoices').getPublicUrl(fileName);
+
+                    // Insert Invoice Record
+                    await supabaseAdmin
+                        .from('invoices')
+                        .insert({
+                            order_id: orderId,
+                            invoice_number: invoiceNumber,
+                            pdf_url: publicUrl,
+                            total_amount: total,
+                            status: 'issued'
+                        });
+                }
+
+            } catch (pdfError) {
+                console.error('PDF Generation Error:', pdfError);
             }
 
             // Update Transaction
@@ -140,6 +220,36 @@ serve(async (req) => {
 
                 console.log('Order cancelled and inventory released via webhook');
             }
+        } else if (eventType.startsWith('payment.dispute')) {
+            // Handle Dispute Events
+            console.log(`Processing dispute event: ${eventType} for Payment: ${payment.id}`);
+
+            // 1. Update Payment Transaction Status
+            let newStatus = 'dispute';
+            if (eventType === 'payment.dispute.won') newStatus = 'success';
+            if (eventType === 'payment.dispute.lost') newStatus = 'dispute_lost';
+
+            await supabaseAdmin
+                .from('payment_transactions')
+                .update({ status: newStatus })
+                .eq('razorpay_payment_id', payment.id);
+
+            // 2. Log to Audit Logs
+            await supabaseAdmin
+                .from('audit_logs')
+                .insert({
+                    action: eventType,
+                    entity_type: 'payment',
+                    entity_id: payment.id, // Using payment ID as entity ID here, ideally should be transaction ID but we might not have it handy without a fetch
+                    details: {
+                        razorpay_payment_id: payment.id,
+                        reason: payload.dispute?.reason_code || 'Unknown',
+                        amount: payload.dispute?.amount,
+                        status: payload.dispute?.status
+                    }
+                });
+
+            console.log(`Dispute event ${eventType} processed`);
         }
 
         return new Response(JSON.stringify({ received: true }), {

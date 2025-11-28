@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { DollarSign, ShoppingBag, Users, TrendingUp, ArrowUpRight, Package, RotateCcw } from 'lucide-react';
+import { DollarSign, ShoppingBag, Users, TrendingUp, ArrowUpRight, Package, RotateCcw, AlertTriangle, MessageSquare, Clock, ArrowRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subDays } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ReturnManager from "@/components/admin/ReturnManager";
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 const AdminDashboard = () => {
     const [stats, setStats] = useState({
@@ -14,20 +16,35 @@ const AdminDashboard = () => {
         customers: 0,
         avgOrderValue: 0
     });
+    const [actionItems, setActionItems] = useState({
+        pendingPosts: 0,
+        lowStock: 0,
+        pendingOrders: 0
+    });
     const [chartData, setChartData] = useState<any[]>([]);
     const [recentOrders, setRecentOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchDashboardData();
+        cleanupStaleOrders();
     }, []);
+
+    const cleanupStaleOrders = async () => {
+        try {
+            const { error } = await supabase.functions.invoke('cleanup-stale-orders');
+            if (error) console.error('Error cleaning up stale orders:', error);
+        } catch (err) {
+            console.error('Failed to invoke cleanup function:', err);
+        }
+    };
 
     const fetchDashboardData = async () => {
         try {
             // 1. Fetch Orders
             const { data: orders, error } = await supabase
                 .from('orders')
-                .select('id, total_amount, created_at, status, payment_status, profiles(full_name)')
+                .select('id, total_amount, created_at, status, payment_status, user_id')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -43,7 +60,7 @@ const AdminDashboard = () => {
 
             const totalRevenue = validRevenueOrders.reduce((sum, order) => sum + Number(order.total_amount), 0);
             const totalOrders = orders.length;
-            const uniqueCustomers = new Set(orders.map(o => o.profiles?.full_name)).size;
+            const uniqueCustomers = new Set(orders.map(o => o.user_id)).size;
             const avgOrderValue = validRevenueOrders.length > 0 ? totalRevenue / validRevenueOrders.length : 0;
 
             setStats({
@@ -53,7 +70,28 @@ const AdminDashboard = () => {
                 avgOrderValue
             });
 
-            setRecentOrders(orders.slice(0, 5));
+            // Fetch profiles for recent orders
+            const recentOrdersSlice = orders.slice(0, 5);
+            const userIds = [...new Set(recentOrdersSlice.map(o => o.user_id))];
+
+            const { data: profiles } = await supabase
+                .from('profiles')
+                .select('user_id, first_name, last_name, name')
+                .in('user_id', userIds);
+
+            const profilesMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+
+            const recentOrdersWithProfiles = recentOrdersSlice.map(order => {
+                const profile = profilesMap.get(order.user_id);
+                return {
+                    ...order,
+                    profiles: profile ? {
+                        full_name: profile.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : profile.name
+                    } : null
+                };
+            });
+
+            setRecentOrders(recentOrdersWithProfiles);
 
             // 3. Prepare Chart Data (Last 7 Days)
             const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -71,6 +109,27 @@ const AdminDashboard = () => {
             });
 
             setChartData(dailySales);
+
+            // 4. Fetch Action Items
+            // Pending Community Posts
+            const { count: pendingPostsCount } = await supabase
+                .from('community_posts')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending');
+
+            // Pending Orders
+            const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
+
+            // Low Stock Items (using RPCs)
+            const { data: lowStockProducts } = await supabase.rpc('get_low_stock_products');
+            const { data: lowStockVariants } = await supabase.rpc('get_low_stock_variants');
+            const lowStockCount = (lowStockProducts?.length || 0) + (lowStockVariants?.length || 0);
+
+            setActionItems({
+                pendingPosts: pendingPostsCount || 0,
+                lowStock: lowStockCount,
+                pendingOrders: pendingOrdersCount
+            });
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -125,6 +184,43 @@ const AdminDashboard = () => {
                             icon={TrendingUp}
                             trend="+8.4%"
                         />
+                    </div>
+
+                    {/* Action Center */}
+                    <div>
+                        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            <RotateCcw className="w-5 h-5 text-primary" />
+                            Action Center
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <ActionCard
+                                title="Community Moderation"
+                                count={actionItems.pendingPosts}
+                                label="Pending Posts"
+                                icon={MessageSquare}
+                                link="/admin/community"
+                                color="text-blue-400"
+                                bgColor="bg-blue-400/10"
+                            />
+                            <ActionCard
+                                title="Inventory Alerts"
+                                count={actionItems.lowStock}
+                                label="Low Stock Items"
+                                icon={AlertTriangle}
+                                link="/admin/inventory"
+                                color="text-yellow-400"
+                                bgColor="bg-yellow-400/10"
+                            />
+                            <ActionCard
+                                title="Order Fulfillment"
+                                count={actionItems.pendingOrders}
+                                label="Pending Orders"
+                                icon={Clock}
+                                link="/admin/orders"
+                                color="text-green-400"
+                                bgColor="bg-green-400/10"
+                            />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -213,6 +309,28 @@ const KpiCard = ({ title, value, icon: Icon, trend }: any) => (
             </div>
             <h3 className="text-3xl font-bold text-white mb-1">{value}</h3>
             <p className="text-sm text-muted-foreground">{title}</p>
+        </CardContent>
+    </Card>
+);
+
+const ActionCard = ({ title, count, label, icon: Icon, link, color, bgColor }: any) => (
+    <Card className="bg-mtrix-black border-mtrix-gray hover:border-primary/50 transition-all group">
+        <CardContent className="p-6">
+            <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-xl ${bgColor} ${color}`}>
+                    <Icon className="w-6 h-6" />
+                </div>
+                <div className={`text-2xl font-bold ${count > 0 ? color : 'text-muted-foreground'}`}>
+                    {count}
+                </div>
+            </div>
+            <h3 className="text-lg font-bold text-white mb-1">{title}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{count} {label}</p>
+            <Link to={link}>
+                <Button variant="outline" className="w-full border-white/10 hover:bg-white/5 hover:text-white group-hover:border-primary/30">
+                    Manage <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+            </Link>
         </CardContent>
     </Card>
 );

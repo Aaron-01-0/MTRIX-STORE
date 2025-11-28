@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { ArenaDesign, VotingPeriod } from '@/types/arena';
@@ -104,8 +105,8 @@ const ArenaLobby = () => {
                                 key={item.id}
                                 onClick={() => setFilter(item.id)}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${filter === item.id
-                                        ? 'bg-white text-black'
-                                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                    ? 'bg-white text-black'
+                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                                     }`}
                             >
                                 <item.icon className="w-4 h-4" />
@@ -145,9 +146,11 @@ const ArenaLobby = () => {
                         </div>
                         <h3 className="text-2xl font-bold text-white mb-2">No Designs Found</h3>
                         <p className="text-gray-500">Be the first to submit a design for this period!</p>
-                        <Button className="mt-6 bg-white text-black hover:bg-gray-200">
-                            Submit Design
-                        </Button>
+                        <Link to="/arena/submit">
+                            <Button className="mt-6 bg-white text-black hover:bg-gray-200">
+                                Submit Design
+                            </Button>
+                        </Link>
                     </div>
                 )}
             </section>

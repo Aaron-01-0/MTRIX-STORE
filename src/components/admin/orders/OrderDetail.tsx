@@ -69,107 +69,10 @@ interface OrderDetail {
             variant_name: string;
         };
     }[];
+    invoice_number?: string | null;
 }
 
-const InvoiceView = ({ order }: { order: OrderDetail }) => {
-    return (
-        <div className="p-8 bg-white text-black font-sans min-h-screen flex flex-col">
 
-
-            {/* Info Grid */}
-            <div className="grid grid-cols-2 gap-8 mb-8">
-                <div>
-                    <h3 className="font-bold text-gray-900 mb-2">Bill To:</h3>
-                    <p className="font-medium">{order.user?.full_name || 'Guest'}</p>
-                    <p className="text-gray-600">{order.user?.email}</p>
-                    {order.user?.mobile_no && <p className="text-gray-600">{order.user.mobile_no}</p>}
-                </div>
-                <div>
-                    <h3 className="font-bold text-gray-900 mb-2">Ship To:</h3>
-                    {order.shipping_address ? (
-                        <div className="text-gray-600">
-                            <p className="font-medium text-black">{order.shipping_address.full_name}</p>
-                            <p>{order.shipping_address.address_line_1}</p>
-                            {order.shipping_address.address_line_2 && <p>{order.shipping_address.address_line_2}</p>}
-                            <p>{order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.pincode}</p>
-                            <p>{order.shipping_address.country}</p>
-                        </div>
-                    ) : (
-                        <p className="text-gray-500 italic">No shipping address</p>
-                    )}
-                </div>
-            </div>
-
-            {/* Dates */}
-            <div className="flex gap-8 mb-8 text-sm">
-                <div>
-                    <span className="text-gray-500">Order Date:</span>
-                    <span className="ml-2 font-medium">{format(new Date(order.created_at), 'PPP')}</span>
-                </div>
-                <div>
-                    <span className="text-gray-500">Payment Method:</span>
-                    <span className="ml-2 font-medium capitalize">Razorpay</span>
-                </div>
-            </div>
-
-            {/* Table */}
-            <table className="w-full mb-8">
-                <thead>
-                    <tr className="border-b-2 border-black">
-                        <th className="text-left py-3 font-bold">Item</th>
-                        <th className="text-right py-3 font-bold">Qty</th>
-                        <th className="text-right py-3 font-bold">Price</th>
-                        <th className="text-right py-3 font-bold">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {order.items.map((item) => (
-                        <tr key={item.id} className="border-b border-gray-200">
-                            <td className="py-4">
-                                <p className="font-medium">{item.product.name}</p>
-                                <p className="text-sm text-gray-500">SKU: {item.product.sku}</p>
-                                {item.variant && <p className="text-xs text-gray-500">{item.variant.variant_name}</p>}
-                            </td>
-                            <td className="text-right py-4">{item.quantity}</td>
-                            <td className="text-right py-4">₹{item.price.toLocaleString()}</td>
-                            <td className="text-right py-4 font-medium">₹{(item.price * item.quantity).toLocaleString()}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-
-            {/* Totals */}
-            <div className="flex justify-end mb-12">
-                <div className="w-64 space-y-2">
-                    <div className="flex justify-between text-gray-600">
-                        <span>Subtotal</span>
-                        <span>₹{order.total_amount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-600">
-                        <span>Shipping</span>
-                        <span>₹0.00</span>
-                    </div>
-                    <Separator className="my-2" />
-                    <div className="flex justify-between font-bold text-lg text-black">
-                        <span>Total</span>
-                        <span>₹{order.total_amount.toLocaleString()}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Footer */}
-            <div className="text-center text-sm text-gray-500 mt-auto pt-8 border-t border-gray-200">
-                <p>Thank you for your business!</p>
-                <p className="mt-1">For support, contact noa@mtrix.store</p>
-                <p className="text-gray-600 mt-2">
-                    MTRIX Store<br />
-                    Redefining aesthetics<br />
-                    noa@mtrix.store
-                </p>
-            </div>
-        </div>
-    );
-};
 
 const OrderDetail = () => {
     const { id } = useParams();
@@ -189,48 +92,93 @@ const OrderDetail = () => {
     const fetchOrderDetails = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            // 1. Fetch Order and Items
+            const { data: orderData, error: orderError } = await supabase
                 .from('orders')
                 .select(`
-    *,
-    user: profiles(first_name, last_name, mobile_no, email),
-        items: order_items(
-            id,
-            quantity,
-            price,
-            product: products(name, sku, product_images(image_url)),
-            variant: product_variants(variant_name)
-        )
-        `)
+                    *,
+                    items: order_items(
+                        id,
+                        quantity,
+                        price,
+                        variant_id,
+                        product: products(name, sku, product_images(image_url))
+                    )
+                `)
                 .eq('id', id)
                 .single();
 
-            if (error) throw error;
+            if (orderError) throw orderError;
+
+            // 2. Fetch Profile manually
+            let userProfile = null;
+            if (orderData.user_id) {
+                const { data: profileData, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('first_name, last_name, mobile_no, name')
+                    .eq('user_id', orderData.user_id)
+                    .maybeSingle();
+
+                if (!profileError && profileData) {
+                    userProfile = profileData;
+                }
+            }
+
+            // 3. Fetch Variants manually
+            const variantIds = orderData.items
+                .map((item: any) => item.variant_id)
+                .filter((id: any) => id !== null);
+
+            let variantsMap = new Map();
+            if (variantIds.length > 0) {
+                const { data: variantsData, error: variantsError } = await supabase
+                    .from('product_variants')
+                    .select('id, variant_name')
+                    .in('id', variantIds);
+
+                if (!variantsError && variantsData) {
+                    variantsMap = new Map(variantsData.map(v => [v.id, v]));
+                }
+            }
+
+            // 4. Fetch Invoice
+            const { data: invoiceData } = await supabase
+                .from('invoices')
+                .select('invoice_number')
+                .eq('order_id', id)
+                .maybeSingle();
 
             const formattedOrder = {
-                ...data,
-                user: (data as any).user ? {
-                    ...(data as any).user,
-                    full_name: `${(data as any).user.first_name || ''} ${(data as any).user.last_name || ''} `.trim() || 'Guest',
-                    email: (data as any).user.email || 'No email'
-                } : null,
-                items: data.items.map((item: any) => ({
+                ...orderData,
+                invoice_number: invoiceData?.invoice_number,
+                user: userProfile ? {
+                    first_name: userProfile.first_name,
+                    last_name: userProfile.last_name,
+                    mobile_no: userProfile.mobile_no,
+                    email: userProfile.email || (orderData.shipping_address as any)?.email || 'No email',
+                    full_name: userProfile.first_name ? `${userProfile.first_name} ${userProfile.last_name || ''}`.trim() : userProfile.name
+                } : {
+                    email: (orderData.shipping_address as any)?.email || 'No email',
+                    full_name: (orderData.shipping_address as any)?.name || 'Guest'
+                },
+                items: orderData.items.map((item: any) => ({
                     ...item,
                     product: {
                         ...item.product,
                         image_url: item.product?.product_images?.[0]?.image_url || null
-                    }
+                    },
+                    variant: item.variant_id ? variantsMap.get(item.variant_id) : null
                 }))
             };
 
             setOrder(formattedOrder as any);
-            if (data.tracking_number) setTrackingNumber(data.tracking_number);
-            if (data.tracking_url) setTrackingUrl(data.tracking_url);
+            if (orderData.tracking_number) setTrackingNumber(orderData.tracking_number);
+            if (orderData.tracking_url) setTrackingUrl(orderData.tracking_url);
         } catch (error: any) {
             console.error('Error fetching order details:', error);
             toast({
                 title: "Error",
-                description: "Failed to fetch order details",
+                description: "Failed to fetch order details: " + (error.message || "Unknown error"),
                 variant: "destructive",
             });
         } finally {
@@ -303,6 +251,72 @@ const OrderDetail = () => {
         }
     };
 
+    const [sendingEmail, setSendingEmail] = useState(false);
+    const [printingInvoice, setPrintingInvoice] = useState(false);
+
+    const handlePrintInvoice = async () => {
+        if (!order) return;
+        setPrintingInvoice(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('generate-invoice', {
+                body: { order_id: order.id }
+            });
+
+            if (error) throw error;
+
+            if (data?.url) {
+                window.open(data.url, '_blank');
+            } else {
+                throw new Error('No invoice URL returned');
+            }
+        } catch (error: any) {
+            console.error('Error printing invoice:', error);
+            toast({
+                title: "Error",
+                description: "Failed to generate invoice",
+                variant: "destructive",
+            });
+        } finally {
+            setPrintingInvoice(false);
+        }
+    };
+
+    const handleEmailInvoice = async () => {
+        if (!order) return;
+        setSendingEmail(true);
+        try {
+            // 1. Ensure Invoice Exists (Generate if needed)
+            const { data: genData, error: genError } = await supabase.functions.invoke('generate-invoice', {
+                body: { order_id: order.id }
+            });
+            if (genError) throw genError;
+
+            // 2. Send Email
+            const { data, error } = await supabase.functions.invoke('send-invoice-email', {
+                body: { order_id: order.id }
+            });
+
+            if (error) throw error;
+            if (data && !data.success) {
+                throw new Error(data.error || 'Failed to send email');
+            }
+
+            toast({
+                title: "Success",
+                description: "Invoice sent to customer",
+            });
+        } catch (error: any) {
+            console.error('Error sending invoice email:', error);
+            toast({
+                title: "Error",
+                description: "Failed to send invoice email: " + (error.message || "Unknown error"),
+                variant: "destructive",
+            });
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
     const handleRefund = async () => {
         if (!order || !confirm('Are you sure you want to refund this order? This action cannot be undone.')) return;
 
@@ -370,10 +384,7 @@ const OrderDetail = () => {
 
     return (
         <>
-            {/* Print View */}
-            <div className="hidden print:block">
-                <InvoiceView order={order} />
-            </div>
+
 
             {/* Screen View */}
             <div className="space-y-6 animate-fade-in print:hidden">
@@ -401,13 +412,28 @@ const OrderDetail = () => {
                             variant="outline"
                             size="sm"
                             className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white"
-                            onClick={() => window.print()}
+                            onClick={handlePrintInvoice}
+                            disabled={printingInvoice}
                         >
-                            <Printer className="h-4 w-4 mr-2" />
+                            {printingInvoice ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                                <Printer className="h-4 w-4 mr-2" />
+                            )}
                             Print Invoice
                         </Button>
-                        <Button variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
-                            <Mail className="h-4 w-4 mr-2" />
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white"
+                            onClick={handleEmailInvoice}
+                            disabled={sendingEmail}
+                        >
+                            {sendingEmail ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                                <Mail className="h-4 w-4 mr-2" />
+                            )}
                             Email
                         </Button>
                         {order.payment_status === 'paid' && (

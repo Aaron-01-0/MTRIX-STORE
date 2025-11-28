@@ -36,9 +36,9 @@ interface Order {
   tracking_number?: string;
   tracking_url?: string;
   estimated_delivery_date?: string;
-  user?: {
-    email: string;
-    full_name: string;
+  profiles?: {
+    full_name: string | null;
+    email?: string; // Optional, might not exist in profiles
   };
 }
 
@@ -58,6 +58,36 @@ const OrderManager = () => {
     estimated_delivery_date: ''
   });
 
+  const fetchSingleOrder = async (orderId: string) => {
+    try {
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('id, order_number, total_amount, status, payment_status, created_at, shipping_address, user_id, tracking_number, tracking_url, estimated_delivery_date')
+        .eq('id', orderId)
+        .single();
+
+      if (orderError) throw orderError;
+      if (!orderData) return null;
+
+      // Fetch Profile
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, name')
+        .eq('user_id', orderData.user_id)
+        .single();
+
+      return {
+        ...orderData,
+        profiles: profileData ? {
+          full_name: profileData.first_name ? `${profileData.first_name} ${profileData.last_name || ''}`.trim() : profileData.name
+        } : null
+      };
+    } catch (error) {
+      console.error('Error fetching single order:', error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
 
@@ -70,9 +100,16 @@ const OrderManager = () => {
           schema: 'public',
           table: 'orders',
         },
-        (payload) => {
+        async (payload) => {
           if (payload.eventType === 'INSERT') {
-            fetchOrders(); // Refetch to get joined user data
+            const newOrder = await fetchSingleOrder(payload.new.id);
+            if (newOrder) {
+              setOrders((prev) => [newOrder as any, ...prev]);
+              toast({
+                title: "New Order Received!",
+                description: `Order #${newOrder.order_number} has been placed.`,
+              });
+            }
           } else if (payload.eventType === 'UPDATE') {
             setOrders((prev) =>
               prev.map((order) =>
@@ -93,30 +130,49 @@ const OrderManager = () => {
 
   const fetchOrders = async () => {
     try {
-      const { data, error } = await supabase
+      // 1. Fetch Orders
+      const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select(`
-          *,
-          user:user_id (
-            email,
-            full_name
-          )
-        `)
+        .select('id, order_number, total_amount, status, payment_status, created_at, shipping_address, user_id, tracking_number, tracking_url, estimated_delivery_date')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (ordersError) throw ordersError;
 
-      // Transform user data if it's an array (Supabase sometimes returns array for single relation)
-      const transformedData = data?.map(order => ({
-        ...order,
-        user: Array.isArray(order.user) ? order.user[0] : order.user
-      }));
+      if (!ordersData || ordersData.length === 0) {
+        setOrders([]);
+        return;
+      }
 
-      setOrders(transformedData || []);
+      // 2. Fetch Profiles
+      const userIds = [...new Set(ordersData.map(o => o.user_id))];
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, user_id, first_name, last_name, name')
+        .in('user_id', userIds);
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+      }
+
+      // 3. Map Profiles
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+
+      const ordersWithProfiles = ordersData.map(order => {
+        const profile = profilesMap.get(order.user_id);
+        return {
+          ...order,
+          profiles: profile ? {
+            full_name: profile.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : profile.name
+          } : null
+        };
+      });
+
+      setOrders(ordersWithProfiles as any);
     } catch (error: any) {
+      console.error('Error fetching orders:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch orders',
+        description: 'Failed to fetch orders: ' + (error.message || 'Unknown error'),
         variant: 'destructive'
       });
     } finally {
@@ -182,14 +238,14 @@ const OrderManager = () => {
       // Trigger email if status is shipped or delivered
       if (['shipped', 'delivered'].includes(status)) {
         const order = orders.find(o => o.id === orderId);
-        if (order && order.user?.email) {
+        if (order && order.profiles?.email) {
           try {
             await supabase.functions.invoke('send-order-email', {
               body: {
-                email: order.user.email,
+                email: order.profiles.email,
                 type: status,
                 orderNumber: order.order_number,
-                customerName: order.user.full_name,
+                customerName: order.profiles.full_name,
                 trackingNumber: order.tracking_number,
                 trackingUrl: order.tracking_url
               }
@@ -312,8 +368,8 @@ const OrderManager = () => {
                   <TableCell className="font-medium text-white">{order.order_number}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="text-white">{order.user?.full_name || 'Guest'}</span>
-                      <span className="text-xs text-muted-foreground">{order.user?.email}</span>
+                      <span className="text-white">{order.profiles?.full_name || 'Guest'}</span>
+                      <span className="text-xs text-muted-foreground">{order.profiles?.email}</span>
                     </div>
                   </TableCell>
                   <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
@@ -436,8 +492,8 @@ const OrderManager = () => {
                     <CreditCard className="w-4 h-4" /> Customer
                   </h4>
                   <div className="bg-mtrix-black p-3 rounded-md border border-mtrix-gray text-sm">
-                    <p className="font-medium text-white">{selectedOrder?.user?.full_name || 'Guest'}</p>
-                    <p className="text-gray-400">{selectedOrder?.user?.email}</p>
+                    <p className="font-medium text-white">{selectedOrder?.profiles?.full_name || 'Guest'}</p>
+                    <p className="text-gray-400">{selectedOrder?.profiles?.email}</p>
                     <p className="text-gray-400 mt-1">User ID: {selectedOrder?.user_id}</p>
                   </div>
                 </div>

@@ -36,17 +36,40 @@ const UploadPostDialog = ({ onSuccess, trigger }: UploadPostDialogProps) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !file) return;
+
+        if (!user) {
+            toast({
+                title: "Error",
+                description: "You must be logged in to post.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        if (!file) {
+            toast({
+                title: "Error",
+                description: "Please select an image to upload.",
+                variant: "destructive"
+            });
+            return;
+        }
 
         setSubmitting(true);
         try {
+            console.log('Starting upload for user:', user.id);
+
             // 1. Upload Image
             const imageUrl = await uploadFile(file, {
                 bucket: 'community-content',
                 folder: user.id
             });
 
-            if (!imageUrl) throw new Error('Failed to upload image');
+            if (!imageUrl) {
+                throw new Error('Failed to upload image. Please check your internet connection or try a smaller file.');
+            }
+
+            console.log('Image uploaded successfully:', imageUrl);
 
             // 2. Create Post
             const { error } = await supabase
@@ -58,7 +81,10 @@ const UploadPostDialog = ({ onSuccess, trigger }: UploadPostDialogProps) => {
                     status: 'pending'
                 });
 
-            if (error) throw error;
+            if (error) {
+                console.error('Supabase insert error:', error);
+                throw error;
+            }
 
             toast({
                 title: "Post Submitted!",
@@ -75,7 +101,7 @@ const UploadPostDialog = ({ onSuccess, trigger }: UploadPostDialogProps) => {
             console.error('Error creating post:', error);
             toast({
                 title: "Error",
-                description: "Failed to create post. Please try again.",
+                description: error.message || "Failed to create post. Please try again.",
                 variant: "destructive"
             });
         } finally {

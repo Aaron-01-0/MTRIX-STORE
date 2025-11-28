@@ -199,6 +199,8 @@ serve(async (req) => {
 
         if (validUntil && validUntil < now) {
           console.log('Coupon expired');
+        } else if (coupon.usage_limit !== null && coupon.times_used >= coupon.usage_limit) {
+          console.log('Coupon usage limit reached');
         } else if (calculatedTotal < coupon.min_order_value) {
           console.log('Min order value not met');
         } else {

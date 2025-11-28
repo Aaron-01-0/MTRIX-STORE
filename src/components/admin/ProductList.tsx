@@ -25,9 +25,12 @@ interface ProductListProps {
   onDelete: (productId: string) => void;
   onRefresh?: () => void;
   onStatusChange?: (productId: string, newStatus: ProductStatus) => void;
+  selectedIds?: Set<string>;
+  onSelect?: (productId: string) => void;
+  onSelectAll?: () => void;
 }
 
-const ProductList = ({ products, onEdit, onDelete, onRefresh, onStatusChange }: ProductListProps) => {
+const ProductList = ({ products, onEdit, onDelete, onRefresh, onStatusChange, selectedIds, onSelect, onSelectAll }: ProductListProps) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
   const [mediaType, setMediaType] = useState<'images' | 'videos'>('images');
@@ -71,11 +74,36 @@ const ProductList = ({ products, onEdit, onDelete, onRefresh, onStatusChange }: 
 
   return (
     <>
+      {onSelectAll && (
+        <div className="flex justify-end mb-4">
+          <Button variant="outline" size="sm" onClick={onSelectAll} className="text-xs">
+            {selectedIds?.size === products.length && products.length > 0 ? 'Deselect All' : 'Select All'}
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-6">
         {products.map((product) => (
-          <Card key={product.id} className="bg-mtrix-dark border-mtrix-gray">
+          <Card
+            key={product.id}
+            className={cn(
+              "bg-mtrix-dark border-mtrix-gray transition-colors",
+              selectedIds?.has(product.id) && "border-primary/50 bg-primary/5"
+            )}
+          >
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-4">
+                {/* Checkbox for selection */}
+                {onSelect && (
+                  <div className="pt-1">
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 rounded border-white/20 bg-black/40 text-primary focus:ring-primary cursor-pointer"
+                      checked={selectedIds?.has(product.id) || false}
+                      onChange={() => onSelect(product.id)}
+                    />
+                  </div>
+                )}
+
                 <div className="flex-1">
                   <CardTitle className="text-foreground mb-2">{product.name}</CardTitle>
                   <div className="flex flex-wrap items-center gap-2 mb-2">

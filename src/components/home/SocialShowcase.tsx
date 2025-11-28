@@ -28,7 +28,7 @@ const SocialShowcase = () => {
                 .limit(8);
 
             if (error) throw error;
-            setContent(data || []);
+            setContent((data || []) as SocialContent[]);
         } catch (error) {
             console.error('Error fetching social content:', error);
         }
@@ -50,13 +50,13 @@ const SocialShowcase = () => {
                         See what we're building, posting & flexing.
                     </p>
                     <a
-                        href="https://instagram.com/mtrix_in"
+                        href="https://instagram.com/mtrixstore"
                         target="_blank"
                         rel="noopener noreferrer"
                     >
                         <Button variant="outline" className="border-primary text-primary hover:bg-primary hover:text-black px-8">
                             <Instagram className="w-4 h-4 mr-2" />
-                            Follow Us @mtrix_in
+                            Follow Us @mtrixstore
                         </Button>
                     </a>
                 </div>

@@ -100,7 +100,8 @@ const OrderList = () => {
             if (error) throw error;
 
             const totalOrders = data.length;
-            const totalRevenue = data.reduce((sum, order) => sum + Number(order.total_amount), 0);
+            const validOrders = data.filter(order => !['cancelled', 'refunded'].includes(order.status));
+            const totalRevenue = validOrders.reduce((sum, order) => sum + Number(order.total_amount), 0);
             const pendingOrders = data.filter(order => order.status === 'pending').length;
             const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
@@ -120,10 +121,7 @@ const OrderList = () => {
         try {
             let query = supabase
                 .from('orders')
-                .select(`
-          *,
-          user:profiles(first_name, last_name)
-        `, { count: 'exact' });
+                .select('*', { count: 'exact' });
 
             if (statusFilter !== 'all') {
                 query = query.eq('status', statusFilter);
@@ -136,19 +134,35 @@ const OrderList = () => {
             const from = (page - 1) * pageSize;
             const to = from + pageSize - 1;
 
-            const { data, error, count } = await query
+            const { data: ordersData, error: ordersError, count } = await query
                 .order('created_at', { ascending: false })
                 .range(from, to);
 
-            if (error) throw error;
+            if (ordersError) throw ordersError;
 
-            const formattedOrders = (data as any || []).map((order: any) => ({
-                ...order,
-                user: order.user ? {
-                    ...order.user,
-                    full_name: `${order.user.first_name || ''} ${order.user.last_name || ''}`.trim() || 'Guest'
-                } : null
-            }));
+            // 2. Fetch profiles manually
+            const userIds = [...new Set((ordersData || []).map(o => o.user_id))];
+            const { data: profilesData, error: profilesError } = await supabase
+                .from('profiles')
+                .select('user_id, first_name, last_name, name')
+                .in('user_id', userIds);
+
+            if (profilesError) console.error('Error fetching profiles:', profilesError);
+
+            const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+
+            const formattedOrders = (ordersData || []).map((order: any) => {
+                const profile = profilesMap.get(order.user_id);
+                return {
+                    ...order,
+                    user: profile ? {
+                        first_name: profile.first_name,
+                        last_name: profile.last_name,
+                        email: 'No email', // Profile doesn't have email
+                        full_name: profile.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : profile.name
+                    } : null
+                };
+            });
 
             setOrders(formattedOrders);
             if (count) setTotalPages(Math.ceil(count / pageSize));
@@ -207,6 +221,34 @@ const OrderList = () => {
         setShippedDialogOpen(true);
         setTrackingNumber('');
         setTrackingUrl('');
+    };
+
+    const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+
+    const handlePrintInvoice = async (orderId: string) => {
+        setPrintingOrderId(orderId);
+        try {
+            const { data, error } = await supabase.functions.invoke('generate-invoice', {
+                body: { order_id: orderId }
+            });
+
+            if (error) throw error;
+
+            if (data?.url) {
+                window.open(data.url, '_blank');
+            } else {
+                throw new Error('No invoice URL returned');
+            }
+        } catch (error: any) {
+            console.error('Error printing invoice:', error);
+            toast({
+                title: "Error",
+                description: "Failed to generate invoice",
+                variant: "destructive",
+            });
+        } finally {
+            setPrintingOrderId(null);
+        }
     };
 
     const handleConfirmShipped = async () => {
@@ -378,7 +420,18 @@ const OrderList = () => {
                                                 >
                                                     Mark as Shipped
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem className="cursor-pointer hover:bg-mtrix-gray/50 focus:bg-mtrix-gray/50">Print Invoice</DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onClick={() => handlePrintInvoice(order.id)}
+                                                    className="cursor-pointer hover:bg-mtrix-gray/50 focus:bg-mtrix-gray/50"
+                                                    disabled={printingOrderId === order.id}
+                                                >
+                                                    {printingOrderId === order.id ? (
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Printer className="mr-2 h-4 w-4" />
+                                                    )}
+                                                    Print Invoice
+                                                </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>

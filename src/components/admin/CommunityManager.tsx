@@ -17,8 +17,10 @@ interface CommunityPost {
     likes_count: number;
     is_featured: boolean;
     created_at: string;
-    user?: {
-        email: string;
+    profiles?: {
+        name: string | null;
+        first_name: string | null;
+        last_name: string | null;
     };
 }
 
@@ -34,17 +36,44 @@ const CommunityManager = () => {
     const fetchPosts = async () => {
         try {
             setLoading(true);
-            const { data, error } = await supabase
+            // 1. Fetch posts
+            const { data: postsData, error: postsError } = await supabase
                 .from('community_posts')
-                .select('*, user:user_id(email)')
+                .select('*')
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
-            setPosts(data as any);
+            if (postsError) throw postsError;
+
+            if (!postsData || postsData.length === 0) {
+                setPosts([]);
+                return;
+            }
+
+            // 2. Fetch profiles for these posts
+            const userIds = [...new Set(postsData.map(p => p.user_id))];
+            const { data: profilesData, error: profilesError } = await supabase
+                .from('profiles')
+                .select('id, user_id, name, first_name, last_name')
+                .in('user_id', userIds);
+
+            if (profilesError) {
+                console.error('Error fetching profiles:', profilesError);
+            }
+
+            // 3. Map profiles to posts
+            const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+
+            const postsWithProfiles = postsData.map(post => ({
+                ...post,
+                profiles: profilesMap.get(post.user_id) || null
+            }));
+
+            setPosts(postsWithProfiles as any);
         } catch (error: any) {
+            console.error('Error fetching posts:', error);
             toast({
                 title: "Error",
-                description: "Failed to fetch posts",
+                description: "Failed to fetch posts: " + (error.message || "Unknown error"),
                 variant: "destructive"
             });
         } finally {
@@ -155,7 +184,8 @@ const CommunityManager = () => {
             <div className="p-4 space-y-2">
                 <div className="flex justify-between items-start">
                     <p className="text-sm text-muted-foreground truncate max-w-[150px]">
-                        {post.user?.email}
+                        {post.profiles?.name ||
+                            (post.profiles?.first_name ? `${post.profiles.first_name} ${post.profiles.last_name || ''}` : 'Unknown User')}
                     </p>
                     <Badge variant={post.status === 'approved' ? 'default' : post.status === 'rejected' ? 'destructive' : 'secondary'}>
                         {post.status}

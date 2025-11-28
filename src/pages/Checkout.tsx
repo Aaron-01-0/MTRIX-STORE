@@ -45,6 +45,22 @@ const Checkout = () => {
 
   const [couponCode, setCouponCode] = useState<string | null>(null);
   const [couponData, setCouponData] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .single();
+
+      if (data) setIsAdmin(true);
+    };
+    checkAdmin();
+  }, [user]);
 
   useEffect(() => {
     if (location.state?.couponCode) {
@@ -675,6 +691,71 @@ const Checkout = () => {
                         </div>
                       )}
                     </Button>
+
+                    {/* Test Payment Bypass Button (Admins Only) */}
+                    {isAdmin && (
+                      <Button
+                        className="w-full mt-4 bg-red-600 hover:bg-red-700 text-white font-bold"
+                        onClick={async () => {
+                          // Validate address first
+                          const validation = addressSchema.safeParse(addressData);
+                          if (!validation.success) {
+                            toast({
+                              title: "Validation Error",
+                              description: validation.error.errors[0].message,
+                              variant: "destructive"
+                            });
+                            return;
+                          }
+
+                          setLoading(true);
+                          try {
+                            // 1. Create Order
+                            const { data: orderData, error: orderError } = await supabase.functions.invoke(
+                              'create-razorpay-order',
+                              {
+                                body: {
+                                  shippingAddress: addressData,
+                                  couponCode: couponCode
+                                }
+                              }
+                            );
+
+                            if (orderError) throw orderError;
+
+                            // 2. Bypass Payment
+                            const { error: bypassError } = await supabase.functions.invoke('bypass-payment', {
+                              body: {
+                                orderId: orderData.orderId,
+                                userId: user?.id
+                              }
+                            });
+
+                            if (bypassError) throw bypassError;
+
+                            toast({
+                              title: "Test Payment Successful",
+                              description: "Order placed via bypass mode."
+                            });
+
+                            navigate(`/order/${orderData.orderId}`);
+
+                          } catch (error: any) {
+                            console.error('Bypass failed:', error);
+                            toast({
+                              title: "Bypass Failed",
+                              description: error.message,
+                              variant: "destructive"
+                            });
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        disabled={loading}
+                      >
+                        Test Pay (Bypass Payment)
+                      </Button>
+                    )}
 
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                       <ShieldCheck className="w-3 h-3 text-green-500" />

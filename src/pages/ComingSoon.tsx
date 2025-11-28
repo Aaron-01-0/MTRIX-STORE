@@ -416,7 +416,15 @@ const ComingSoon = () => {
 
                 </div>
             </div>
+
+            {/* Admin Access Link */}
+            <div className="absolute bottom-8 text-center w-full">
+                <a href="/auth" className="text-neutral-800 hover:text-neutral-600 text-xs uppercase tracking-widest transition-colors">
+                    Admin Access
+                </a>
+            </div>
         </div>
+
     );
 };
 

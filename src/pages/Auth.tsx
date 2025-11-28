@@ -150,12 +150,12 @@ const Auth = () => {
             transition={{ duration: 0.8 }}
           >
             <div className="mb-8 inline-block">
-              <h1 className="text-6xl font-black font-orbitron tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-200 to-white drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+              <h1 className="text-6xl font-black font-orbitron tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-yellow-200 to-white drop-shadow-[0_0_15px_rgba(234,179,8,0.5)]">
                 MTRIX
               </h1>
             </div>
             <h1 className="text-5xl font-black font-orbitron text-white mb-6 tracking-tight">
-              ENTER THE <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">MTRIX</span>
+              ENTER THE <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600">MTRIX</span>
             </h1>
             <p className="text-xl text-gray-400 max-w-md mx-auto leading-relaxed">
               Join the elite community of creators and collectors.
@@ -165,8 +165,8 @@ const Auth = () => {
         </div>
 
         {/* Floating Particles/Orbs */}
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-purple-600/20 rounded-full blur-[100px] animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-600/10 rounded-full blur-[120px] animate-pulse delay-1000" />
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-yellow-600/20 rounded-full blur-[100px] animate-pulse" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-yellow-600/10 rounded-full blur-[120px] animate-pulse delay-1000" />
       </div>
 
       {/* Right Side - Form */}
@@ -179,7 +179,7 @@ const Auth = () => {
           className="w-full max-w-md relative z-10"
         >
           <div className="lg:hidden text-center mb-8">
-            <h1 className="text-4xl font-black font-orbitron tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-purple-200 to-white drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">
+            <h1 className="text-4xl font-black font-orbitron tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white via-yellow-200 to-white drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">
               MTRIX
             </h1>
           </div>
@@ -190,13 +190,13 @@ const Auth = () => {
                 <TabsList className="grid w-full grid-cols-2 bg-white/5 p-1 rounded-xl">
                   <TabsTrigger
                     value="signin"
-                    className="data-[state=active]:bg-purple-600 data-[state=active]:text-white rounded-lg transition-all"
+                    className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black rounded-lg transition-all font-bold"
                   >
                     Sign In
                   </TabsTrigger>
                   <TabsTrigger
                     value="signup"
-                    className="data-[state=active]:bg-pink-600 data-[state=active]:text-white rounded-lg transition-all"
+                    className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black rounded-lg transition-all font-bold"
                   >
                     Sign Up
                   </TabsTrigger>
@@ -227,13 +227,13 @@ const Auth = () => {
                               placeholder="Enter your identifier"
                               value={signInData.identifier}
                               onChange={(e) => setSignInData({ ...signInData, identifier: e.target.value })}
-                              className="pl-10 bg-white/5 border-white/10 text-white focus:border-purple-500 transition-colors"
+                              className="pl-10 bg-white/5 border-white/10 text-white focus:border-yellow-500 transition-colors"
                               required
                             />
                             {signInData.identifier.includes('@') ? (
-                              <Mail className="absolute left-3 top-2.5 h-4 w-4 text-gray-500 group-hover:text-purple-400 transition-colors" />
+                              <Mail className="absolute left-3 top-2.5 h-4 w-4 text-gray-500 group-hover:text-yellow-400 transition-colors" />
                             ) : (
-                              <Phone className="absolute left-3 top-2.5 h-4 w-4 text-gray-500 group-hover:text-purple-400 transition-colors" />
+                              <Phone className="absolute left-3 top-2.5 h-4 w-4 text-gray-500 group-hover:text-yellow-400 transition-colors" />
                             )}
                           </div>
                         </div>
@@ -241,7 +241,7 @@ const Auth = () => {
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
                             <Label className="text-gray-300">Password</Label>
-                            <Button variant="link" className="p-0 h-auto text-xs text-purple-400 hover:text-purple-300">
+                            <Button variant="link" className="p-0 h-auto text-xs text-yellow-400 hover:text-yellow-300">
                               Forgot password?
                             </Button>
                           </div>
@@ -251,7 +251,7 @@ const Auth = () => {
                               placeholder="••••••••"
                               value={signInData.password}
                               onChange={(e) => setSignInData({ ...signInData, password: e.target.value })}
-                              className="bg-white/5 border-white/10 text-white focus:border-purple-500 transition-colors pr-10"
+                              className="bg-white/5 border-white/10 text-white focus:border-yellow-500 transition-colors pr-10"
                               required
                             />
                             <button
@@ -266,7 +266,7 @@ const Auth = () => {
 
                         <Button
                           type="submit"
-                          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-6"
+                          className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold py-6"
                           disabled={isLoading}
                         >
                           {isLoading ? (
@@ -342,7 +342,7 @@ const Auth = () => {
                               placeholder="John"
                               value={signUpData.firstName}
                               onChange={(e) => setSignUpData({ ...signUpData, firstName: e.target.value })}
-                              className="bg-white/5 border-white/10 text-white focus:border-pink-500"
+                              className="bg-white/5 border-white/10 text-white focus:border-yellow-500"
                               required
                             />
                           </div>
@@ -352,7 +352,7 @@ const Auth = () => {
                               placeholder="Doe"
                               value={signUpData.lastName}
                               onChange={(e) => setSignUpData({ ...signUpData, lastName: e.target.value })}
-                              className="bg-white/5 border-white/10 text-white focus:border-pink-500"
+                              className="bg-white/5 border-white/10 text-white focus:border-yellow-500"
                               required
                             />
                           </div>
@@ -365,7 +365,7 @@ const Auth = () => {
                             placeholder="john@example.com"
                             value={signUpData.email}
                             onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
-                            className="bg-white/5 border-white/10 text-white focus:border-pink-500"
+                            className="bg-white/5 border-white/10 text-white focus:border-yellow-500"
                             required
                           />
                         </div>
@@ -377,7 +377,7 @@ const Auth = () => {
                             placeholder="9876543210"
                             value={signUpData.mobileNo}
                             onChange={(e) => setSignUpData({ ...signUpData, mobileNo: e.target.value })}
-                            className="bg-white/5 border-white/10 text-white focus:border-pink-500"
+                            className="bg-white/5 border-white/10 text-white focus:border-yellow-500"
                             required
                           />
                         </div>
@@ -390,7 +390,7 @@ const Auth = () => {
                               placeholder="Create a password"
                               value={signUpData.password}
                               onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
-                              className="bg-white/5 border-white/10 text-white focus:border-pink-500 pr-10"
+                              className="bg-white/5 border-white/10 text-white focus:border-yellow-500 pr-10"
                               required
                             />
                             <button
@@ -411,7 +411,7 @@ const Auth = () => {
                               placeholder="Confirm password"
                               value={signUpData.confirmPassword}
                               onChange={(e) => setSignUpData({ ...signUpData, confirmPassword: e.target.value })}
-                              className="bg-white/5 border-white/10 text-white focus:border-pink-500 pr-10"
+                              className="bg-white/5 border-white/10 text-white focus:border-yellow-500 pr-10"
                               required
                             />
                             <button
@@ -426,7 +426,7 @@ const Auth = () => {
 
                         <Button
                           type="submit"
-                          className="w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-bold py-6"
+                          className="w-full bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-black font-bold py-6"
                           disabled={isLoading}
                         >
                           {isLoading ? 'Creating Account...' : 'Create Account'}

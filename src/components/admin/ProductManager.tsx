@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Plus, Search, Filter, ArrowRight, ArrowLeft, Save, Loader2, Wand2, CheckCircle2, Archive, FileText, Globe } from 'lucide-react';
+import { Plus, Search, Filter, ArrowRight, ArrowLeft, Save, Loader2, Wand2, CheckCircle2, Archive, FileText, Globe, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ProductImageManager from './ProductImageManager';
 import VariantManager from './VariantManager';
@@ -44,6 +44,8 @@ const ProductManager = () => {
   const [statusFilter, setStatusFilter] = useState<ProductStatus | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+
   const [formData, setFormData] = useState({
     name: '',
     short_description: '',
@@ -69,8 +71,6 @@ const ProductManager = () => {
     is_new: false,
     is_trending: false,
     is_featured: false,
-    meta_title: '',
-    meta_description: '',
     meta_title: '',
     meta_description: '',
     tags: '',
@@ -105,6 +105,80 @@ const ProductManager = () => {
     }
   };
 
+  const handleSelectProduct = (productId: string) => {
+    const newSelected = new Set(selectedProductIds);
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId);
+    } else {
+      newSelected.add(productId);
+    }
+    setSelectedProductIds(newSelected);
+  };
+
+  const handleSelectAll = (filteredIds: string[]) => {
+    if (selectedProductIds.size === filteredIds.length && filteredIds.length > 0) {
+      setSelectedProductIds(new Set());
+    } else {
+      setSelectedProductIds(new Set(filteredIds));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedProductIds.size === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedProductIds.size} products? This action cannot be undone.`)) return;
+
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .in('id', Array.from(selectedProductIds));
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: `${selectedProductIds.size} products deleted.` });
+      setSelectedProductIds(new Set());
+      loadData();
+    } catch (error: any) {
+      console.error('Error deleting products:', error);
+      if (error.code === '23503') {
+        toast({
+          title: "Cannot Delete Products",
+          description: "Some selected products are part of existing orders and cannot be deleted. Please archive them instead to preserve order history.",
+          variant: "destructive"
+        });
+      } else {
+        toast({ title: "Error", description: "Failed to delete products.", variant: "destructive" });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkStatusChange = async (newStatus: ProductStatus) => {
+    if (selectedProductIds.size === 0) return;
+    if (!confirm(`Update status of ${selectedProductIds.size} products to ${newStatus}?`)) return;
+
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('products')
+        .update({ status: newStatus, is_active: newStatus === 'published' })
+        .in('id', Array.from(selectedProductIds));
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: `${selectedProductIds.size} products updated to ${newStatus}.` });
+      setSelectedProductIds(new Set());
+      loadData();
+    } catch (error: any) {
+      console.error('Error updating products:', error);
+      toast({ title: "Error", description: "Failed to update products.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -132,7 +206,6 @@ const ProductManager = () => {
       is_trending: false,
       is_featured: false,
       meta_title: '',
-      meta_description: '',
       meta_description: '',
       tags: '',
       has_variants: false
@@ -174,8 +247,6 @@ const ProductManager = () => {
       const statusToSave = specificStatus || formData.status;
 
       // Determine final category ID (Subcategory takes precedence if selected, otherwise Main)
-      // Actually, usually products are assigned to the most specific category (Subcategory).
-      // If a subcategory is selected, use that. If only main, use that.
       const finalCategoryId = formData.subcategory_id || formData.category_id || null;
 
       const productData = {
@@ -296,10 +367,8 @@ const ProductManager = () => {
       is_featured: product.is_featured || false,
       meta_title: product.meta_title || '',
       meta_description: product.meta_description || '',
-      meta_title: product.meta_title || '',
-      meta_description: product.meta_description || '',
       tags: product.tags ? product.tags.join(', ') : '',
-      has_variants: false // TODO: Check if variants exist in DB
+      has_variants: false
     });
     setShowCreateDialog(true);
   };
@@ -312,7 +381,15 @@ const ProductManager = () => {
       toast({ title: "Success", description: "Product deleted." });
       loadData();
     } catch (error: any) {
-      toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
+      if (error.code === '23503') {
+        toast({
+          title: "Cannot Delete Product",
+          description: "This product is part of existing orders and cannot be deleted. Please archive it instead.",
+          variant: "destructive"
+        });
+      } else {
+        toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
+      }
     }
   };
 
@@ -354,6 +431,29 @@ const ProductManager = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Search by name or SKU..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-mtrix-dark border-mtrix-gray pl-10" />
           </div>
+
+          {/* Bulk Actions */}
+          {selectedProductIds.size > 0 && (
+            <div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
+              <Button variant="destructive" onClick={handleBulkDelete}>
+                <Trash2 className="w-4 h-4 mr-2" /> Delete ({selectedProductIds.size})
+              </Button>
+              <Button
+                onClick={() => handleBulkStatusChange('published')}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Globe className="w-4 h-4 mr-2" /> Publish ({selectedProductIds.size})
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleBulkStatusChange('archived')}
+                className="bg-gray-600 hover:bg-gray-700 text-white"
+              >
+                <Archive className="w-4 h-4 mr-2" /> Archive ({selectedProductIds.size})
+              </Button>
+            </div>
+          )}
+
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className={cn("flex-shrink-0 gap-2", (statusFilter !== 'all' || categoryFilter !== 'all') && "border-primary text-primary")}>
@@ -648,6 +748,9 @@ const ProductManager = () => {
         onDelete={handleDelete}
         onRefresh={loadData}
         onStatusChange={handleStatusToggle}
+        selectedIds={selectedProductIds}
+        onSelect={handleSelectProduct}
+        onSelectAll={() => handleSelectAll(filteredProducts.map(p => p.id))}
       />
     </div>
   );

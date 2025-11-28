@@ -131,26 +131,60 @@ const Product = () => {
     try {
       setLoading(true);
 
+      // Validate UUID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!id || !uuidRegex.test(id)) {
+        console.error('Invalid Product ID:', id);
+        setLoading(false);
+        return;
+      }
+
       // 1. Fetch Product
-      const { data: productData, error: productError } = await supabase
+      let { data: productsData, error: productError } = await supabase
         .from('products')
         .select(`
           *,
           categories(id, name),
           brands(name),
-          product_images(image_url, alt_text, is_main, display_order, variant_value)
+          product_images(image_url, alt_text, is_main, display_order)
         `)
         .eq('id', id)
         .eq('is_active', true)
-        .maybeSingle();
+        .limit(1);
 
       if (productError) throw productError;
+
+      const productData = productsData?.[0] || null;
+
+      // If not found, try fetching without is_active check to see if it exists but is inactive
       if (!productData) {
+        const { data: inactiveProducts, error: inactiveError } = await supabase
+          .from('products')
+          .select('id, is_active, status')
+          .eq('id', id)
+          .limit(1);
+
+        const inactiveProduct = inactiveProducts?.[0] || null;
+
+        if (inactiveProduct) {
+          console.warn('Product exists but is inactive:', inactiveProduct);
+          toast({
+            title: "Product Unavailable",
+            description: "This product is currently inactive or archived.",
+            variant: "destructive"
+          });
+          setProduct(null);
+          return;
+        } else if (inactiveError) {
+          console.error('Error checking inactive product:', inactiveError);
+        }
+
+        console.warn('Product not found in DB with ID:', id);
         setProduct(null);
         return;
       }
 
-      setProduct(productData);
+      setProduct(productData as unknown as DatabaseProduct);
 
       // 2. Fetch Variants
       const { data: variantData } = await supabase
@@ -159,8 +193,7 @@ const Product = () => {
         .eq('product_id', id)
         .eq('is_active', true);
 
-      setVariants(variantData as Variant[] || []);
-      setVariants(variantData as Variant[] || []);
+      setVariants(variantData as unknown as Variant[] || []);
 
       if (variantData && variantData.length > 0) {
         // Auto-select first color and its available size
@@ -183,19 +216,21 @@ const Product = () => {
         }
       }
 
-
-
     } catch (error) {
       console.error('Error loading product:', error);
       toast({
         title: "Error",
-        description: "Failed to load product details",
+        description: "Failed to load product details. See console for more info.",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
   };
+
+
+
+
 
   // --- Derived State ---
   // Update selected variant ID when color/size changes
@@ -236,14 +271,7 @@ const Product = () => {
   // ... (See next chunk for fetch update)
 
   // Filtered images based on color
-  const filteredImages = product?.product_images?.filter(img => {
-    if (!selectedColor) return true;
-    // If image has no variant assigned, show it (common images)
-    // If image has variant assigned, only show if it matches selected color
-    // Note: We need to cast types or update interface to include variant_value
-    const imgAny = img as any;
-    return !imgAny.variant_value || imgAny.variant_value === selectedColor;
-  }) || [];
+  const filteredImages = product?.product_images || [];
 
   const displayImages = filteredImages.length > 0
     ? filteredImages.sort((a, b) => a.display_order - b.display_order).map(img => img.image_url)
@@ -452,8 +480,8 @@ const Product = () => {
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Star className="w-4 h-4 text-primary fill-primary" />
-                    <span className="text-white font-medium">{product.ratings_avg || 4.8}</span>
-                    <span>({product.ratings_count || 12} reviews)</span>
+                    <span className="text-white font-medium">{product.ratings_avg ? Number(product.ratings_avg).toFixed(1) : '0.0'}</span>
+                    <span>({product.ratings_count || 0} reviews)</span>
                   </div>
                   <span>•</span>
                   <span>SKU: {product.sku}</span>

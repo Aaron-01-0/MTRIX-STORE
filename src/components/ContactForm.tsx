@@ -26,7 +26,10 @@ const ContactForm = () => {
       const { error } = await supabase
         .from('contact_messages')
         .insert({
-          ...formData,
+          name: `${formData.first_name} ${formData.last_name}`.trim(),
+          email: formData.email,
+          subject: formData.subject,
+          message: formData.message,
           user_id: user?.id || null
         });
 
@@ -63,7 +66,7 @@ const ContactForm = () => {
           <label className="block text-foreground font-semibold mb-2">
             First Name
           </label>
-          <Input 
+          <Input
             value={formData.first_name}
             onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
             placeholder="Enter your first name"
@@ -75,7 +78,7 @@ const ContactForm = () => {
           <label className="block text-foreground font-semibold mb-2">
             Last Name
           </label>
-          <Input 
+          <Input
             value={formData.last_name}
             onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
             placeholder="Enter your last name"
@@ -84,12 +87,12 @@ const ContactForm = () => {
           />
         </div>
       </div>
-      
+
       <div>
         <label className="block text-foreground font-semibold mb-2">
           Email Address
         </label>
-        <Input 
+        <Input
           type="email"
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -98,12 +101,12 @@ const ContactForm = () => {
           required
         />
       </div>
-      
+
       <div>
         <label className="block text-foreground font-semibold mb-2">
           Subject
         </label>
-        <Input 
+        <Input
           value={formData.subject}
           onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
           placeholder="What can we help you with?"
@@ -111,12 +114,12 @@ const ContactForm = () => {
           required
         />
       </div>
-      
+
       <div>
         <label className="block text-foreground font-semibold mb-2">
           Message
         </label>
-        <Textarea 
+        <Textarea
           value={formData.message}
           onChange={(e) => setFormData({ ...formData, message: e.target.value })}
           placeholder="Please describe your issue or question in detail..."
@@ -125,8 +128,8 @@ const ContactForm = () => {
           required
         />
       </div>
-      
-      <Button 
+
+      <Button
         type="submit"
         disabled={loading}
         className="w-full bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all duration-300"

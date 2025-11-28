@@ -66,15 +66,46 @@ serve(async (req) => {
         // Also update the order payment status if linked
         const { data: transaction } = await supabase
             .from('payment_transactions')
-            .select('order_id')
+            .select('id, order_id')
             .eq('razorpay_payment_id', payment_id)
             .single()
 
-        if (transaction?.order_id) {
+        if (transaction) {
+            // 1. Update Order Status
+            if (transaction.order_id) {
+                await supabase
+                    .from('orders')
+                    .update({ payment_status: 'refunded' })
+                    .eq('id', transaction.order_id)
+            }
+
+            // 2. Create Refund Record
+            const { error: refundError } = await supabase
+                .from('refunds')
+                .insert({
+                    payment_id: transaction.id,
+                    order_id: transaction.order_id,
+                    amount: amount,
+                    reason: 'Admin initiated refund',
+                    status: 'processed',
+                    gateway_refund_id: refundData.id
+                });
+
+            if (refundError) console.error('Failed to create refund record:', refundError);
+
+            // 3. Create Audit Log
             await supabase
-                .from('orders')
-                .update({ payment_status: 'refunded' })
-                .eq('id', transaction.order_id)
+                .from('audit_logs')
+                .insert({
+                    action: 'refund_processed',
+                    entity_type: 'payment',
+                    entity_id: transaction.id,
+                    details: {
+                        amount: amount,
+                        gateway_refund_id: refundData.id,
+                        reason: 'Admin initiated refund'
+                    }
+                });
         }
 
         return new Response(
