@@ -70,6 +70,8 @@ interface OrderDetail {
         };
     }[];
     invoice_number?: string | null;
+    discount_amount?: number;
+    coupon_code?: string;
 }
 
 
@@ -523,6 +525,12 @@ const OrderDetail = () => {
                                             <TableCell colSpan={3} className="text-right font-medium text-gray-400">Shipping</TableCell>
                                             <TableCell className="text-right pr-6 font-medium text-white">₹0.00</TableCell>
                                         </TableRow>
+                                        {order.discount_amount > 0 && (
+                                            <TableRow className="bg-mtrix-black/30 hover:bg-mtrix-black/30 border-0">
+                                                <TableCell colSpan={3} className="text-right font-medium text-emerald-400">Discount ({order.coupon_code})</TableCell>
+                                                <TableCell className="text-right pr-6 font-medium text-emerald-400">-₹{order.discount_amount.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                        )}
                                         <TableRow className="bg-mtrix-black/50 hover:bg-mtrix-black/50 border-t border-mtrix-gray">
                                             <TableCell colSpan={3} className="text-right font-bold text-lg text-mtrix-gold py-6">Total</TableCell>
                                             <TableCell className="text-right pr-6 font-bold text-lg text-mtrix-gold py-6">₹{order.total_amount.toLocaleString()}</TableCell>

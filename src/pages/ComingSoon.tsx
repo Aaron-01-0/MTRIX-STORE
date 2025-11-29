@@ -102,14 +102,15 @@ const ComingSoon = () => {
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
     // Counter State
-    const BASE_COUNT = 1420;
+    // Randomize base count between 1420 and 1460 to look organic
+    const [baseCount] = useState(() => 1420 + Math.floor(Math.random() * 41));
     const [realCount, setRealCount] = useState(0);
     const [fakeCount, setFakeCount] = useState(() => {
         const saved = localStorage.getItem('mtrix_fake_count');
         return saved ? parseInt(saved, 10) : 0;
     });
 
-    const subscriberCount = BASE_COUNT + realCount + fakeCount;
+    const subscriberCount = baseCount + realCount + fakeCount;
 
     const [showIntro, setShowIntro] = useState(false);
     const canvasRef = React.useRef<HTMLCanvasElement>(null);

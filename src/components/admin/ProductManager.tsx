@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Plus, Search, Filter, ArrowRight, ArrowLeft, Save, Loader2, Wand2, CheckCircle2, Archive, FileText, Globe, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, ArrowRight, ArrowLeft, Save, Loader2, Wand2, CheckCircle2, Archive, FileText, Globe, Trash2, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ProductImageManager from './ProductImageManager';
 import VariantManager from './VariantManager';
@@ -142,9 +142,15 @@ const ProductManager = () => {
     } catch (error: any) {
       console.error('Error deleting products:', error);
       if (error.code === '23503') {
+        const areArchived = Array.from(selectedProductIds).every(id =>
+          products.find(p => p.id === id)?.status === 'archived'
+        );
+
         toast({
           title: "Cannot Delete Products",
-          description: "Some selected products are part of existing orders and cannot be deleted. Please archive them instead to preserve order history.",
+          description: areArchived
+            ? "Some selected products are part of existing orders and cannot be deleted. They are safely archived."
+            : "Some selected products are part of existing orders and cannot be deleted. Please archive them instead to preserve order history.",
           variant: "destructive"
         });
       } else {
@@ -382,9 +388,12 @@ const ProductManager = () => {
       loadData();
     } catch (error: any) {
       if (error.code === '23503') {
+        const product = products.find(p => p.id === productId);
         toast({
           title: "Cannot Delete Product",
-          description: "This product is part of existing orders and cannot be deleted. Please archive it instead.",
+          description: product?.status === 'archived'
+            ? "This product is part of existing orders and cannot be deleted. It is safely archived."
+            : "This product is part of existing orders and cannot be deleted. Please archive it instead.",
           variant: "destructive"
         });
       } else {
@@ -416,6 +425,11 @@ const ProductManager = () => {
   const mainCategories = categories.filter(c => !c.parent_id);
   const subCategories = formData.category_id ? categories.filter(c => c.parent_id === formData.category_id) : [];
 
+  // Derived state for bulk actions
+  const selectedProductsList = products.filter(p => selectedProductIds.has(p.id));
+  const allSelectedArchived = selectedProductsList.length > 0 && selectedProductsList.every(p => p.status === 'archived');
+  const allSelectedPublished = selectedProductsList.length > 0 && selectedProductsList.every(p => p.status === 'published');
+
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
@@ -438,19 +452,35 @@ const ProductManager = () => {
               <Button variant="destructive" onClick={handleBulkDelete}>
                 <Trash2 className="w-4 h-4 mr-2" /> Delete ({selectedProductIds.size})
               </Button>
-              <Button
-                onClick={() => handleBulkStatusChange('published')}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Globe className="w-4 h-4 mr-2" /> Publish ({selectedProductIds.size})
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => handleBulkStatusChange('archived')}
-                className="bg-gray-600 hover:bg-gray-700 text-white"
-              >
-                <Archive className="w-4 h-4 mr-2" /> Archive ({selectedProductIds.size})
-              </Button>
+
+              {!allSelectedPublished && (
+                <Button
+                  onClick={() => handleBulkStatusChange('published')}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Globe className="w-4 h-4 mr-2" /> Publish ({selectedProductIds.size})
+                </Button>
+              )}
+
+              {!allSelectedArchived && (
+                <Button
+                  variant="secondary"
+                  onClick={() => handleBulkStatusChange('archived')}
+                  className="bg-gray-600 hover:bg-gray-700 text-white"
+                >
+                  <Archive className="w-4 h-4 mr-2" /> Archive ({selectedProductIds.size})
+                </Button>
+              )}
+
+              {allSelectedArchived && (
+                <Button
+                  variant="secondary"
+                  onClick={() => handleBulkStatusChange('draft')}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                >
+                  <EyeOff className="w-4 h-4 mr-2" /> Restore ({selectedProductIds.size})
+                </Button>
+              )}
             </div>
           )}
 

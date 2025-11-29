@@ -191,6 +191,27 @@ const BundleManager = () => {
     setBundleItems(bundleItems.filter((_, i) => i !== index));
   };
 
+  const deleteBundle = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this bundle?')) return;
+
+    try {
+      setLoading(true);
+      // 1. Delete items first (cascade should handle this, but being safe)
+      await supabase.from('bundle_items').delete().eq('bundle_id', id);
+
+      // 2. Delete bundle
+      const { error } = await supabase.from('bundles').delete().eq('id', id);
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Bundle deleted successfully" });
+      fetchBundles();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (view === 'list') {
     return (
       <div className="space-y-6">
@@ -238,6 +259,9 @@ const BundleManager = () => {
                       });
                   }}>
                     Edit
+                  </Button>
+                  <Button variant="destructive" size="icon" onClick={() => deleteBundle(bundle.id)}>
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>

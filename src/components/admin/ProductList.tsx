@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Edit, Trash2, Image, Video, Eye, EyeOff, Globe } from 'lucide-react';
+import { Edit, Trash2, Image, Video, Eye, EyeOff, Globe, Archive } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import ProductImageManager from './ProductImageManager';
 import ProductVideoManager from './ProductVideoManager';
@@ -132,8 +132,11 @@ const ProductList = ({ products, onEdit, onDelete, onRefresh, onStatusChange, se
                     {product.is_featured && (
                       <Badge className="text-xs bg-purple-500 text-white">FEATURED</Badge>
                     )}
-                    {!product.is_active && (
-                      <Badge className="text-xs bg-gray-500 text-white">INACTIVE</Badge>
+                    {product.status === 'draft' && (
+                      <Badge className="text-xs bg-gray-500 text-white">DRAFT</Badge>
+                    )}
+                    {product.status === 'archived' && (
+                      <Badge className="text-xs bg-orange-500 text-white">ARCHIVED</Badge>
                     )}
                     {product.stock_quantity !== null && product.low_stock_threshold !== null && product.stock_quantity <= product.low_stock_threshold && (
                       <Badge className="text-xs bg-orange-500 text-white animate-pulse">LOW STOCK</Badge>
@@ -181,15 +184,41 @@ const ProductList = ({ products, onEdit, onDelete, onRefresh, onStatusChange, se
                   <span>Edit</span>
                 </Button>
 
-                <Button
-                  size="sm"
-                  variant={product.status === 'published' ? 'default' : 'secondary'}
-                  onClick={() => onStatusChange?.(product.id, product.status === 'published' ? 'draft' : 'published')}
-                  className={cn("flex items-center space-x-1", product.status === 'published' ? "bg-green-600 hover:bg-green-700" : "bg-yellow-600 hover:bg-yellow-700")}
-                >
-                  {product.status === 'published' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                  <span>{product.status === 'published' ? 'Live' : 'Hidden'}</span>
-                </Button>
+                {product.status !== 'archived' && (
+                  <Button
+                    size="sm"
+                    variant={product.status === 'published' ? 'default' : 'secondary'}
+                    onClick={() => onStatusChange?.(product.id, product.status === 'published' ? 'draft' : 'published')}
+                    className={cn("flex items-center space-x-1", product.status === 'published' ? "bg-green-600 hover:bg-green-700" : "bg-yellow-600 hover:bg-yellow-700")}
+                  >
+                    {product.status === 'published' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    <span>{product.status === 'published' ? 'Live' : 'Draft'}</span>
+                  </Button>
+                )}
+
+                {product.status === 'archived' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => onStatusChange?.(product.id, 'draft')}
+                    className="flex items-center space-x-1 bg-yellow-600 hover:bg-yellow-700 text-white"
+                  >
+                    <EyeOff className="w-4 h-4" />
+                    <span>Restore</span>
+                  </Button>
+                )}
+
+                {product.status !== 'archived' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => onStatusChange?.(product.id, 'archived')}
+                    className="flex items-center space-x-1 bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    <Archive className="w-4 h-4" />
+                    <span>Archive</span>
+                  </Button>
+                )}
 
                 <Button
                   size="sm"
