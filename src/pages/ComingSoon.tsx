@@ -265,7 +265,7 @@ const ComingSoon = () => {
                                 <Users className="w-4 h-4" />
                                 <span className="font-bold text-sm uppercase tracking-wider">Spots Claimed</span>
                             </div>
-                            <span className="font-mono text-white font-bold">
+                            <span className="font-mono text-white font-bold w-16 text-right inline-block">
                                 {subscriberCount.toLocaleString()}
                             </span>
                         </div>
