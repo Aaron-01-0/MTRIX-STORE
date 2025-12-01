@@ -48,17 +48,22 @@ Deno.serve(async (req) => {
 
         const emails = subscribers.map(s => s.email);
         const recipientCount = emails.length;
-
         // 2. Send emails (Batching)
         const batchSize = 50;
         for (let i = 0; i < emails.length; i += batchSize) {
             const batch = emails.slice(i, i + batchSize);
-            await resend.emails.send({
-                from: "MTRIX <onboarding@resend.dev>", // Update this with verified domain in production
-                to: batch,
+            const { data, error } = await resend.emails.send({
+                from: "MTRIX <hello@mtrix.store>",
+                to: ["hello@mtrix.store"],
+                bcc: batch,
                 subject: subject,
                 html: content,
             });
+
+            if (error) {
+                console.error("Resend Error:", error);
+                throw new Error(`Resend API Error: ${error.message || JSON.stringify(error)}`);
+            }
         }
 
         // 3. Log to broadcasts table

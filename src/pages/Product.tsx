@@ -403,7 +403,7 @@ const Product = () => {
                     src={productImages[selectedImageIndex]}
                     alt={product.name}
                     className={cn(
-                      "w-full h-full object-cover transition-transform duration-200",
+                      "w-full h-full object-contain transition-transform duration-200",
                       isZoomed ? "scale-150" : "scale-100"
                     )}
                     style={isZoomed ? { transformOrigin: `${mousePos.x}% ${mousePos.y}%` } : undefined}
