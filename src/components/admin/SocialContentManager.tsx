@@ -15,6 +15,7 @@ interface SocialContent {
     id: string;
     platform: 'instagram_post' | 'instagram_reel';
     url: string;
+    video_url: string | null;
     thumbnail_url: string | null;
     caption: string | null;
     display_order: number;
@@ -123,6 +124,7 @@ const SocialContentManager = () => {
             platform: 'instagram_post',
             display_order: 0,
             url: '',
+            video_url: '',
             thumbnail_url: '',
             caption: ''
         });
@@ -187,6 +189,15 @@ const SocialContentManager = () => {
                                         value={formData.thumbnail_url || ''}
                                         onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
                                         className="bg-mtrix-black border-mtrix-gray"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Video URL (Optional - for hover effect)</Label>
+                                    <Input
+                                        value={formData.video_url || ''}
+                                        onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                                        className="bg-mtrix-black border-mtrix-gray"
+                                        placeholder="https://.../video.mp4"
                                     />
                                 </div>
                                 <div className="space-y-2 md:col-span-2">

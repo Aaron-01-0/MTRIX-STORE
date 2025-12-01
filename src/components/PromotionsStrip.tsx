@@ -10,6 +10,22 @@ const PromotionsStrip = () => {
 
   const fetchPromotions = async () => {
     try {
+      // 1. Check global setting
+      const { data: settings, error: settingsError } = await supabase
+        .from('brand_settings')
+        .select('show_announcement_bar')
+        .single();
+
+      if (settingsError && settingsError.code !== 'PGRST116') {
+        console.error('Error fetching settings:', settingsError);
+      }
+
+      if (settings && (settings as any).show_announcement_bar === false) {
+        setPromotions([]);
+        return;
+      }
+
+      // 2. Fetch promotions
       const { data, error } = await supabase
         .from('promotion_strips')
         .select('text')
@@ -17,7 +33,7 @@ const PromotionsStrip = () => {
         .order('display_order');
 
       if (error) throw error;
-      setPromotions(data?.map(p => p.text) || []);
+      setPromotions(data?.map(p => p.text).filter(text => text && text.trim().length > 0) || []);
     } catch (error) {
       console.error('Error fetching promotions:', error);
     }

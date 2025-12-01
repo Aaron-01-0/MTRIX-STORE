@@ -41,39 +41,34 @@ const AdminDashboard = () => {
 
     const fetchDashboardData = async () => {
         try {
-            // 1. Fetch Orders
-            const { data: orders, error } = await supabase
+            // 1. Fetch Stats from View
+            const { data: statsData, error: statsError } = await supabase
+                .from('admin_dashboard_stats')
+                .select('*')
+                .single();
+
+            if (statsError) throw statsError;
+
+            if (statsData) {
+                setStats({
+                    revenue: statsData.total_revenue,
+                    orders: statsData.total_orders,
+                    customers: statsData.active_customers,
+                    avgOrderValue: statsData.avg_order_value
+                });
+            }
+
+            // 2. Fetch Recent Orders (Limit 5)
+            const { data: orders, error: ordersError } = await supabase
                 .from('orders')
                 .select('id, total_amount, created_at, status, payment_status, user_id')
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(5);
 
-            if (error) throw error;
-
-            // 2. Calculate KPIs
-            // Only count revenue for valid orders (not pending, cancelled, or failed payment)
-            const validRevenueOrders = orders.filter(order =>
-                order.status !== 'pending' &&
-                order.status !== 'cancelled' &&
-                order.payment_status !== 'failed' &&
-                order.payment_status !== 'pending'
-            );
-
-            const totalRevenue = validRevenueOrders.reduce((sum, order) => sum + Number(order.total_amount), 0);
-            const totalOrders = orders.length;
-            const uniqueCustomers = new Set(orders.map(o => o.user_id)).size;
-            const avgOrderValue = validRevenueOrders.length > 0 ? totalRevenue / validRevenueOrders.length : 0;
-
-            setStats({
-                revenue: totalRevenue,
-                orders: totalOrders,
-                customers: uniqueCustomers,
-                avgOrderValue
-            });
+            if (ordersError) throw ordersError;
 
             // Fetch profiles for recent orders
-            const recentOrdersSlice = orders.slice(0, 5);
-            const userIds = [...new Set(recentOrdersSlice.map(o => o.user_id))];
-
+            const userIds = [...new Set(orders.map(o => o.user_id))];
             const { data: profiles } = await supabase
                 .from('profiles')
                 .select('user_id, first_name, last_name, name')
@@ -81,7 +76,7 @@ const AdminDashboard = () => {
 
             const profilesMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
-            const recentOrdersWithProfiles = recentOrdersSlice.map(order => {
+            const recentOrdersWithProfiles = orders.map(order => {
                 const profile = profilesMap.get(order.user_id);
                 return {
                     ...order,
@@ -93,22 +88,31 @@ const AdminDashboard = () => {
 
             setRecentOrders(recentOrdersWithProfiles);
 
-            // 3. Prepare Chart Data (Last 7 Days)
-            const last7Days = Array.from({ length: 7 }, (_, i) => {
-                const d = subDays(new Date(), 6 - i);
-                return format(d, 'yyyy-MM-dd');
-            });
+            // 3. Prepare Chart Data (Last 7 Days) - Still needs raw data or a separate view
+            // For now, we'll fetch just the necessary fields for the chart to minimize payload
+            const { data: chartOrders } = await supabase
+                .from('orders')
+                .select('created_at, total_amount')
+                .gte('created_at', subDays(new Date(), 7).toISOString())
+                .neq('status', 'cancelled')
+                .neq('status', 'pending');
 
-            const dailySales = last7Days.map(date => {
-                const dayOrders = validRevenueOrders.filter(o => o.created_at.startsWith(date));
-                const dayRevenue = dayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
-                return {
-                    date: format(new Date(date), 'MMM dd'),
-                    revenue: dayRevenue
-                };
-            });
+            if (chartOrders) {
+                const last7Days = Array.from({ length: 7 }, (_, i) => {
+                    const d = subDays(new Date(), 6 - i);
+                    return format(d, 'yyyy-MM-dd');
+                });
 
-            setChartData(dailySales);
+                const dailySales = last7Days.map(date => {
+                    const dayOrders = chartOrders.filter(o => o.created_at.startsWith(date));
+                    const dayRevenue = dayOrders.reduce((sum, o) => sum + Number(o.total_amount), 0);
+                    return {
+                        date: format(new Date(date), 'MMM dd'),
+                        revenue: dayRevenue
+                    };
+                });
+                setChartData(dailySales);
+            }
 
             // 4. Fetch Action Items
             // Pending Community Posts
@@ -118,7 +122,10 @@ const AdminDashboard = () => {
                 .eq('status', 'pending');
 
             // Pending Orders
-            const pendingOrdersCount = orders.filter(o => o.status === 'pending').length;
+            const { count: pendingOrdersCount } = await supabase
+                .from('orders')
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'pending');
 
             // Low Stock Items (using RPCs)
             const { data: lowStockProducts } = await supabase.rpc('get_low_stock_products');
@@ -128,7 +135,7 @@ const AdminDashboard = () => {
             setActionItems({
                 pendingPosts: pendingPostsCount || 0,
                 lowStock: lowStockCount,
-                pendingOrders: pendingOrdersCount
+                pendingOrders: pendingOrdersCount || 0
             });
 
         } catch (error) {

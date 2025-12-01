@@ -37,7 +37,7 @@ const DesignManager = () => {
         .from('arena_designs')
         .select(`
           *,
-          profiles:user_id (username, email)
+          profiles:user_id (name, email)
         `)
         .order('created_at', { ascending: false });
 
@@ -168,7 +168,7 @@ const DesignManager = () => {
                     </div>
                   </TableCell>
                   <TableCell className="font-medium">{design.title}</TableCell>
-                  <TableCell>{design.profiles?.username || 'Unknown'}</TableCell>
+                  <TableCell>{design.profiles?.name || 'Unknown'}</TableCell>
                   <TableCell><Badge variant="outline">{design.category}</Badge></TableCell>
                   <TableCell>
                     <Badge className={

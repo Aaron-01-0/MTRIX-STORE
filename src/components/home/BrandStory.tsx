@@ -9,7 +9,8 @@ const BrandStory = () => {
             {/* Background Video */}
             <div className="absolute inset-0 z-0">
                 <ResponsiveVideo
-                    src="https://cdn.pixabay.com/video/2023/10/22/186175-877653483_large.mp4"
+                    type="youtube"
+                    embedId="qC0vDKVPCrw"
                     className="w-full h-full object-cover opacity-60"
                     autoPlay
                     muted

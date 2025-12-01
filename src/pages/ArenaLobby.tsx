@@ -37,7 +37,7 @@ const ArenaLobby = () => {
             .from('arena_designs')
             .select(`
         *,
-        profiles:user_id (username, avatar_url)
+        profiles:user_id (name, avatar_url)
       `)
             .eq('status', 'voting');
 
@@ -74,17 +74,17 @@ const ArenaLobby = () => {
                         transition={{ duration: 0.8 }}
                     >
                         <h1 className="text-5xl md:text-7xl font-black font-orbitron tracking-tighter mb-6">
-                            BATTLE FOR <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">GLORY</span>
+                            BATTLE FOR <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-gold to-pink-600">GLORY</span>
                         </h1>
                         <p className="text-xl text-gray-400 max-w-2xl mx-auto mb-8">
                             Vote for the next generation of MTRIX gear. The winners get produced. The creators get paid.
                         </p>
 
                         {activePeriod && (
-                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 mb-8">
-                                <Clock className="w-4 h-4" />
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-gold/30 text-purple-300 mb-8 shadow-[0_0_15px_rgba(255,215,0,0.1)]">
+                                <Clock className="w-4 h-4 text-gold" />
                                 <span className="font-orbitron tracking-wide text-sm">
-                                    VOTING ENDS IN: <span className="text-white font-bold">2D 14H 32M</span>
+                                    VOTING ENDS IN: <span className="text-gold font-bold">2D 14H 32M</span>
                                 </span>
                             </div>
                         )}
@@ -105,7 +105,7 @@ const ArenaLobby = () => {
                                 key={item.id}
                                 onClick={() => setFilter(item.id)}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${filter === item.id
-                                    ? 'bg-white text-black'
+                                    ? 'bg-gold text-black font-bold shadow-gold'
                                     : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
                                     }`}
                             >

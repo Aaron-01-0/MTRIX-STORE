@@ -13,7 +13,7 @@ export interface ArenaDesign {
     tags: string[] | null;
     created_at: string;
     profiles?: {
-        username: string;
+        name: string;
         avatar_url: string | null;
     };
     has_voted?: boolean; // Virtual field for UI

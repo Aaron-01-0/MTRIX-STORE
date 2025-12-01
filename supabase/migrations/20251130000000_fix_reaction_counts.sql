@@ -1,0 +1,2 @@
+-- This migration is deprecated and replaced by 20251130000001_fix_reaction_counts_v2.sql
+-- Please run that file instead.

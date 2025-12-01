@@ -17,6 +17,7 @@ const CategoryPage = () => {
     const { slug } = useParams();
     const navigate = useNavigate();
     const [category, setCategory] = useState<Category | null>(null);
+    const [parentCategory, setParentCategory] = useState<Category | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [collectionType, setCollectionType] = useState<'category' | 'new' | 'bestsellers' | 'restocked'>('category');
@@ -87,6 +88,7 @@ const CategoryPage = () => {
             meta_description: description,
             display_order: 0
         });
+        setParentCategory(null);
         setProducts(data || []);
     };
 
@@ -101,13 +103,25 @@ const CategoryPage = () => {
 
         if (catError || !cat) {
             console.error('Category not found');
-            navigate('/404'); // Or handle gracefully
+            navigate('/catalog'); // Or handle gracefully
             return;
         }
 
         setCategory(cat);
 
-        // 2. Get Products (Directly in this category OR in its subcategories)
+        // 2. Get Parent Category if exists
+        if (cat.parent_id) {
+            const { data: parent } = await supabase
+                .from('categories')
+                .select('*')
+                .eq('id', cat.parent_id)
+                .single();
+            setParentCategory(parent);
+        } else {
+            setParentCategory(null);
+        }
+
+        // 3. Get Products (Directly in this category OR in its subcategories)
         // First, find all subcategory IDs if this is a parent
         const { data: subcats } = await supabase
             .from('categories')
@@ -147,9 +161,9 @@ const CategoryPage = () => {
             />
             <Navbar />
 
-            <main className="pt-24 pb-20">
+            <main className="pb-20">
                 {/* Hero Section */}
-                <section className="relative py-20 px-6 overflow-hidden mb-12">
+                <section className="relative pt-32 pb-20 px-6 overflow-hidden mb-12">
                     <div className="absolute inset-0 z-0">
                         {category.image_url ? (
                             <OptimizedImage
@@ -164,16 +178,28 @@ const CategoryPage = () => {
                     </div>
 
                     <div className="container mx-auto text-center relative z-10">
-                        <Button
-                            variant="ghost"
-                            className="absolute left-0 top-0 text-muted-foreground hover:text-white hidden lg:flex"
-                            onClick={() => navigate('/catalog')}
-                        >
-                            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Catalog
-                        </Button>
+                        <div className="w-full flex justify-start items-center px-4 md:px-0 mb-8">
+                            <Button
+                                variant="ghost"
+                                className="text-muted-foreground hover:text-white flex items-center gap-2 hover:bg-white/10 transition-colors"
+                                onClick={() => {
+                                    if (category.parent_id && parentCategory) {
+                                        navigate(`/categories/${parentCategory.slug}`);
+                                    } else {
+                                        navigate('/categories');
+                                    }
+                                }}
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                                <span className="hidden sm:inline">
+                                    {category.parent_id && parentCategory ? `Back to ${parentCategory.name}` : 'Back to Categories'}
+                                </span>
+                                <span className="sm:hidden">Back</span>
+                            </Button>
+                        </div>
 
-                        <h1 className="text-5xl md:text-7xl font-orbitron font-bold mb-6 animate-fade-up uppercase">
-                            {category.name}
+                        <h1 className="text-5xl md:text-7xl font-orbitron font-bold mb-6 animate-fade-up uppercase mt-12 md:mt-0">
+                            MTRIX <span className="text-primary">x</span> {category.name}
                         </h1>
                         {category.description && (
                             <p className="text-xl text-muted-foreground max-w-2xl mx-auto animate-fade-up delay-100">

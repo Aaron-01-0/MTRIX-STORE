@@ -3,14 +3,16 @@ import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronRight } from 'lucide-react';
 
 interface Category {
     id: string;
     name: string;
     description: string | null;
     image_url: string | null;
+    parent_id: string | null;
     count?: number;
+    subcategories?: Category[];
 }
 
 const Categories = () => {
@@ -23,7 +25,7 @@ const Categories = () => {
 
     const fetchCategories = async () => {
         try {
-            const { data: categoriesData, error } = await supabase
+            const { data: allCategories, error } = await supabase
                 .from('categories')
                 .select('*')
                 .eq('is_active', true)
@@ -44,10 +46,18 @@ const Categories = () => {
                 return acc;
             }, {}) || {};
 
-            const formattedCategories = categoriesData?.map(cat => ({
-                ...cat,
-                count: productCounts[cat.id] || 0
-            })) || [];
+            // Organize into hierarchy
+            const parents = allCategories?.filter(c => !c.parent_id) || [];
+            const children = allCategories?.filter(c => c.parent_id) || [];
+
+            const formattedCategories = parents.map(parent => ({
+                ...parent,
+                count: productCounts[parent.id] || 0,
+                subcategories: children.filter(child => child.parent_id === parent.id).map(child => ({
+                    ...child,
+                    count: productCounts[child.id] || 0
+                }))
+            }));
 
             setCategories(formattedCategories);
         } catch (error) {
@@ -61,13 +71,13 @@ const Categories = () => {
         <div className="min-h-screen bg-black text-white">
             <Navbar />
 
-            <main className="pt-24 pb-20">
+            <main className="pb-20">
                 {/* Hero */}
-                <section className="relative py-20 px-6 overflow-hidden mb-12">
+                <section className="relative pt-32 pb-20 px-6 overflow-hidden mb-12">
                     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-black to-black" />
                     <div className="container mx-auto text-center relative z-10">
-                        <h1 className="text-5xl md:text-7xl font-orbitron font-bold mb-6 animate-fade-up">
-                            EXPLORE <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-white">CATEGORIES</span>
+                        <h1 className="text-5xl md:text-7xl font-orbitron font-bold mb-6 animate-fade-up uppercase">
+                            MTRIX <span className="text-primary">x</span> CATEGORIES
                         </h1>
                         <p className="text-xl text-muted-foreground max-w-2xl mx-auto animate-fade-up delay-100">
                             Browse our curated collections and find exactly what you need.
@@ -87,8 +97,8 @@ const Categories = () => {
                             {categories.map((category) => (
                                 <Link
                                     key={category.id}
-                                    to={`/catalog?category=${category.id}`}
-                                    className="group relative h-80 rounded-2xl overflow-hidden border border-white/10 bg-white/5 hover:border-primary/50 transition-all duration-500"
+                                    to={`/categories/${category.slug}`}
+                                    className="group relative h-[400px] rounded-2xl overflow-hidden border border-white/10 bg-white/5 hover:border-primary/50 transition-all duration-500 block"
                                 >
                                     {/* Background Image */}
                                     <div className="absolute inset-0">
@@ -101,7 +111,7 @@ const Categories = () => {
                                         ) : (
                                             <div className="w-full h-full bg-gradient-to-br from-white/5 to-black" />
                                         )}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent opacity-90 transition-opacity" />
                                     </div>
 
                                     {/* Content */}
@@ -110,17 +120,20 @@ const Categories = () => {
                                             <h3 className="text-3xl font-orbitron font-bold text-white mb-2 group-hover:text-primary transition-colors">
                                                 {category.name}
                                             </h3>
-                                            <p className="text-muted-foreground mb-4 line-clamp-2 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">
+                                            <p className="text-muted-foreground line-clamp-2 text-sm mb-4">
                                                 {category.description || `Browse our collection of ${category.name}`}
                                             </p>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm font-medium text-white/60 bg-white/10 px-3 py-1 rounded-full">
-                                                    {category.count} Products
-                                                </span>
-                                                <span className="flex items-center text-primary font-bold opacity-0 group-hover:opacity-100 -translate-x-4 group-hover:translate-x-0 transition-all duration-500 delay-200">
-                                                    Shop Now <ArrowRight className="w-5 h-5 ml-2" />
-                                                </span>
+
+                                            <div className="flex items-center text-primary font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                                                Explore Collection <ArrowRight className="w-4 h-4 ml-2" />
                                             </div>
+                                        </div>
+
+                                        {/* Count Badge */}
+                                        <div className="absolute top-8 right-8">
+                                            <span className="text-sm font-medium text-white/60 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">
+                                                {category.count} Products
+                                            </span>
                                         </div>
                                     </div>
                                 </Link>

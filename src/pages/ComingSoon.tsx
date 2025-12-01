@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { Users, ArrowRight, Check, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
+import GlowingLogo from '@/components/home/GlowingLogo';
 
 // Define outside to avoid initialization errors
 const TARGET_DATE = new Date('2025-12-25T00:00:00');
@@ -162,109 +163,6 @@ const ComingSoon = () => {
         };
     }, []);
 
-    // Snowfall Effect with Mouse Interaction
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        let width = window.innerWidth;
-        let height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
-
-        const particles: any[] = [];
-        const particleCount = 150; // Increased count
-
-        for (let i = 0; i < particleCount; i++) {
-            particles.push({
-                x: Math.random() * width,
-                y: Math.random() * height,
-                r: Math.random() * 2 + 0.5,
-                baseSpeedY: Math.random() * 0.5 + 0.2,
-                baseSpeedX: (Math.random() - 0.5) * 0.5,
-                speedY: 0,
-                speedX: 0,
-                color: Math.random() > 0.6 ? '#FFD700' : '#FFFFFF', // More gold
-                opacity: Math.random() * 0.5 + 0.1
-            });
-        }
-
-        let animationFrameId: number;
-
-        function draw() {
-            if (!ctx || !canvas) return;
-            ctx.clearRect(0, 0, width, height);
-
-            for (let i = 0; i < particleCount; i++) {
-                const p = particles[i];
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.opacity;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2, true);
-                ctx.fill();
-            }
-            update();
-            animationFrameId = requestAnimationFrame(draw);
-        }
-
-        function update() {
-            for (let i = 0; i < particleCount; i++) {
-                const p = particles[i];
-
-                // Mouse interaction
-                const dx = p.x - mouseRef.current.x;
-                const dy = p.y - mouseRef.current.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const maxDistance = 150;
-
-                if (distance < maxDistance) {
-                    const force = (maxDistance - distance) / maxDistance;
-                    const angle = Math.atan2(dy, dx);
-                    p.speedX += Math.cos(angle) * force * 0.2;
-                    p.speedY += Math.sin(angle) * force * 0.2;
-                }
-
-                // Apply base speed and decay interaction speed
-                p.speedX = p.speedX * 0.95 + p.baseSpeedX * 0.05;
-                p.speedY = p.speedY * 0.95 + p.baseSpeedY * 0.05;
-
-                p.x += p.speedX;
-                p.y += p.speedY;
-
-                if (p.y > height) {
-                    p.y = -10;
-                    p.x = Math.random() * width;
-                }
-                if (p.x > width) p.x = 0;
-                if (p.x < 0) p.x = width;
-            }
-        }
-
-        draw();
-
-        const handleResize = () => {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-        };
-
-        const handleMouseMove = (e: MouseEvent) => {
-            mouseRef.current = { x: e.clientX, y: e.clientY };
-        };
-
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('mousemove', handleMouseMove);
-
-        return () => {
-            cancelAnimationFrame(animationFrameId);
-            window.removeEventListener('resize', handleResize);
-            window.removeEventListener('mousemove', handleMouseMove);
-        };
-    }, []);
-
     const { user } = useAuth();
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -321,25 +219,22 @@ const ComingSoon = () => {
                 <div className="absolute top-[40%] left-[40%] w-[20%] h-[20%] bg-gold/5 rounded-full blur-[100px] animate-pulse delay-500" />
             </div>
 
-            {/* Snowfall Canvas */}
-            <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0 opacity-60" />
+            {/* Glowing Logo Background */}
+            <GlowingLogo className="absolute inset-0 z-0 opacity-80" fontSize={250} />
 
             {/* Main Content - Centered */}
             <div className={`z-10 w-full max-w-4xl mx-auto px-4 flex flex-col items-center justify-center text-center relative transition-opacity duration-1000 ${showIntro ? 'opacity-0' : 'opacity-100'}`}>
 
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 fill-mode-forwards w-full max-w-2xl">
-                    <div className="relative group cursor-default">
-                        <h1 className="text-6xl md:text-8xl font-black mb-4 tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-neutral-400 group-hover:animate-pulse transition-all duration-300">
-                            MTRIX
-                        </h1>
-                        <div className="absolute -inset-1 bg-gold/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="relative group cursor-default pt-20">
+                        {/* Title removed as it's in the background now */}
                         <p className="text-lg md:text-xl text-gold/80 tracking-[0.3em] uppercase font-medium">
                             Official Launch
                         </p>
                     </div>
 
                     <p className="text-neutral-400 text-lg max-w-md mx-auto leading-relaxed">
-                        Unwrapping the future of fashion. Secure your spot on the guest list for our exclusive holiday drop.
+                        Redefining Minimalism. Premium Thrift Store. Secure your spot on the guest list for our exclusive holiday drop.
                     </p>
 
                     {/* Countdown */}

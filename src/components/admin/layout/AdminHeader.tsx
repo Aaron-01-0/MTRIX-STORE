@@ -18,12 +18,12 @@ const AdminHeader = () => {
         <header className="h-20 fixed top-0 right-0 left-72 z-30 px-8 flex items-center justify-between bg-black/50 backdrop-blur-xl border-b border-white/5 transition-all duration-300">
             {/* Search */}
             <div className="w-96 relative group">
-                <div className="absolute inset-0 bg-primary/20 rounded-lg blur-xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
+                <div className="absolute inset-0 bg-primary/5 rounded-full blur-xl opacity-0 group-hover:opacity-20 transition-opacity duration-500" />
                 <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-primary transition-colors" />
                     <Input
                         placeholder="Search anything..."
-                        className="pl-11 h-11 bg-white/5 border-white/10 focus:border-primary/50 text-white placeholder:text-muted-foreground/50 rounded-xl transition-all duration-300"
+                        className="pl-11 h-11 bg-zinc-900/80 border-zinc-800 focus:border-primary/50 text-white placeholder:text-zinc-600 rounded-full transition-all duration-300 hover:bg-zinc-900"
                     />
                 </div>
             </div>
@@ -33,25 +33,23 @@ const AdminHeader = () => {
                 <Button
                     variant="ghost"
                     size="icon"
-                    className="text-muted-foreground hover:text-primary hover:bg-primary/10 relative rounded-xl w-10 h-10 transition-all duration-300"
+                    className="text-zinc-400 hover:text-primary hover:bg-primary/10 relative rounded-full w-10 h-10 transition-all duration-300"
                 >
                     <Bell className="w-5 h-5" />
                     <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_8px_rgba(255,215,0,0.8)]"></span>
                 </Button>
 
-                <div className="h-8 w-px bg-white/10" />
+                <div className="h-8 w-px bg-zinc-800" />
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="flex items-center gap-3 pl-2 pr-4 py-2 h-auto rounded-full hover:bg-white/5 border border-transparent hover:border-white/10 transition-all duration-300 group">
-                            <div className="w-9 h-9 rounded-full bg-gradient-gold p-[1px]">
-                                <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
-                                    <User className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
-                                </div>
+                        <Button variant="ghost" className="flex items-center gap-3 pl-2 pr-4 py-2 h-auto rounded-full hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition-all duration-300 group">
+                            <div className="w-9 h-9 rounded-full border-2 border-primary flex items-center justify-center bg-zinc-900">
+                                <User className="w-4 h-4 text-primary" />
                             </div>
                             <div className="flex flex-col items-start hidden sm:flex">
-                                <span className="text-sm font-semibold text-white group-hover:text-primary transition-colors">Admin</span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Super User</span>
+                                <span className="text-sm font-bold text-white group-hover:text-primary transition-colors">Admin</span>
+                                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">SUPER USER</span>
                             </div>
                         </Button>
                     </DropdownMenuTrigger>

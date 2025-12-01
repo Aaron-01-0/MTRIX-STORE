@@ -15,7 +15,9 @@ import {
     AlertTriangle,
     CreditCard,
     LogOut,
-    ChevronRight
+    ChevronRight,
+    Trophy,
+    Megaphone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +39,8 @@ const menuItems = [
     { icon: Zap, label: 'Campaigns', path: '/admin/campaigns' },
     { icon: Instagram, label: 'Social', path: '/admin/social' },
     { icon: Users, label: 'Community', path: '/admin/community' },
+    { icon: Trophy, label: 'Arena', path: '/admin/designs' },
+    { icon: Megaphone, label: 'Announcements', path: '/admin/broadcasts' },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },
 ];
 
@@ -45,7 +49,7 @@ const AdminSidebar = () => {
     const { signOut } = useAuth();
 
     return (
-        <aside className="w-72 bg-black border-r border-white/5 min-h-screen flex flex-col fixed left-0 top-0 z-40 shadow-2xl">
+        <aside className="w-72 bg-black border-r border-white/5 h-screen flex flex-col fixed left-0 top-0 z-40 shadow-2xl">
             {/* Logo Area */}
             <div className="h-20 flex items-center px-8 border-b border-white/5">
                 <Link to="/" className="group">

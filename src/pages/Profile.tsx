@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import MyOrders from './MyOrders';
 import MyCoupons from '@/components/profile/MyCoupons';
 import { toast } from 'sonner';
-import { User, Package, Heart, LogOut, Settings, Ticket, MapPin, Plus, Edit2, Trash2, Clock } from 'lucide-react';
+import { User, Package, Heart, LogOut, Settings, Ticket, MapPin, Plus, Edit2, Trash2, Clock, Camera, Loader2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
@@ -22,6 +22,7 @@ interface Profile {
   last_name: string;
   name: string;
   mobile_no: string;
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +56,7 @@ const Profile = () => {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loginHistory, setLoginHistory] = useState<LoginHistory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
 
@@ -172,6 +174,42 @@ const Profile = () => {
       toast.error('Failed to update profile');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setIsUploading(true);
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${user?.id}-${Math.random()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('user_id', user?.id);
+
+      if (updateError) throw updateError;
+
+      toast.success('Avatar updated successfully');
+      fetchProfile();
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast.error('Failed to upload avatar');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -295,8 +333,32 @@ const Profile = () => {
       <div className="container mx-auto px-4 py-8 mt-20">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center">
-              <User className="w-8 h-8 text-primary" />
+            <div className="relative group">
+              <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-primary/20 bg-primary/5 flex items-center justify-center">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.name || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-10 h-10 text-primary" />
+                )}
+              </div>
+              <label
+                htmlFor="avatar-upload"
+                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                {isUploading ? (
+                  <Loader2 className="w-6 h-6 text-white animate-spin" />
+                ) : (
+                  <Camera className="w-6 h-6 text-white" />
+                )}
+              </label>
+              <input
+                type="file"
+                id="avatar-upload"
+                className="hidden"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                disabled={isUploading}
+              />
             </div>
             <div>
               <h1 className="text-3xl font-bold">{profile?.name || 'User Profile'}</h1>

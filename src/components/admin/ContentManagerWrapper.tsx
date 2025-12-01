@@ -1,67 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
-import HeroImageManager from '@/components/admin/HeroImageManager';
+import HeroEditorDialog from '@/components/admin/HeroEditorDialog';
 import CategoryManager from '@/components/admin/CategoryManager';
 import BundleManager from '@/components/admin/BundleManager';
 import PromotionStripManager from '@/components/admin/PromotionStripManager';
 import { Image as ImageIcon, Layers, Package, Tag } from 'lucide-react';
 
-interface HeroImageData {
-    id: string;
-    image_url: string;
-    title: string | null;
-    subtitle: string | null;
-    alt_text: string | null;
-    display_order: number;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-}
+
 
 const ContentManagerWrapper = () => {
-    const [heroImages, setHeroImages] = useState<Array<{
-        id: string;
-        url: string;
-        title?: string;
-        subtitle?: string;
-        alt?: string;
-        button_text?: string;
-        button_link?: string;
-        display_order: number;
-        is_active: boolean;
-    }>>([]);
-
-    useEffect(() => {
-        fetchHeroImages();
-    }, []);
-
-    const fetchHeroImages = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('hero_images' as any)
-                .select('*')
-                .order('display_order', { ascending: true });
-
-            if (error) throw error;
-
-            const heroImagesData = data as unknown as HeroImageData[] | null;
-
-            setHeroImages(heroImagesData?.map(img => ({
-                id: img.id,
-                url: img.image_url,
-                title: img.title || undefined,
-                subtitle: img.subtitle || undefined,
-                alt: img.alt_text || undefined,
-                button_text: (img as any).button_text || undefined,
-                button_link: (img as any).button_link || undefined,
-                display_order: img.display_order,
-                is_active: img.is_active
-            })) || []);
-        } catch (error) {
-            console.error('Error fetching hero images:', error);
-        }
-    };
+    const [activeTab, setActiveTab] = useState('hero');
 
     return (
         <div className="space-y-6">
@@ -87,12 +35,16 @@ const ContentManagerWrapper = () => {
                 </TabsList>
 
                 <TabsContent value="hero">
-                    <HeroImageManager
-                        images={heroImages}
-                        onChange={(newImages) => {
-                            setHeroImages(newImages);
-                        }}
-                    />
+                    <div className="flex flex-col items-center justify-center py-12 bg-black/20 border border-white/10 rounded-lg space-y-4">
+                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                            <ImageIcon className="w-8 h-8 text-primary" />
+                        </div>
+                        <div className="text-center max-w-md">
+                            <h3 className="text-xl font-bold text-white mb-2">Hero Section Builder</h3>
+                            <p className="text-muted-foreground mb-6">Create stunning hero sections with our advanced builder. Manage slides, animations, and responsive designs in a dedicated workspace.</p>
+                            <HeroEditorDialog />
+                        </div>
+                    </div>
                 </TabsContent>
 
                 <TabsContent value="categories">

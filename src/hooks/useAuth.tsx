@@ -15,7 +15,7 @@ interface AuthContextType {
   signIn: (identifier: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<{ error: any }>;
-  recordLogin: (method: string) => Promise<void>;
+  recordLogin: (method: string, currentUser?: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Record login if user just signed in
         if (event === 'SIGNED_IN' && session?.user) {
           setTimeout(() => {
-            recordLogin('email');
+            recordLogin('email', session.user);
           }, 0);
         }
       }
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     mobile_no: string;
   }) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -74,13 +74,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signIn = async (identifier: string, password: string) => {
     // Check if identifier is email or mobile
     const isEmail = identifier.includes('@');
-    
+
     if (isEmail) {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: identifier,
         password
       });
-      return { error };
+
+      if (error) return { error };
+
+      // Security Check: Enforce Google Auth for Admins
+      if (data.user) {
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', data.user.id)
+          .eq('role', 'admin')
+          .maybeSingle();
+
+        if (roles) {
+          await supabase.auth.signOut();
+          return {
+            error: {
+              message: 'Security Alert: Administrators must use Google Sign-In.'
+            }
+          };
+        }
+      }
+
+      return { error: null };
     } else {
       // For mobile number login, we need to find the user by mobile first
       const { data: profiles, error: profileError } = await supabase
@@ -110,20 +132,51 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
+    if (user) {
+      await supabase.rpc('log_activity' as any, {
+        p_action: 'LOGOUT',
+        p_entity_type: 'auth',
+        p_entity_id: user.id,
+        p_details: { email: user.email }
+      });
+    }
     const { error } = await supabase.auth.signOut();
     return { error };
   };
 
-  const recordLogin = async (method: string) => {
-    if (!user) return;
+  const recordLogin = async (method: string, currentUser?: User) => {
+    const targetUser = currentUser || user;
+    if (!targetUser) return;
 
     try {
+      // 1. Record in DB (Legacy)
       await supabase.from('login_history').insert({
-        user_id: user.id,
+        user_id: targetUser.id,
         login_method: method,
         ip_address: 'unknown', // In production, get from server
         user_agent: navigator.userAgent
       });
+
+      // 2. Log Activity (New System)
+      await supabase.rpc('log_activity' as any, {
+        p_action: 'LOGIN',
+        p_entity_type: 'auth',
+        p_entity_id: targetUser.id,
+        p_details: { method, userAgent: navigator.userAgent }
+      });
+
+      // 3. Trigger Security Alert (Fire and Forget)
+      // We don't await this because we don't want to block the UI
+      /* 
+      supabase.functions.invoke('send-login-alert', {
+        body: {
+          userAgent: navigator.userAgent,
+        }
+      }).then(({ error }) => {
+        if (error) console.error('Failed to send login alert:', error);
+      });
+      */
+
     } catch (error) {
       console.error('Failed to record login:', error);
     }

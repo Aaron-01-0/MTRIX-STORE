@@ -11,7 +11,7 @@ interface SEOProps {
 
 const SEO = ({
     title,
-    description = "MTRIX - Premium Tech & Lifestyle Accessories",
+    description = "MTRIX - Redefining Minimalism | Premium Thrift Store",
     image = "/og-image.png",
     url = window.location.href,
     type = "website",

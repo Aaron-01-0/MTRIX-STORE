@@ -1,5 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { Resend } from 'npm:resend@2.0.0'
+import React from 'https://esm.sh/react@18.2.0'
+import { render } from 'https://esm.sh/@react-email/render@0.0.10'
+import { AbandonedCartEmail } from '../_shared/email-templates/AbandonedCartEmail.tsx'
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -86,39 +89,24 @@ Deno.serve(async (req) => {
 
       console.log(`Sending email to ${cart.email}...`)
 
-      const text = `Don't Forget Your Style!\n\nHey ${cart.name},\n\nWe noticed you left some great items in your cart:\n\n${cart.items.map((item: string) => `- ${item}`).join('\n')}\n\nThey're selling out fast! Complete your order now to secure your look.\n\nReturn to Cart: https://mtrix.store/cart\n\nStay stylish,\nTeam MTRIX\n\n© 2024 MTRIX. All rights reserved.`
+      const emailHtml = render(React.createElement(AbandonedCartEmail, {
+        customerName: cart.name,
+        items: cart.items
+      }))
+
+      const emailText = render(React.createElement(AbandonedCartEmail, {
+        customerName: cart.name,
+        items: cart.items
+      }), {
+        plainText: true
+      })
 
       const { data, error } = await resend.emails.send({
         from: 'MTRIX <onboarding@resend.dev>', // Update this if you have a custom domain
         to: [cart.email],
         subject: 'You left something behind! 👀',
-        html: `
-          <div style="font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen-Sans,Ubuntu,Cantarell,'Helvetica Neue',sans-serif; max-width: 600px; margin: 0 auto; background-color: #000000; color: #cccccc; padding: 20px;">
-            <div style="background-color: #111111; padding: 40px; border-radius: 8px; border: 1px solid #333;">
-              <div style="text-align: center; margin-bottom: 30px;">
-                <span style="font-size: 24px; font-weight: bold; color: #D4AF37; letter-spacing: 2px;">MTRIX</span>
-              </div>
-              <h1 style="color: #ffffff; font-size: 24px; font-weight: 600; margin: 0 0 20px; text-align: center;">Don't Forget Your Style!</h1>
-              <p>Hey ${cart.name},</p>
-              <p>We noticed you left some great items in your cart:</p>
-              <ul style="background-color: #222222; padding: 20px; border-radius: 4px; list-style: none; margin: 30px 0;">
-                ${cart.items.map((item: string) => `<li style="margin-bottom: 10px; color: #fff; border-bottom: 1px solid #333; padding-bottom: 10px;">${item}</li>`).join('')}
-              </ul>
-              <p>They're selling out fast! Complete your order now to secure your look.</p>
-              <div style="text-align: center; margin: 40px 0;">
-                <a href="https://mtrix.store/cart" style="background-color: #D4AF37; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">Return to Cart</a>
-              </div>
-              <p>Stay stylish,<br>Team MTRIX</p>
-              <p style="font-size: 12px; color: #666; text-align: center; margin-top: 40px;">
-                © 2024 MTRIX. All rights reserved.
-              </p>
-              <div style="text-align: center; margin-top: 20px;">
-                <img src="https://tguflnxyewjuuzckcemo.supabase.co/storage/v1/object/public/assets/ezgif-7bee47465acb1993.gif" alt="Matrix Rain" width="100%" height="50" style="object-fit: cover; border-radius: 4px; opacity: 0.5;" />
-              </div>
-            </div>
-          </div>
-        `,
-        text: text
+        html: emailHtml,
+        text: emailText
       })
 
       if (error) {

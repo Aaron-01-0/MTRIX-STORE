@@ -14,6 +14,8 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useCart } from '@/hooks/useCart';
+import { GlobalSearch } from '@/components/GlobalSearch';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -21,6 +23,8 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
+  const { cartItems } = useCart();
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -94,6 +98,10 @@ const Navbar = () => {
 
             {/* Right Actions */}
             <div className="flex items-center gap-2">
+              <div className="hidden md:block mr-2">
+                <GlobalSearch />
+              </div>
+
               <a href="/wishlist">
                 <Button
                   variant="ghost"
@@ -111,7 +119,11 @@ const Navbar = () => {
                   className="text-muted-foreground hover:text-primary hover:bg-white/5 transition-colors relative"
                 >
                   <ShoppingCart className="w-5 h-5" />
-                  {/* Add cart count badge here if available */}
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-primary text-mtrix-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                      {cartCount}
+                    </span>
+                  )}
                 </Button>
               </a>
 
@@ -121,11 +133,14 @@ const Navbar = () => {
                     <Button
                       variant="ghost"
                       className="relative h-10 w-10 min-w-[2.5rem] aspect-square rounded-full border border-primary/30 hover:border-primary hover:shadow-[0_0_15px_-3px_rgba(234,179,8,0.4)] transition-all duration-500 overflow-hidden shrink-0 p-0 group"
+                      title={user.user_metadata?.full_name || user.email}
                     >
                       <Avatar className="h-full w-full">
-                        <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || ''} className="object-cover" />
+                        <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.full_name || user.email || ''} className="object-cover" />
                         <AvatarFallback className="w-full h-full bg-zinc-950 text-primary font-orbitron font-bold flex items-center justify-center text-sm leading-none pb-0.5 group-hover:bg-zinc-900 transition-colors">
-                          {user.email?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
+                          {user.user_metadata?.full_name
+                            ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+                            : user.email?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
@@ -142,9 +157,11 @@ const Navbar = () => {
                       </div>
                       <div className="flex items-center gap-4">
                         <Avatar className="h-12 w-12 border-2 border-gold/30 shadow-[0_0_15px_rgba(255,215,0,0.2)]">
-                          <AvatarImage src={user.user_metadata?.avatar_url} />
-                          <AvatarFallback className="bg-zinc-800 text-white">
-                            <User className="w-5 h-5" />
+                          <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.full_name || user.email || ''} />
+                          <AvatarFallback className="bg-zinc-800 text-white font-bold">
+                            {user.user_metadata?.full_name
+                              ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+                              : <User className="w-5 h-5" />}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
@@ -297,9 +314,14 @@ const Navbar = () => {
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-4 p-4 rounded-xl bg-white/5">
-                  <div className="w-10 h-10 rounded-full bg-gradient-gold flex items-center justify-center text-mtrix-black font-bold">
-                    {user.email?.charAt(0).toUpperCase()}
-                  </div>
+                  <Avatar className="h-10 w-10 border border-gold/30">
+                    <AvatarImage src={user.user_metadata?.avatar_url} alt={user.user_metadata?.full_name || user.email || ''} className="object-cover" />
+                    <AvatarFallback className="bg-gradient-gold text-mtrix-black font-bold">
+                      {user.user_metadata?.full_name
+                        ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
+                        : user.email?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">Signed in as</p>
                     <p className="text-xs text-muted-foreground truncate">{user.email}</p>

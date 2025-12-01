@@ -98,8 +98,8 @@ const DesignCard = ({ design, onVote }: DesignCardProps) => {
                         onClick={handleVote}
                         disabled={hasVoted || isVoting}
                         className={`w-full font-orbitron font-bold tracking-wider ${hasVoted
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                                : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-[0_0_20px_rgba(168,85,247,0.5)]'
+                            ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                            : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-[0_0_20px_rgba(168,85,247,0.5)]'
                             }`}
                     >
                         {hasVoted ? 'VOTED' : 'VOTE NOW'}
@@ -112,7 +112,7 @@ const DesignCard = ({ design, onVote }: DesignCardProps) => {
                 <div className="flex justify-between items-start mb-2">
                     <div>
                         <h3 className="font-orbitron font-bold text-white truncate pr-2">{design.title}</h3>
-                        <p className="text-xs text-gray-400">by @{design.profiles?.username || 'Anonymous'}</p>
+                        <p className="text-xs text-gray-400">by @{design.profiles?.name || 'Anonymous'}</p>
                     </div>
                     <Badge variant="outline" className="border-purple-500/30 text-purple-400 bg-purple-500/10">
                         {design.category || 'Art'}

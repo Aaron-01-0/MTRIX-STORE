@@ -1,12 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { Resend } from "https://esm.sh/resend@2.0.0";
+import { Resend } from "npm:resend@2.0.0";
 import React from 'https://esm.sh/react@18.2.0';
 import { render } from 'https://esm.sh/@react-email/render@0.0.10';
 import { renderToBuffer } from 'https://esm.sh/@react-pdf/renderer@3.1.12';
 
 import { InvoicePdf } from './_templates/InvoicePdf.tsx';
-import { OrderConfirmationEmail } from './_templates/OrderConfirmationEmail.tsx';
+import { OrderEmail } from '../_shared/email-templates/OrderEmail.tsx';
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -71,6 +71,17 @@ serve(async (req) => {
         console.log(`Processing order ${order.order_number} for ${customerEmail}`);
 
         // 4. Generate PDF Invoice
+        // Note: InvoicePdf template is kept local as it is specific to PDF generation
+        const pdfBuffer = await renderToBuffer(React.createElement(InvoicePdf, { order: order }));
+
+        // 5. Upload Invoice to Storage
+        const fileName = `${order.order_number}.pdf`;
+        const { error: uploadError } = await supabase.storage
+            .from('invoices')
+            .upload(fileName, pdfBuffer, {
+                contentType: 'application/pdf',
+                upsert: true
+            });
 
         if (uploadError) {
             console.error("Error uploading invoice:", uploadError);
@@ -79,10 +90,18 @@ serve(async (req) => {
         const { data: { publicUrl } } = supabase.storage.from('invoices').getPublicUrl(fileName);
         console.log("Invoice Public URL:", publicUrl);
 
-        // 6. Generate Email HTML & Text
-        // Use React.createElement to avoid JSX in .ts file
-        const emailHtml = render(React.createElement(OrderConfirmationEmail, { order: order, customerName: customerName }));
-        const emailText = render(React.createElement(OrderConfirmationEmail, { order: order, customerName: customerName }), {
+        // 6. Generate Email HTML & Text using Shared Template
+        const emailHtml = render(React.createElement(OrderEmail, {
+            type: 'confirmed',
+            orderNumber: order.order_number,
+            customerName: customerName
+        }));
+
+        const emailText = render(React.createElement(OrderEmail, {
+            type: 'confirmed',
+            orderNumber: order.order_number,
+            customerName: customerName
+        }), {
             plainText: true,
         });
 
@@ -90,7 +109,7 @@ serve(async (req) => {
         const emailResponse = await resend.emails.send({
             from: Deno.env.get("SENDER_EMAIL") || "MTRIX <onboarding@resend.dev>",
             to: [customerEmail],
-            subject: `Order Confirmed - ${order.order_number} `,
+            subject: `Payment Received — You’re All Set ✔️`,
             html: emailHtml,
             text: emailText,
             attachments: [
@@ -111,7 +130,7 @@ serve(async (req) => {
         }), {
             headers: { "Content-Type": "application/json", ...corsHeaders },
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error:", error.message);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,

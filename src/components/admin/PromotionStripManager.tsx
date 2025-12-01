@@ -21,10 +21,48 @@ const PromotionStripManager = () => {
   const [strips, setStrips] = useState<PromotionStrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [newText, setNewText] = useState('');
+  const [globalEnabled, setGlobalEnabled] = useState(true);
 
   useEffect(() => {
     fetchStrips();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    const { data, error } = await supabase
+      .from('brand_settings')
+      .select('show_announcement_bar')
+      .single();
+
+    if (data) {
+      setGlobalEnabled((data as any).show_announcement_bar ?? true);
+    }
+  };
+
+  const toggleGlobal = async (checked: boolean) => {
+    setGlobalEnabled(checked);
+    try {
+      // Check if settings exist first
+      const { data: existing } = await supabase.from('brand_settings').select('id').single();
+
+      if (existing) {
+        await supabase
+          .from('brand_settings')
+          .update({ show_announcement_bar: checked } as any)
+          .eq('id', existing.id);
+      } else {
+        // Create if doesn't exist (shouldn't happen usually but good fallback)
+        await supabase
+          .from('brand_settings')
+          .insert({ show_announcement_bar: checked } as any);
+      }
+
+      toast({ title: 'Success', description: 'Global setting updated' });
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to update setting', variant: 'destructive' });
+      setGlobalEnabled(!checked); // Revert on error
+    }
+  };
 
   const fetchStrips = async () => {
     try {
@@ -169,6 +207,19 @@ const PromotionStripManager = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Global Toggle */}
+        <div className="flex items-center justify-between p-4 bg-mtrix-dark rounded-lg border border-mtrix-gray">
+          <div className="space-y-0.5">
+            <Label className="text-base text-white">Show Announcement Bar</Label>
+            <p className="text-sm text-muted-foreground">Globally show or hide the announcement bar on the site.</p>
+          </div>
+          <Switch
+            checked={globalEnabled}
+            onCheckedChange={toggleGlobal}
+            className="data-[state=checked]:bg-primary"
+          />
+        </div>
+
         {/* Add New Section */}
         <div className="flex gap-3 p-4 bg-mtrix-dark rounded-lg border border-mtrix-gray">
           <Input

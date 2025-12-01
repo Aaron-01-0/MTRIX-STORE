@@ -18,7 +18,22 @@ interface Post {
     user_id: string;
     created_at: string;
     has_liked?: boolean;
+    user_reaction?: string;
+    profiles?: {
+        name: string | null;
+        avatar_url: string | null;
+    } | null;
 }
+
+const REACTION_EMOJIS = [
+    { label: 'Like', icon: '👍', value: 'like' },
+    { label: 'Fire', icon: '🔥', value: 'fire' },
+    { label: 'Skull', icon: '💀', value: 'skull' },
+    { label: 'Cry', icon: '😭', value: 'cry' },
+    { label: 'Clown', icon: '🤡', value: 'clown' },
+    { label: 'Stone', icon: '🗿', value: 'stone' },
+    { label: 'Cap', icon: '🧢', value: 'cap' },
+];
 
 const CommunityPage = () => {
     const [posts, setPosts] = useState<Post[]>([]);
@@ -34,29 +49,39 @@ const CommunityPage = () => {
         try {
             setLoading(true);
 
-            // Fetch approved posts
+            // Fetch approved posts with user profiles
             const { data: postsData, error: postsError } = await supabase
                 .from('community_posts')
-                .select('*')
+                .select(`
+                    *,
+                    reaction_count,
+                    profiles (name, avatar_url)
+                `)
                 .eq('status', 'approved')
                 .order('created_at', { ascending: false });
 
             if (postsError) throw postsError;
 
-            let postsWithLikes = postsData as Post[];
+            // Parse reaction_count (handle bigint string) and map to likes_count
+            let postsWithLikes = (postsData || []).map(p => ({
+                ...p,
+                likes_count: p.reaction_count ? (typeof p.reaction_count === 'string' ? parseInt(p.reaction_count) : p.reaction_count) : (p.likes_count || 0)
+            })) as unknown as Post[];
 
-            // If user is logged in, check which posts they liked
+            // If user is logged in, check which posts they liked and their reaction
             if (user && postsData.length > 0) {
                 const { data: likesData } = await supabase
                     .from('post_likes')
-                    .select('post_id')
+                    .select('post_id, reaction_type' as any)
                     .eq('user_id', user.id)
                     .in('post_id', postsData.map(p => p.id));
 
-                const likedPostIds = new Set(likesData?.map(l => l.post_id));
-                postsWithLikes = postsData.map(p => ({
+                const likedMap = new Map((likesData as any[])?.map(l => [l.post_id, l.reaction_type || 'like']));
+
+                postsWithLikes = postsWithLikes.map(p => ({
                     ...p,
-                    has_liked: likedPostIds.has(p.id)
+                    has_liked: likedMap.has(p.id),
+                    user_reaction: likedMap.get(p.id)
                 }));
             }
 
@@ -68,47 +93,56 @@ const CommunityPage = () => {
         }
     };
 
-    const handleLike = async (postId: string, currentLiked: boolean) => {
+    const handleReaction = async (postId: string, reactionType: string) => {
         if (!user) {
             toast({
                 title: "Sign in required",
-                description: "Please sign in to like posts",
+                description: "Please sign in to react to posts",
                 variant: "destructive"
             });
             return;
         }
+
+        const post = posts.find(p => p.id === postId);
+        if (!post) return;
+
+        const isSameReaction = post.user_reaction === reactionType;
+        const isRemoving = isSameReaction; // Toggle off if clicking same reaction
 
         // Optimistic update
         setPosts(prev => prev.map(p => {
             if (p.id === postId) {
                 return {
                     ...p,
-                    has_liked: !currentLiked,
-                    likes_count: currentLiked ? p.likes_count - 1 : p.likes_count + 1
+                    has_liked: !isRemoving,
+                    user_reaction: isRemoving ? undefined : reactionType,
+                    likes_count: isRemoving ? Math.max(0, p.likes_count - 1) : (post.has_liked ? p.likes_count : p.likes_count + 1)
                 };
             }
             return p;
         }));
 
         try {
-            if (currentLiked) {
-                await supabase
-                    .from('post_likes')
-                    .delete()
-                    .eq('post_id', postId)
-                    .eq('user_id', user.id);
-            } else {
-                await supabase
-                    .from('post_likes')
-                    .insert({
-                        post_id: postId,
-                        user_id: user.id
-                    });
-            }
+            const { data, error } = await supabase.rpc('toggle_post_reaction', {
+                p_post_id: postId,
+                p_reaction_type: reactionType
+            });
+
+            if (error) throw error;
+
+            // Optional: Sync with server response if needed
+            // if (data) {
+            //     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: data.likes_count } : p));
+            // }
+
         } catch (error) {
-            // Revert on error
-            console.error('Error toggling like:', error);
-            fetchPosts(); // Refetch to sync
+            console.error('Error toggling reaction:', error);
+            toast({
+                title: "Error",
+                description: "Failed to update reaction. Please try again.",
+                variant: "destructive"
+            });
+            fetchPosts(); // Revert on error
         }
     };
 
@@ -153,25 +187,71 @@ const CommunityPage = () => {
                                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                             loading="lazy"
                                         />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
+
+                                            {/* User Info */}
+                                            <div className="flex items-center gap-3 mb-3 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+                                                <div className="w-8 h-8 rounded-full overflow-hidden border border-white/20 bg-white/10">
+                                                    {post.profiles?.avatar_url ? (
+                                                        <img src={post.profiles.avatar_url} alt={post.profiles.name || 'User'} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white">
+                                                            {post.profiles?.name?.[0]?.toUpperCase() || '?'}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <span className="text-sm font-medium text-white shadow-black drop-shadow-md">
+                                                    {post.profiles?.name || 'Anonymous'}
+                                                </span>
+                                            </div>
+
                                             {post.caption && (
-                                                <p className="text-white text-sm mb-4 line-clamp-2 font-medium">
+                                                <p className="text-gray-200 text-sm mb-4 line-clamp-2 font-light translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-75">
                                                     {post.caption}
                                                 </p>
                                             )}
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-2">
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className={cn(
-                                                            "rounded-full hover:bg-white/20 transition-colors",
-                                                            post.has_liked ? "text-red-500 hover:text-red-600" : "text-white"
-                                                        )}
-                                                        onClick={() => handleLike(post.id, !!post.has_liked)}
-                                                    >
-                                                        <Heart className={cn("w-6 h-6", post.has_liked && "fill-current")} />
-                                                    </Button>
+
+                                            <div className="flex items-center justify-between translate-y-4 group-hover:translate-y-0 transition-transform duration-300 delay-100">
+                                                <div className="flex items-center gap-2 relative group/reaction">
+                                                    {/* Reaction Button */}
+                                                    <div className="relative">
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className={cn(
+                                                                "rounded-full hover:bg-white/20 transition-colors relative z-10",
+                                                                post.has_liked ? "text-red-500 hover:text-red-600" : "text-white"
+                                                            )}
+                                                            onClick={() => handleReaction(post.id, post.user_reaction || 'like')}
+                                                        >
+                                                            {post.user_reaction && post.user_reaction !== 'like' ? (
+                                                                <span className="text-xl">{REACTION_EMOJIS.find(e => e.value === post.user_reaction)?.icon}</span>
+                                                            ) : (
+                                                                <Heart className={cn("w-6 h-6", post.has_liked && "fill-current")} />
+                                                            )}
+                                                        </Button>
+
+                                                        {/* Reaction Picker Popup */}
+                                                        <div className="absolute bottom-full left-0 mb-2 p-1.5 bg-black/90 backdrop-blur-xl border border-white/10 rounded-full flex gap-1 shadow-xl opacity-0 invisible group-hover/reaction:opacity-100 group-hover/reaction:visible transition-all duration-300 scale-90 group-hover/reaction:scale-100 origin-bottom-left z-50">
+                                                            {REACTION_EMOJIS.map((emoji) => (
+                                                                <button
+                                                                    key={emoji.value}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleReaction(post.id, emoji.value);
+                                                                    }}
+                                                                    className={cn(
+                                                                        "w-8 h-8 flex items-center justify-center text-lg rounded-full hover:bg-white/20 hover:scale-125 transition-all duration-200",
+                                                                        post.user_reaction === emoji.value ? "bg-white/20 scale-110" : ""
+                                                                    )}
+                                                                    title={emoji.label}
+                                                                >
+                                                                    {emoji.icon}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
                                                     <span className="text-sm font-medium text-white">
                                                         {post.likes_count}
                                                     </span>

@@ -1,0 +1,4 @@
+{
+  "success": false,
+  "error": "Config mismatch on insert. Expected {\"headline_size\":10,\"headline_weight\":\"900\",\"overlay_opacity\":75,\"animation_style\":\"ken-burns\",\"custom_setting\":\"test_persistence\"}, got {\"headline_size\":10,\"custom_setting\":\"test_persistence\",\"animation_style\":\"ken-burns\",\"headline_weight\":\"900\",\"overlay_opacity\":75}"
+}

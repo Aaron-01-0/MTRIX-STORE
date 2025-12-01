@@ -45,7 +45,7 @@ const Arena = () => {
                         >
                             <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 tracking-tighter mb-4 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
                                 MTRIX
-                                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+                                <span className="block text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-gold to-pink-600 animate-text-shimmer bg-[length:200%_auto]">
                                     ARENA
                                 </span>
                             </h1>
@@ -60,10 +60,10 @@ const Arena = () => {
                         >
                             <Button
                                 onClick={handleEnter}
-                                className="group relative px-12 py-8 text-2xl font-bold bg-transparent border-2 border-purple-500 text-white overflow-hidden transition-all hover:border-purple-400 hover:shadow-[0_0_30px_rgba(168,85,247,0.5)]"
+                                className="group relative px-12 py-8 text-2xl font-bold bg-transparent border-2 border-purple-500 text-white overflow-hidden transition-all hover:border-gold hover:shadow-[0_0_30px_rgba(255,215,0,0.5)]"
                             >
-                                <div className="absolute inset-0 bg-purple-600/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                                <span className="relative flex items-center gap-4">
+                                <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-gold/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                                <span className="relative flex items-center gap-4 group-hover:text-gold transition-colors">
                                     ENTER ARENA <Swords className="w-8 h-8" />
                                 </span>
                             </Button>

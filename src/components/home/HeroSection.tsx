@@ -20,6 +20,8 @@ interface HeroImageConfig {
     animation_duration?: number;
     content_width?: number;
     vertical_alignment?: 'top' | 'center' | 'bottom';
+    subtitle_alignment?: 'left' | 'center' | 'right';
+    text_shadow?: 'none' | 'soft' | 'hard';
 }
 
 interface HeroImage {
@@ -80,7 +82,7 @@ const HeroSection = () => {
                 });
 
                 if (activeSlides.length > 0) {
-                    setSlides(activeSlides);
+                    setSlides(activeSlides as HeroImage[]);
                 } else {
                     setFallback();
                 }
@@ -106,14 +108,15 @@ const HeroSection = () => {
             button_link: '/catalog',
             text_alignment: 'center',
             text_color: '#ffffff',
-            overlay_gradient: 'from-black/70 via-black/50 to-mtrix-black',
+            overlay_gradient: 'bg-gradient-to-b from-black/70 via-black/50 to-mtrix-black',
             config: {
                 headline_size: 5,
                 headline_weight: '700',
                 overlay_opacity: 50,
                 animation_style: 'fade',
                 content_width: 80,
-                vertical_alignment: 'center'
+                vertical_alignment: 'center',
+                subtitle_alignment: 'center'
             }
         }]);
     };
@@ -170,11 +173,18 @@ const HeroSection = () => {
                 >
                     {/* Dynamic Gradient Overlay */}
                     <div
-                        className={`absolute inset-0 z-10`}
+                        className={`absolute inset-0 z-10 ${s.overlay_gradient === 'none' ? '' : (s.overlay_gradient || 'bg-gradient-to-b from-black/50 to-black')}`}
                         style={{
-                            background: s.overlay_gradient || `linear-gradient(to bottom, rgba(0,0,0,${(s.config?.overlay_opacity || 50) / 100}), rgba(0,0,0,1))`
+                            opacity: (s.config?.overlay_opacity || 50) / 100
                         }}
                     />
+                    {/* Directional Gradient Overlay (if specified) */}
+                    {s.config?.overlay_gradient_direction && s.overlay_gradient !== 'none' && (
+                        <div
+                            className={`absolute inset-0 z-10 bg-gradient-${s.config.overlay_gradient_direction} from-black/80 via-transparent to-transparent`}
+                            style={{ opacity: 0.5 }}
+                        />
+                    )}
 
                     {/* Image */}
                     <picture>
@@ -217,14 +227,20 @@ const HeroSection = () => {
                         style={{
                             fontSize: `${config.headline_size || 5}rem`,
                             fontWeight: config.headline_weight || '700',
-                            color: slide.text_color || '#ffffff'
+                            color: slide.text_color || '#ffffff',
+                            textShadow: config.text_shadow === 'soft' ? '0 0 20px rgba(255,255,255,0.3)' :
+                                config.text_shadow === 'hard' ? '2px 2px 0px rgba(0,0,0,1)' : 'none'
                         }}
                     >
                         {slide.title || "ELEVATE YOUR DIGITAL REALITY"}
                     </h1>
 
                     <p
-                        className="text-xl md:text-2xl max-w-2xl font-light tracking-wide"
+                        className={`text-xl md:text-2xl max-w-2xl font-light tracking-wide ${config.subtitle_alignment === 'left' ? 'text-left' :
+                            config.subtitle_alignment === 'right' ? 'text-right' :
+                                config.subtitle_alignment === 'center' ? 'text-center' :
+                                    ''
+                            }`}
                         style={{ color: slide.text_color ? `${slide.text_color}cc` : '#cccccc' }}
                     >
                         {slide.subtitle || "Premium gear for the creators, the gamers, and the visionaries."}
@@ -234,8 +250,8 @@ const HeroSection = () => {
                         <Link to={slide.button_link || "/catalog"}>
                             <Button
                                 className={`text-lg px-10 py-8 rounded-none skew-x-[-10deg] transition-all duration-300 hover:scale-105 ${config.button_style === 'outline' ? 'bg-transparent border-2 border-primary text-primary hover:bg-primary hover:text-black' :
-                                        config.button_style === 'ghost' ? 'bg-transparent text-white hover:bg-white/10' :
-                                            'bg-primary text-black hover:bg-white hover:text-black hover:shadow-[0_0_20px_rgba(255,215,0,0.3)]'
+                                    config.button_style === 'ghost' ? 'bg-transparent text-white hover:bg-white/10' :
+                                        'bg-primary text-black hover:bg-white hover:text-black hover:shadow-[0_0_20px_rgba(255,215,0,0.3)]'
                                     }`}
                             >
                                 <span className="skew-x-[10deg] font-bold tracking-wider flex items-center gap-2">

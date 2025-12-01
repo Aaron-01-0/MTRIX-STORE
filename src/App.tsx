@@ -1,8 +1,10 @@
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { HelmetProvider } from 'react-helmet-async';
+import { lazy, Suspense, useEffect } from 'react';
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Catalog from "./pages/Catalog";
@@ -21,6 +23,7 @@ import OrderDetail from "./pages/OrderDetail";
 
 
 import Categories from "./pages/Categories";
+import SubCategories from "./pages/SubCategories";
 import CategoryPage from "./pages/CategoryPage";
 import CommunityPage from "./pages/CommunityPage";
 import NotFound from "./pages/NotFound";
@@ -43,8 +46,9 @@ import ReturnManager from "./components/admin/ReturnManager";
 import CommunityManager from "./components/admin/CommunityManager";
 import BundleManager from "./components/admin/BundleManager";
 import AdminLayout from "./components/admin/layout/AdminLayout";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import ProductManager from "./components/admin/ProductManager";
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const ActivityLogs = lazy(() => import('./pages/admin/ActivityLogs'));
+const ProductManager = lazy(() => import('./components/admin/ProductManager'));
 import InventoryManager from "./components/admin/InventoryManager";
 import OrderLayout from "./components/admin/orders/OrderLayout";
 import OrderList from "./components/admin/orders/OrderList";
@@ -61,6 +65,8 @@ import SiteSettingsManager from "./components/admin/SiteSettingsManager";
 import BrandKitManager from "./components/admin/BrandKitManager";
 import MediaLibrary from "./components/admin/MediaLibrary";
 import CampaignBuilder from "./components/admin/CampaignBuilder";
+import BroadcastManager from "./components/admin/BroadcastManager";
+import AnnouncementBar from "./components/AnnouncementBar";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +75,7 @@ import Arena from "./pages/Arena";
 import ArenaLobby from "./pages/ArenaLobby";
 import ArenaSubmit from "./pages/ArenaSubmit";
 import ArenaRules from "./pages/ArenaRules";
+import About from "./pages/About";
 
 const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
@@ -122,9 +129,12 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <Sonner />
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <AnnouncementBar />
           <Routes>
             <Route path="/coming-soon" element={<ComingSoon />} />
+            <Route path="/about" element={<About />} />
 
             <Route path="/" element={<LaunchGuard><Index /></LaunchGuard>} />
             <Route path="/catalog" element={<LaunchGuard><Catalog /></LaunchGuard>} />
@@ -132,6 +142,7 @@ const App = () => (
             <Route path="/community" element={<CommunityPage />} />
             <Route path="/collections/:slug" element={<CategoryPage />} />
             <Route path="/categories" element={<LaunchGuard><Categories /></LaunchGuard>} />
+            <Route path="/categories/:slug" element={<LaunchGuard><SubCategories /></LaunchGuard>} />
             <Route path="/bundles" element={<Bundles />} />
             <Route path="/bundle/:id" element={<BundleDetail />} />
             <Route path="/promotions" element={<LaunchGuard><Promotions /></LaunchGuard>} />
@@ -163,6 +174,7 @@ const App = () => (
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Navigate to="/admin/dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="logs" element={<ActivityLogs />} />
               <Route path="products" element={<ProductManager />} />
               <Route path="inventory" element={<InventoryManager />} />
               <Route path="orders" element={<OrderLayout />}>
@@ -184,6 +196,7 @@ const App = () => (
               <Route path="brand-kit" element={<BrandKitManager />} />
               <Route path="media" element={<MediaLibrary />} />
               <Route path="campaigns" element={<CampaignBuilder />} />
+              <Route path="broadcasts" element={<BroadcastManager />} />
             </Route>
 
             {/* Drop Admin Routes */}
