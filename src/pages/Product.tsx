@@ -673,6 +673,19 @@ const Product = () => {
                       <span className="text-white text-right">{product.weight ? `${product.weight}g` : '-'}</span>
                       <span className="text-muted-foreground">Material</span>
                       <span className="text-white text-right">Premium</span>
+                      {product.dimensions && (
+                        <>
+                          <span className="text-muted-foreground">Dimensions</span>
+                          <span className="text-white text-right">
+                            {typeof product.dimensions === 'string'
+                              ? product.dimensions
+                              : typeof product.dimensions === 'object'
+                                ? `${product.dimensions.length || ''} x ${product.dimensions.width || ''} x ${product.dimensions.height || ''} ${product.dimensions.unit || 'cm'}`
+                                : JSON.stringify(product.dimensions)
+                            }
+                          </span>
+                        </>
+                      )}
                     </div>
                   </AccordionContent>
                 </AccordionItem>

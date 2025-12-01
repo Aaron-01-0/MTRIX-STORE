@@ -26,14 +26,12 @@ interface ProductCardProps {
 
 const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
     const navigate = useNavigate();
-    const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+    const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { addToCart } = useCart();
     const { toast } = useToast();
     const isOutOfStock = product.stockStatus === 'out_of_stock';
     const isInWishlistState = isInWishlist(product.id);
 
-    // Optimized handleWishlist that gets fresh state
-    const { wishlistItems } = useWishlist();
     const toggleWishlist = async (e: React.MouseEvent) => {
         e.stopPropagation();
         const wishlistItem = wishlistItems.find(item => item.product_id === product.id);
