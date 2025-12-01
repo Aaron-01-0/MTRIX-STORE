@@ -11,7 +11,15 @@ import SEO from '@/components/SEO';
 import { OptimizedImage } from '@/components/OptimizedImage';
 
 type Category = Tables<'categories'>;
-type Product = Tables<'products'>;
+// Extend the Product type to include the joined product_images
+interface Product extends Tables<'products'> {
+    product_images?: {
+        image_url: string;
+        is_main: boolean;
+        display_order: number;
+    }[];
+    image_url?: string | null; // Add this if it's missing from the base type but used
+}
 
 const CategoryPage = () => {
     const { slug } = useParams();
@@ -133,7 +141,7 @@ const CategoryPage = () => {
 
         const { data: prods, error: prodError } = await supabase
             .from('products')
-            .select('*')
+            .select('*, product_images(image_url, is_main, display_order)')
             .in('category_id', allCategoryIds)
             .eq('status', 'published')
             .eq('is_active', true)
@@ -218,23 +226,30 @@ const CategoryPage = () => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {products.map((product) => (
-                                <ProductCard
-                                    key={product.id}
-                                    product={{
-                                        id: product.id,
-                                        name: product.name,
-                                        price: `₹${product.base_price}`,
-                                        originalPrice: product.discount_price ? `₹${product.discount_price}` : undefined,
-                                        image: product.image_url || '/placeholder.png',
-                                        rating: 5, // Default for now
-                                        stockStatus: (product.stock_status as "in_stock" | "out_of_stock" | "low_stock") || "in_stock",
-                                        isNew: product.is_new || false,
-                                        isTrending: product.is_trending || false,
-                                        category: category.name
-                                    }}
-                                />
-                            ))}
+                            {products.map((product) => {
+                                // Logic to get the best image
+                                const images = product.product_images || [];
+                                const mainImage = images.find(img => img.is_main) || images.sort((a, b) => a.display_order - b.display_order)[0];
+                                const imageUrl = mainImage?.image_url || product.image_url || '/placeholder.png';
+
+                                return (
+                                    <ProductCard
+                                        key={product.id}
+                                        product={{
+                                            id: product.id,
+                                            name: product.name,
+                                            price: `₹${product.base_price}`,
+                                            originalPrice: product.discount_price ? `₹${product.discount_price}` : undefined,
+                                            image: imageUrl,
+                                            rating: 5, // Default for now
+                                            stockStatus: (product.stock_status as "in_stock" | "out_of_stock" | "low_stock") || "in_stock",
+                                            isNew: product.is_new || false,
+                                            isTrending: product.is_trending || false,
+                                            category: category.name
+                                        }}
+                                    />
+                                );
+                            })}
                         </div>
                     )}
                 </div>

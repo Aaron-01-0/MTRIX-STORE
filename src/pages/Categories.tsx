@@ -11,6 +11,7 @@ interface Category {
     description: string | null;
     image_url: string | null;
     parent_id: string | null;
+    slug: string; // Added slug
     count?: number;
     subcategories?: Category[];
 }
@@ -50,14 +51,23 @@ const Categories = () => {
             const parents = allCategories?.filter(c => !c.parent_id) || [];
             const children = allCategories?.filter(c => c.parent_id) || [];
 
-            const formattedCategories = parents.map(parent => ({
-                ...parent,
-                count: productCounts[parent.id] || 0,
-                subcategories: children.filter(child => child.parent_id === parent.id).map(child => ({
-                    ...child,
-                    count: productCounts[child.id] || 0
-                }))
-            }));
+            const formattedCategories = parents.map(parent => {
+                const directCount = productCounts[parent.id] || 0;
+                const parentSubcategories = children.filter(child => child.parent_id === parent.id);
+
+                const subcategoryCounts = parentSubcategories.reduce((sum, child) => {
+                    return sum + (productCounts[child.id] || 0);
+                }, 0);
+
+                return {
+                    ...parent,
+                    count: directCount + subcategoryCounts,
+                    subcategories: parentSubcategories.map(child => ({
+                        ...child,
+                        count: productCounts[child.id] || 0
+                    }))
+                };
+            });
 
             setCategories(formattedCategories);
         } catch (error) {
