@@ -117,6 +117,15 @@ const ComingSoon = () => {
     const canvasRef = React.useRef<HTMLCanvasElement>(null);
     const mouseRef = useRef({ x: 0, y: 0 });
 
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
     useEffect(() => {
         const timer = setTimeout(() => {
             setTimeLeft(calculateTimeLeft());
@@ -220,7 +229,7 @@ const ComingSoon = () => {
             </div>
 
             {/* Glowing Logo Background */}
-            <GlowingLogo className="absolute inset-0 z-0 opacity-80" fontSize={250} />
+            <GlowingLogo className="absolute inset-0 z-0 opacity-80" fontSize={isMobile ? 100 : 250} />
 
             {/* Main Content - Centered */}
             <div className={`z-10 w-full max-w-4xl mx-auto px-4 flex flex-col items-center justify-center text-center relative transition-opacity duration-1000 ${showIntro ? 'opacity-0' : 'opacity-100'}`}>
