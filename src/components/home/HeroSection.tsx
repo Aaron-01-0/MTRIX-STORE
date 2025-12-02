@@ -223,11 +223,15 @@ const HeroSection = () => {
                     style={{ width: `${config.content_width || 100}%` }}
                 >
                     <h1
-                        className="font-orbitron tracking-tight leading-tight"
+                        className="font-orbitron tracking-tight leading-tight animate-pulse-slow"
                         style={{
                             fontSize: `${config.headline_size || 5}rem`,
                             fontWeight: config.headline_weight || '700',
-                            color: slide.text_color || '#ffffff',
+                            color: 'transparent',
+                            backgroundImage: slide.text_color ? `linear-gradient(to bottom, ${slide.text_color}, ${slide.text_color}88)` : 'linear-gradient(to bottom, #ffffff, #aaaaaa)',
+                            WebkitBackgroundClip: 'text',
+                            backgroundClip: 'text',
+                            filter: 'drop-shadow(0 0 30px rgba(255,255,255,0.1))',
                             textShadow: config.text_shadow === 'soft' ? '0 0 20px rgba(255,255,255,0.3)' :
                                 config.text_shadow === 'hard' ? '2px 2px 0px rgba(0,0,0,1)' : 'none'
                         }}

@@ -223,7 +223,7 @@ const Catalog = () => {
                 </span>
               ) : (
                 <>
-                  THE <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-white">CATALOG</span>
+                  THE <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-white">CATALOGUE</span>
                 </>
               )}
             </h1>

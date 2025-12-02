@@ -124,7 +124,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
                     <div className="flex justify-between items-start mb-2">
                         <div>
                             <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">{product.category}</p>
-                            <h3 className="font-orbitron font-bold text-white group-hover:text-primary transition-colors line-clamp-2">
+                            <h3 className="font-orbitron font-bold text-white group-hover:text-primary transition-colors line-clamp-2 min-h-[2.5rem] leading-tight">
                                 {product.name}
                             </h3>
                         </div>

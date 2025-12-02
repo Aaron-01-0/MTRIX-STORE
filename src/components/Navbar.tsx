@@ -42,7 +42,7 @@ const Navbar = () => {
 
   const navLinks = [
     { href: '/', label: 'Home', icon: Home },
-    { href: '/catalog', label: 'Catalogs', icon: Bookmark },
+    { href: '/catalog', label: 'Catalogue', icon: Bookmark },
     { href: '/bundles', label: 'Bundles', icon: Package },
     { href: '/promotions', label: 'Promotions', icon: Tag },
     { href: '/community', label: 'Community', icon: Users },
