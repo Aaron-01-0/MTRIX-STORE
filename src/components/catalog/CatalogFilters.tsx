@@ -1,4 +1,11 @@
 import { Slider } from '@/components/ui/slider';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
@@ -6,7 +13,7 @@ import { Star, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CatalogFiltersProps {
-    categories: { id: string; name: string; count: number }[];
+    categories: { id: string; name: string; count: number; parent_id?: string | null }[];
     selectedCategory: string;
     setSelectedCategory: (category: string) => void;
     priceRange: [number, number];
@@ -37,30 +44,51 @@ const CatalogFilters = ({
                 <Label className="text-lg font-orbitron font-bold text-white flex items-center gap-2">
                     Categories
                 </Label>
-                <div className="space-y-1">
-                    {categories.map((category) => (
-                        <button
-                            key={category.id}
-                            onClick={() => setSelectedCategory(category.id)}
-                            className={cn(
-                                "w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 group text-sm",
-                                selectedCategory === category.id
-                                    ? "bg-primary text-black font-medium shadow-[0_0_15px_rgba(255,215,0,0.3)]"
-                                    : "text-muted-foreground hover:bg-white/5 hover:text-white"
-                            )}
-                        >
-                            <span>{category.name}</span>
-                            <span className={cn(
-                                "text-xs px-2 py-0.5 rounded-full transition-colors",
-                                selectedCategory === category.id
-                                    ? "bg-black/20 text-black"
-                                    : "bg-white/5 text-muted-foreground group-hover:bg-white/10"
-                            )}>
-                                {category.count}
-                            </span>
-                        </button>
-                    ))}
-                </div>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger className="w-full bg-white/5 border-white/10 text-white">
+                        <SelectValue placeholder="Select Category" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black border-white/10 text-white max-h-[300px]">
+                        {/* Helper function to build hierarchy */}
+                        {(() => {
+                            const buildHierarchy = (parentId: string | null = null, depth = 0): JSX.Element[] => {
+                                return categories
+                                    .filter(cat => cat.id !== 'all' && (cat.parent_id === parentId || (parentId === null && !cat.parent_id)))
+                                    .map(cat => (
+                                        <div key={cat.id}>
+                                            <SelectItem
+                                                value={cat.id}
+                                                className="cursor-pointer focus:bg-white/10 focus:text-white"
+                                                style={{ paddingLeft: `${(depth * 16) + 8}px` }}
+                                            >
+                                                <div className="flex items-center justify-between w-full gap-2">
+                                                    <span>{cat.name}</span>
+                                                    <span className="text-xs text-muted-foreground bg-white/10 px-1.5 rounded-full">
+                                                        {cat.count}
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                            {buildHierarchy(cat.id, depth + 1)}
+                                        </div>
+                                    ));
+                            };
+
+                            return (
+                                <>
+                                    <SelectItem value="all" className="cursor-pointer focus:bg-white/10 focus:text-white font-bold border-b border-white/10 mb-1">
+                                        <div className="flex items-center justify-between w-full gap-2">
+                                            <span>All Categories</span>
+                                            <span className="text-xs text-muted-foreground bg-white/10 px-1.5 rounded-full">
+                                                {categories.find(c => c.id === 'all')?.count || 0}
+                                            </span>
+                                        </div>
+                                    </SelectItem>
+                                    {buildHierarchy(null, 0)}
+                                </>
+                            );
+                        })()}
+                    </SelectContent>
+                </Select>
             </div>
 
             <Separator className="bg-white/10" />

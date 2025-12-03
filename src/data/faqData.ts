@@ -12,7 +12,7 @@ export const faqData = [
         questions: [
             { q: "How long will my order take to arrive?", a: "Usually 4–7 days depending on location. Metro cities get it faster. Rural areas might take a bit more." },
             { q: "Can I track my order?", a: "Of course. Once your order ships, you’ll get a tracking link on email and WhatsApp.\nWe don’t ghost — we guide. 😉" },
-            { q: "Do you offer Cash on Delivery (COD)?", a: "Yes! COD is available for most products. If a product is prepaid-only, we’ll clearly mention it." },
+            { q: "Do you offer Cash on Delivery (COD)?", a: "Currently, we only accept prepaid orders to ensure faster processing and delivery. We support all major secure payment methods." },
             { q: "I need to update my address. What do I do?", a: "If the order hasn’t shipped yet, message us immediately. We’ll fix it faster than your FPS drops." }
         ]
     },
@@ -36,13 +36,13 @@ export const faqData = [
         category: "5. PAYMENTS & SECURITY",
         questions: [
             { q: "Is online payment safe on MTRIX?", a: "100%. We use encrypted gateways. Your payment info is locked tighter than your Valorant crosshair." },
-            { q: "What payment methods do you support?", a: "UPI, Cards, Wallets, Netbanking, and COD." }
+            { q: "What payment methods do you support?", a: "UPI, Cards, Wallets, and Netbanking." }
         ]
     },
     {
         category: "6. COMMUNITY & SUPPORT",
         questions: [
-            { q: "How do I contact MTRIX support?", a: "DM us on Instagram or email support@mtrix.co\n — we actually reply, unlike some brands 👀." },
+            { q: "How do I contact MTRIX support?", a: "DM us on Instagram or email noa@mtrix.store\n — we actually reply, unlike some brands 👀." },
             { q: "Do you collaborate with creators?", a: "Yes. If your vibe is clean, bold, aesthetic — we’re listening." },
             { q: "Does MTRIX have a loyalty program?", a: "Coming soon. Points, perks, and maybe some secret-drop access. Stay tuned." }
         ]

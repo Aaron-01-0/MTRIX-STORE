@@ -659,8 +659,12 @@ const Product = () => {
               <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="description" className="border-white/10">
                   <AccordionTrigger className="text-white hover:text-primary">Description</AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground leading-relaxed">
-                    {product.detailed_description || product.short_description || "No description available."}
+                  <AccordionContent className="pt-4">
+                    <div className="relative pl-4 border-l-2 border-primary/30">
+                      <p className="text-gray-300 leading-8 whitespace-pre-line font-light text-base tracking-wide">
+                        {product.detailed_description || product.short_description || "No description available."}
+                      </p>
+                    </div>
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="specs" className="border-white/10">

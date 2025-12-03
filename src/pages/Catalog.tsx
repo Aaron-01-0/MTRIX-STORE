@@ -27,6 +27,7 @@ interface Category {
   count: number;
   image_url?: string;
   description?: string;
+  parent_id?: string | null;
 }
 
 type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'rating';
@@ -100,13 +101,14 @@ const Catalog = () => {
         }, {}) || {};
 
         const formattedCategories: Category[] = [
-          { id: 'all', name: 'All Categories', count: productsData?.length || 0 },
+          { id: 'all', name: 'All Categories', count: productsData?.length || 0, parent_id: null },
           ...(categoriesData?.map(cat => ({
             id: cat.id,
             name: cat.name,
             count: productCounts[cat.id] || 0,
             image_url: cat.image_url,
-            description: cat.description
+            description: cat.description,
+            parent_id: cat.parent_id
           })) || [])
         ];
 

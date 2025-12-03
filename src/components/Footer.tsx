@@ -26,10 +26,7 @@ const Footer = () => {
             </p>
             <div className="flex gap-4">
               {[
-                { icon: Instagram, href: "#" },
-                { icon: Twitter, href: "#" },
-                { icon: Youtube, href: "#" },
-                { icon: Facebook, href: "#" }
+                { icon: Instagram, href: "#" }
               ].map((social, index) => (
                 <a
                   key={index}
@@ -51,7 +48,7 @@ const Footer = () => {
               {[
                 { label: "All Products", href: "/catalog" },
                 { label: "New Arrivals", href: "/catalog?sort=new" },
-                { label: "Limited Drops", href: "/drops" },
+                { label: "Limited Drops", href: "/drop" },
                 { label: "Bundles", href: "/bundles" },
                 { label: "Discounts", href: "/promotions" }
               ].map((link) => (

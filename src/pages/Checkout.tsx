@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { addressSchema } from '@/lib/validation';
@@ -46,6 +47,7 @@ const Checkout = () => {
   const [couponCode, setCouponCode] = useState<string | null>(null);
   const [couponData, setCouponData] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPolicyAccepted, setIsPolicyAccepted] = useState(false);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -270,6 +272,16 @@ const Checkout = () => {
   const totalAmount = Math.max(0, subtotal + shippingCost - discountAmount);
 
   const handlePayment = async () => {
+    // Validate policy acceptance
+    if (!isPolicyAccepted) {
+      toast({
+        title: "Policy Acceptance Required",
+        description: "Please read and accept the Return & Refund Policy to proceed.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Validate address
     const validation = addressSchema.safeParse(addressData);
 
@@ -673,6 +685,26 @@ const Checkout = () => {
                     <div className="flex justify-between items-end">
                       <span className="text-base font-semibold text-foreground">Total Amount</span>
                       <span className="text-2xl font-bold text-gold">₹{Math.round(totalAmount)}</span>
+                    </div>
+
+                    <div className="flex items-start space-x-2 py-4">
+                      <Checkbox
+                        id="policy"
+                        checked={isPolicyAccepted}
+                        onCheckedChange={(checked) => setIsPolicyAccepted(checked as boolean)}
+                        className="border-mtrix-gold data-[state=checked]:bg-mtrix-gold data-[state=checked]:text-mtrix-black mt-1"
+                      />
+                      <div className="grid gap-1.5 leading-none">
+                        <label
+                          htmlFor="policy"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-muted-foreground"
+                        >
+                          I agree to the <a href="/returns" target="_blank" rel="noopener noreferrer" className="text-mtrix-gold font-bold underline underline-offset-4 hover:text-mtrix-gold/80">Return & Refund Policy</a>
+                        </label>
+                        <p className="text-xs text-muted-foreground/60">
+                          Please read our policy carefully before placing your order.
+                        </p>
+                      </div>
                     </div>
 
                     <Button

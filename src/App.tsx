@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { WishlistProvider } from "@/context/WishlistContext";
 import Index from "./pages/Index";
 import Catalog from "./pages/Catalog";
+import Drop from "./pages/Drop";
 import Bundles from "./pages/Bundles";
 import BundleDetail from "./pages/BundleDetail";
 import Promotions from "./pages/Promotions";
@@ -140,6 +141,7 @@ const App = () => (
 
               <Route path="/" element={<LaunchGuard><Index /></LaunchGuard>} />
               <Route path="/catalog" element={<LaunchGuard><Catalog /></LaunchGuard>} />
+              <Route path="/drop" element={<LaunchGuard><Drop /></LaunchGuard>} />
               <Route path="/category/:slug" element={<CategoryPage />} />
               <Route path="/community" element={<CommunityPage />} />
               <Route path="/collections/:slug" element={<CategoryPage />} />
