@@ -31,6 +31,8 @@ import { OptimizedImage } from '@/components/OptimizedImage';
 import RelatedProducts from '@/components/product/RelatedProducts';
 import ReviewForm from '@/components/reviews/ReviewForm';
 import ReviewList from '@/components/reviews/ReviewList';
+import InstallationInstructions from '@/components/product/InstallationInstructions';
+import ToteBagDetails from '@/components/product/ToteBagDetails';
 
 interface DatabaseProduct {
   id: string;
@@ -700,6 +702,25 @@ const Product = () => {
                     <p>{product.warranty_info || "1-year manufacturer warranty included."}</p>
                   </AccordionContent>
                 </AccordionItem>
+
+                <AccordionItem value="installation" className="border-white/10">
+                  <AccordionTrigger className="text-white hover:text-primary">Installation Guide</AccordionTrigger>
+                  <AccordionContent>
+                    <InstallationInstructions
+                      categoryName={product.categories?.name}
+                      variantName={selectedVariant?.variant_name}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+
+                {product.categories?.name?.toLowerCase().includes('tote') && (
+                  <AccordionItem value="tote-details" className="border-white/10">
+                    <AccordionTrigger className="text-white hover:text-primary">Product Details</AccordionTrigger>
+                    <AccordionContent>
+                      <ToteBagDetails />
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
               </Accordion>
 
               {/* Reviews Section (Desktop Tabs / Mobile Stack) */}
