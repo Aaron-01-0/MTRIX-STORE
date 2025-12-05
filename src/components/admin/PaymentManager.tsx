@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { exportToCSV } from '@/utils/exportUtils';
 import {
   Table,
   TableBody,
@@ -219,11 +220,28 @@ const PaymentManager = () => {
   const totalPages = Math.ceil(filteredPayments.length / pageSize);
   const paginatedPayments = filteredPayments.slice((page - 1) * pageSize, page * pageSize);
 
+  const handleExport = () => {
+    const exportData = payments.map(payment => ({
+      'Payment ID': payment.id,
+      'Order ID': payment.order_id,
+      'Amount': payment.amount,
+      'Currency': payment.currency,
+      'Status': payment.status,
+      'Type': payment.payment_type,
+      'Method': payment.payment_method,
+      'Razorpay Payment ID': payment.razorpay_payment_id,
+      'Date': new Date(payment.created_at).toLocaleDateString() + ' ' + new Date(payment.created_at).toLocaleTimeString()
+    }));
+
+    exportToCSV(exportData, `payments_export_${new Date().toISOString().split('T')[0]}`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Filters & Actions */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-mtrix-dark/50 backdrop-blur-sm p-4 rounded-xl border border-mtrix-gray shadow-sm">
         <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* ... Search and Filter ... */}
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             <Input
@@ -249,10 +267,16 @@ const PaymentManager = () => {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white" onClick={fetchPayments}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white" onClick={handleExport}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white" onClick={fetchPayments}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Table */}

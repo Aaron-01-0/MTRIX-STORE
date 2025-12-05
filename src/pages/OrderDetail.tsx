@@ -298,6 +298,23 @@ const OrderDetail = () => {
   const isRefunded = order.payment_status === 'refunded' || order.payment_status === 'failed';
   const isCancelled = order.status === 'cancelled' || isRefunded; // Treat refunded as cancelled visually
 
+  const getProgress = () => {
+    if (!order) return 0;
+
+    let maxIndex = 0;
+    statusSteps.forEach((step, index) => {
+      const status = getStepStatus(order.status, step.id);
+      const isCompleted = status === 'completed';
+      const isCurrent = order.status === step.id || (order.status === 'order_created' && step.id === 'pending');
+
+      if (isCompleted || isCurrent) {
+        maxIndex = index;
+      }
+    });
+
+    return (maxIndex / (statusSteps.length - 1)) * 100;
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-gold/30">
       <Navbar />
@@ -332,25 +349,53 @@ const OrderDetail = () => {
             </>
           ) : (
             <>
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/10 mb-4 border border-green-500/20 shadow-[0_0_30px_-5px_rgba(34,197,94,0.3)]">
-                <CheckCircle className="w-10 h-10 text-green-500" />
+              <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 border shadow-[0_0_30px_-5px_rgba(34,197,94,0.3)]
+                ${order.status === 'delivered' ? 'bg-green-500/10 border-green-500/20' :
+                  order.status === 'shipped' ? 'bg-blue-500/10 border-blue-500/20' :
+                    'bg-green-500/10 border-green-500/20'
+                }`}>
+                {order.status === 'delivered' ? <CheckCircle className="w-10 h-10 text-green-500" /> :
+                  order.status === 'shipped' ? <Truck className="w-10 h-10 text-blue-500" /> :
+                    <CheckCircle className="w-10 h-10 text-green-500" />}
               </div>
-              <h1 className="text-4xl md:text-5xl font-orbitron font-bold text-gradient-gold">
-                Order Confirmed!
+              <h1 className={`text-4xl md:text-5xl font-orbitron font-bold 
+                ${order.status === 'shipped' ? 'text-blue-500' : 'text-gradient-gold'}`}>
+                {order.status === 'delivered' ? 'Order Delivered!' :
+                  order.status === 'shipped' ? 'Order Shipped!' :
+                    order.status === 'processing' ? 'Order Processing' :
+                      'Order Confirmed!'}
               </h1>
               <p className="text-muted-foreground text-lg max-w-lg mx-auto">
-                Thank you for your purchase. Your order <span className="text-gold font-mono">#{order.order_number}</span> has been received.
+                {order.status === 'delivered' ? 'Your order has been delivered. Thank you for shopping with us!' :
+                  order.status === 'shipped' ? 'Your order is on its way! Track your package below.' :
+                    <>Thank you for your purchase. Your order <span className="text-gold font-mono">#{order.order_number}</span> has been received.</>}
               </p>
             </>
           )}
 
-          <div className="flex justify-center gap-4 pt-4">
+          <div className="flex justify-center gap-4 pt-4 flex-wrap">
             <Button
               onClick={() => navigate('/')}
               className="bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all duration-300"
             >
               Continue Shopping <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
+
+            {!isCancelled && (order.status === 'shipped' || order.status === 'delivered') && order.tracking_url && (
+              <Button
+                className="bg-blue-500 text-white hover:bg-blue-600 transition-all"
+                onClick={() => {
+                  let url = order.tracking_url!;
+                  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    url = 'https://' + url;
+                  }
+                  window.open(url, '_blank');
+                }}
+              >
+                <Truck className="mr-2 w-4 h-4" /> Track Package
+              </Button>
+            )}
+
             {!isCancelled && (
               order.invoice_url ? (
                 <Button
@@ -383,6 +428,12 @@ const OrderDetail = () => {
                   <div className="relative flex justify-between">
                     {/* Connecting Line */}
                     <div className="absolute top-5 left-0 w-full h-0.5 bg-mtrix-gray -z-10" />
+
+                    {/* Progress Line */}
+                    <div
+                      className="absolute top-5 left-0 h-0.5 bg-gold -z-10 transition-all duration-1000 ease-out"
+                      style={{ width: `${getProgress()}%` }}
+                    />
 
                     {statusSteps.map((step, index) => {
                       const status = getStepStatus(order.status, step.id);

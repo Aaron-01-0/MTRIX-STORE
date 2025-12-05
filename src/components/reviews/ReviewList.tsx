@@ -22,16 +22,18 @@ const ReviewList = ({ productId, refreshTrigger }: ReviewListProps) => {
     const fetchReviews = async () => {
         try {
             const { data, error } = await supabase
-                .from('reviews' as any)
+                .from('product_reviews')
                 .select(`
           id,
           rating,
-          comment,
+          review_text,
+          title,
+          is_verified_purchase,
           created_at,
-          profiles (full_name, avatar_url)
+          profiles (first_name, last_name, avatar_url)
         `)
                 .eq('product_id', productId)
-                .eq('status', 'approved')
+                .eq('is_approved', true)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -107,8 +109,9 @@ const ReviewList = ({ productId, refreshTrigger }: ReviewListProps) => {
             {/* Reviews List */}
             <div className="space-y-6">
                 {reviews.length === 0 ? (
-                    <div className="text-center py-12 border border-dashed border-white/10 rounded-xl">
-                        <p className="text-muted-foreground">No reviews yet. Be the first to share your thoughts!</p>
+                    <div className="text-center py-12 border border-dashed border-white/10 rounded-xl bg-white/5">
+                        <p className="text-muted-foreground mb-2">No reviews yet.</p>
+                        <p className="text-primary font-medium">Be the first to try this product once it’s back!</p>
                     </div>
                 ) : (
                     reviews.map((review) => (
@@ -120,7 +123,9 @@ const ReviewList = ({ productId, refreshTrigger }: ReviewListProps) => {
                                 </Avatar>
                                 <div className="flex-1 space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <h4 className="font-medium text-white">{review.profiles?.full_name || 'Anonymous'}</h4>
+                                        <h4 className="font-medium text-white">
+                                            {review.profiles ? `${review.profiles.first_name || ''} ${review.profiles.last_name || ''}`.trim() || 'Anonymous' : 'Anonymous'}
+                                        </h4>
                                         <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
@@ -131,7 +136,8 @@ const ReviewList = ({ productId, refreshTrigger }: ReviewListProps) => {
                                             />
                                         ))}
                                     </div>
-                                    <p className="text-gray-300 leading-relaxed text-sm">{review.comment}</p>
+                                    {review.title && <h5 className="font-medium text-white text-sm mt-1">{review.title}</h5>}
+                                    <p className="text-gray-300 leading-relaxed text-sm">{review.review_text}</p>
                                 </div>
                             </div>
                         </div>

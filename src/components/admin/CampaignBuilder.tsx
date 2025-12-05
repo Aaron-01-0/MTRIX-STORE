@@ -10,7 +10,9 @@ import { Loader2, Download, RefreshCw, Type, Palette, Image as ImageIcon } from 
 import { Tables } from '@/integrations/supabase/types';
 import html2canvas from 'html2canvas';
 
-type Product = Tables<'products'>;
+type Product = Tables<'products'> & {
+    product_images: { image_url: string; is_main: boolean }[] | null;
+};
 type BrandSettings = Tables<'brand_settings'>;
 
 const TEMPLATES = [
@@ -38,7 +40,7 @@ const CampaignBuilder = () => {
         try {
             setLoading(true);
             const [productsRes, brandRes] = await Promise.all([
-                supabase.from('products').select('*').eq('status', 'published').order('created_at', { ascending: false }),
+                supabase.from('products').select('*, product_images(image_url, is_main)').eq('status', 'published').order('created_at', { ascending: false }),
                 supabase.from('brand_settings').select('*').single()
             ]);
 
@@ -179,10 +181,18 @@ const CampaignBuilder = () => {
                                 <div className="w-full h-full flex flex-col p-8">
                                     <div className="flex-1 relative rounded-lg overflow-hidden mb-6">
                                         {/* Placeholder for product image - using a generic one if no specific image logic yet */}
-                                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400">
-                                            <ImageIcon className="w-16 h-16" />
-                                            {/* In real implementation, we'd fetch product images */}
-                                        </div>
+                                        {selectedProduct.product_images && selectedProduct.product_images.length > 0 ? (
+                                            <img
+                                                src={selectedProduct.product_images.find(img => img.is_main)?.image_url || selectedProduct.product_images[0].image_url}
+                                                alt={selectedProduct.name}
+                                                className="w-full h-full object-cover"
+                                                crossOrigin="anonymous"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400">
+                                                <ImageIcon className="w-16 h-16" />
+                                            </div>
+                                        )}
                                         <div className="absolute top-4 right-4 bg-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
                                             New Arrival
                                         </div>
@@ -204,9 +214,18 @@ const CampaignBuilder = () => {
                                 <div className="w-full h-full relative">
                                     <div className="absolute inset-0 bg-gray-200">
                                         {/* Placeholder Image */}
-                                        <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                            <ImageIcon className="w-24 h-24" />
-                                        </div>
+                                        {selectedProduct.product_images && selectedProduct.product_images.length > 0 ? (
+                                            <img
+                                                src={selectedProduct.product_images.find(img => img.is_main)?.image_url || selectedProduct.product_images[0].image_url}
+                                                alt={selectedProduct.name}
+                                                className="w-full h-full object-cover"
+                                                crossOrigin="anonymous"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                <ImageIcon className="w-24 h-24" />
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                                     <div className="absolute bottom-0 left-0 w-full p-8 text-white">
@@ -237,9 +256,18 @@ const CampaignBuilder = () => {
                                     </div>
                                     <div className="flex-1 relative mx-4 mb-4 rounded-2xl overflow-hidden border-2" style={{ borderColor: accentColor }}>
                                         {/* Placeholder Image */}
-                                        <div className="w-full h-full bg-gray-800 flex items-center justify-center text-gray-600">
-                                            <ImageIcon className="w-20 h-20" />
-                                        </div>
+                                        {selectedProduct.product_images && selectedProduct.product_images.length > 0 ? (
+                                            <img
+                                                src={selectedProduct.product_images.find(img => img.is_main)?.image_url || selectedProduct.product_images[0].image_url}
+                                                alt={selectedProduct.name}
+                                                className="w-full h-full object-cover"
+                                                crossOrigin="anonymous"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gray-800 flex items-center justify-center text-gray-600">
+                                                <ImageIcon className="w-20 h-20" />
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="p-8 pt-0 text-center space-y-4">
                                         <p className="text-lg">{customText}</p>

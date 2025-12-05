@@ -24,10 +24,17 @@ import { Trash2, Plus, Upload, Save, X, Wand2, Image as ImageIcon, Layers } from
 import { useStorageUpload } from '@/hooks/useStorageUpload';
 import { Badge } from '@/components/ui/badge';
 
+const SIZE_PRESETS: Record<string, string[]> = {
+  'Apparel': ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'],
+  'Wall Art': ['A5', 'A4', 'A3', '12x18', '18x24', '24x36'],
+  'Drinkware': ['11 oz', '15 oz', '20 oz'],
+  'Accessories': ['Standard Size'],
+};
+
 interface ProductVariant {
   id: string;
   product_id: string;
-  color: string;
+  color: string | null;
   size: string;
   absolute_price: number;
   stock_quantity: number;
@@ -71,12 +78,26 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
     stock: ''
   });
 
+  const [productCategory, setProductCategory] = useState<string>('');
+
   useEffect(() => {
-    fetchVariants();
+    fetchData();
   }, [productId]);
 
-  const fetchVariants = async () => {
+  const fetchData = async () => {
     try {
+      // Fetch product details for category
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .select('category')
+        .eq('id', productId)
+        .single();
+
+      if (productError) throw productError;
+      // @ts-ignore
+      setProductCategory(productData?.category || '');
+
+      // Fetch variants
       const { data, error } = await supabase
         .from('product_variants')
         .select('*')
@@ -84,11 +105,19 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setVariants(data || []);
+
+      // Map database fields to interface
+      const formattedVariants = (data || []).map((item: any) => ({
+        ...item,
+        absolute_price: item.price || item.absolute_price || 0 // Handle both cases
+      }));
+
+      setVariants(formattedVariants);
     } catch (error: any) {
+      console.error('Error fetching data:', error);
       toast({
         title: "Error",
-        description: "Failed to load variants",
+        description: "Failed to load product data",
         variant: "destructive"
       });
     } finally {
@@ -97,14 +126,20 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
   };
 
   const generateSku = () => {
-    if (!productSku || !newVariant.color || !newVariant.size) {
+    if (!productSku || !newVariant.size) {
       toast({
         title: "Info",
-        description: "Need Product SKU, Color, and Size to auto-generate",
+        description: "Need Product SKU and Size to auto-generate",
       });
       return;
     }
-    const suffix = `${newVariant.color.toUpperCase().slice(0, 3)}-${newVariant.size.toUpperCase()}`;
+
+    let suffix = '';
+    if (newVariant.color) {
+      suffix += `${newVariant.color.toUpperCase().slice(0, 3)}-`;
+    }
+    suffix += newVariant.size.toUpperCase();
+
     setNewVariant(prev => ({ ...prev, sku: `${productSku}-${suffix}` }));
   };
 
@@ -123,22 +158,22 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
   };
 
   const addVariant = async () => {
-    if (!newVariant.color || !newVariant.size || !newVariant.absolute_price || !newVariant.sku) {
-      toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
+    if (!newVariant.size || !newVariant.absolute_price || !newVariant.sku) {
+      toast({ title: "Validation Error", description: "Size, Price and SKU are required", variant: "destructive" });
       return;
     }
 
     try {
       const { error } = await supabase.from('product_variants').insert({
         product_id: productId,
-        color: newVariant.color,
+        color: newVariant.color || null,
         size: newVariant.size,
-        absolute_price: parseFloat(newVariant.absolute_price),
+        price: parseFloat(newVariant.absolute_price),
         stock_quantity: parseInt(newVariant.stock_quantity) || 0,
         sku: newVariant.sku,
         image_url: newVariant.image_url,
-        variant_type: 'color-size',
-        variant_name: `${newVariant.color} - ${newVariant.size}`,
+        variant_type: newVariant.color ? 'color-size' : 'size',
+        variant_name: newVariant.color ? `${newVariant.color} - ${newVariant.size}` : newVariant.size,
         is_active: true
       });
 
@@ -147,42 +182,49 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
       toast({ title: "Success", description: "Variant added successfully" });
       setNewVariant({ color: '', size: '', absolute_price: '', stock_quantity: '', sku: '', image_url: '' });
       setIsDialogOpen(false);
-      fetchVariants();
+      fetchData();
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to add variant", variant: "destructive" });
     }
   };
 
   const handleBulkGenerate = async () => {
-    if (!bulkForm.colors || !bulkForm.sizes || !bulkForm.price || !bulkForm.stock) {
-      toast({ title: "Error", description: "All fields are required", variant: "destructive" });
+    if (!bulkForm.sizes || !bulkForm.price || !bulkForm.stock) {
+      toast({ title: "Error", description: "Sizes, Price and Stock are required", variant: "destructive" });
       return;
     }
 
-    const colors = bulkForm.colors.split(',').map(c => c.trim()).filter(c => c);
+    const colors = bulkForm.colors ? bulkForm.colors.split(',').map(c => c.trim()).filter(c => c) : [null];
     const sizes = bulkForm.sizes.split(',').map(s => s.trim()).filter(s => s);
 
-    if (colors.length === 0 || sizes.length === 0) {
-      toast({ title: "Error", description: "Enter at least one color and size", variant: "destructive" });
+    if (sizes.length === 0) {
+      toast({ title: "Error", description: "Enter at least one size", variant: "destructive" });
       return;
     }
 
     const variantsToInsert = [];
     for (const color of colors) {
       for (const size of sizes) {
-        const sku = productSku
-          ? `${productSku}-${color.toUpperCase().slice(0, 3)}-${size.toUpperCase()}`
-          : `${color.toUpperCase().slice(0, 3)}-${size.toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+        let sku = productSku ? `${productSku}-` : '';
+
+        if (color) {
+          sku += `${color.toUpperCase().slice(0, 3)}-`;
+        }
+        sku += size.toUpperCase();
+
+        if (!productSku) {
+          sku += `-${Math.floor(Math.random() * 1000)}`;
+        }
 
         variantsToInsert.push({
           product_id: productId,
           color: color,
           size: size,
-          absolute_price: parseFloat(bulkForm.price),
+          price: parseFloat(bulkForm.price),
           stock_quantity: parseInt(bulkForm.stock),
           sku: sku,
-          variant_type: 'color-size',
-          variant_name: `${color} - ${size}`,
+          variant_type: color ? 'color-size' : 'size',
+          variant_name: color ? `${color} - ${size}` : size,
           is_active: true
         });
       }
@@ -195,7 +237,7 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
       toast({ title: "Success", description: `Generated ${variantsToInsert.length} variants` });
       setIsBulkOpen(false);
       setBulkForm({ colors: '', sizes: '', price: '', stock: '' });
-      fetchVariants();
+      fetchData();
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to generate variants", variant: "destructive" });
     }
@@ -216,19 +258,19 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
 
     try {
       const { error } = await supabase.from('product_variants').update({
-        color: editForm.color,
+        color: editForm.color || null,
         size: editForm.size,
-        absolute_price: editForm.absolute_price,
+        price: editForm.absolute_price,
         stock_quantity: editForm.stock_quantity,
         sku: editForm.sku,
-        variant_name: `${editForm.color} - ${editForm.size}`
+        variant_name: editForm.color ? `${editForm.color} - ${editForm.size}` : editForm.size
       }).eq('id', editingId);
 
       if (error) throw error;
 
       toast({ title: "Success", description: "Variant updated" });
       setEditingId(null);
-      fetchVariants();
+      fetchData();
     } catch (error: any) {
       toast({ title: "Error", description: "Failed to update variant", variant: "destructive" });
     }
@@ -238,7 +280,7 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
     try {
       const { error } = await supabase.from('product_variants').update({ [field]: value }).eq('id', id);
       if (error) throw error;
-      fetchVariants();
+      fetchData();
     } catch (error) {
       console.error('Error updating variant:', error);
       toast({ title: "Error", description: "Update failed", variant: "destructive" });
@@ -251,7 +293,7 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
       const { error } = await supabase.from('product_variants').delete().eq('id', variantId);
       if (error) throw error;
       toast({ title: "Success", description: "Variant deleted" });
-      fetchVariants();
+      fetchData();
     } catch (error: any) {
       toast({ title: "Error", description: "Failed to delete variant", variant: "destructive" });
     }
@@ -280,11 +322,11 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Colors (comma separated)</Label>
+                  <Label>Colors (comma separated, optional)</Label>
                   <Input
                     value={bulkForm.colors}
                     onChange={(e) => setBulkForm({ ...bulkForm, colors: e.target.value })}
-                    placeholder="Red, Blue, Black"
+                    placeholder="Red, Blue, Black (Leave empty for no color)"
                     className="bg-white/5 border-white/10"
                   />
                 </div>
@@ -296,6 +338,25 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
                     placeholder="S, M, L, XL"
                     className="bg-white/5 border-white/10"
                   />
+                  {productCategory && SIZE_PRESETS[productCategory] && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {SIZE_PRESETS[productCategory].map(size => (
+                        <Badge
+                          key={size}
+                          variant="outline"
+                          className="cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors"
+                          onClick={() => {
+                            const current = bulkForm.sizes ? bulkForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
+                            if (!current.includes(size)) {
+                              setBulkForm({ ...bulkForm, sizes: [...current, size].join(', ') });
+                            }
+                          }}
+                        >
+                          + {size}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -337,7 +398,7 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
               <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Color</Label>
+                    <Label>Color (Optional)</Label>
                     <Input
                       value={newVariant.color}
                       onChange={(e) => setNewVariant({ ...newVariant, color: e.target.value })}
@@ -355,6 +416,24 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
                     />
                   </div>
                 </div>
+
+                {productCategory && SIZE_PRESETS[productCategory] && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Suggested Sizes</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {SIZE_PRESETS[productCategory].map(size => (
+                        <Badge
+                          key={size}
+                          variant="outline"
+                          className="cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors"
+                          onClick={() => setNewVariant({ ...newVariant, size })}
+                        >
+                          {size}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>SKU</Label>
@@ -486,7 +565,7 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
                     {editingId === variant.id ? (
                       <div className="flex gap-2">
                         <Input
-                          value={editForm.color}
+                          value={editForm.color || ''}
                           onChange={(e) => setEditForm({ ...editForm, color: e.target.value })}
                           className="h-8 w-20 bg-black border-white/20"
                           placeholder="Color"
@@ -500,7 +579,11 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
                       </div>
                     ) : (
                       <div className="flex gap-2">
-                        <Badge variant="outline" className="border-white/10 bg-white/5">{variant.color}</Badge>
+                        {variant.color ? (
+                          <Badge variant="outline" className="border-white/10 bg-white/5">{variant.color}</Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-white/10 bg-white/5 text-muted-foreground">No Color</Badge>
+                        )}
                         <Badge variant="outline" className="border-white/10 bg-white/5">{variant.size}</Badge>
                       </div>
                     )}

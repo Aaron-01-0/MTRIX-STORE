@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Plus, Search, Filter, ArrowRight, ArrowLeft, Save, Loader2, Wand2, CheckCircle2, Archive, FileText, Globe, Trash2, EyeOff } from 'lucide-react';
+import { Plus, Search, Filter, ArrowRight, ArrowLeft, Save, Loader2, Wand2, CheckCircle2, Archive, FileText, Globe, Trash2, EyeOff, Download } from 'lucide-react';
+import { exportToCSV } from '@/utils/exportUtils';
 import { useToast } from '@/hooks/use-toast';
 import ProductImageManager from './ProductImageManager';
 import VariantManager from './VariantManager';
@@ -430,13 +431,36 @@ const ProductManager = () => {
   const allSelectedArchived = selectedProductsList.length > 0 && selectedProductsList.every(p => p.status === 'archived');
   const allSelectedPublished = selectedProductsList.length > 0 && selectedProductsList.every(p => p.status === 'published');
 
+  const handleExport = () => {
+    const exportData = products.map(product => ({
+      'Product Name': product.name,
+      'SKU': product.sku,
+      'Category': categories.find(c => c.id === product.category_id)?.name || '',
+      'Brand': brands.find(b => b.id === product.brand_id)?.name || '',
+      'Base Price': product.base_price,
+      'Stock Quantity': product.stock_quantity,
+      'Stock Status': product.stock_status,
+      'Status': product.status,
+      'Rating': product.ratings_avg || 0,
+      'Review Count': product.ratings_count || 0
+    }));
+
+    exportToCSV(exportData, `inventory_export_${new Date().toISOString().split('T')[0]}`);
+  };
+
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-orbitron font-bold text-gradient-gold">Product Management</h2>
-        <p className="text-muted-foreground">Manage your product catalog, inventory, and pricing.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-orbitron font-bold text-gradient-gold">Product Management</h2>
+          <p className="text-muted-foreground">Manage your product catalog, inventory, and pricing.</p>
+        </div>
+        <Button onClick={handleExport} variant="outline" className="border-mtrix-gray hover:bg-white/10">
+          <Download className="w-4 h-4 mr-2" />
+          Export CSV
+        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

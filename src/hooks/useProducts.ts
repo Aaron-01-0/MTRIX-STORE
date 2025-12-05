@@ -17,6 +17,7 @@ interface DatabaseProduct {
   is_trending: boolean;
   is_featured: boolean;
   stock_status: string;
+  stock_quantity: number;
   categories: { name: string } | null;
   brands: { name: string } | null;
   product_images: Array<{ image_url: string; is_main: boolean; display_order: number }> | null;
@@ -65,14 +66,14 @@ export const useProducts = () => {
         // Get the main image or the first image
         const mainImage = product.product_images?.find(img => img.is_main)?.image_url;
         const firstImage = product.product_images?.sort((a, b) => a.display_order - b.display_order)[0]?.image_url;
-        
+
         return {
           id: product.id,
           name: product.name,
-          price: product.discount_price 
+          price: product.discount_price
             ? `₹${product.discount_price.toFixed(0)}`
             : `₹${product.base_price.toFixed(0)}`,
-          originalPrice: product.discount_price 
+          originalPrice: product.discount_price
             ? `₹${product.base_price.toFixed(0)}`
             : undefined,
           image: mainImage || firstImage || "/api/placeholder/300/300",
@@ -81,7 +82,7 @@ export const useProducts = () => {
           isTrending: product.is_trending,
           category: product.categories?.name,
           brand: product.brands?.name,
-          stockStatus: product.stock_status,
+          stockStatus: product.stock_quantity === 0 ? 'out_of_stock' : product.stock_status,
         };
       }) || [];
 
@@ -131,14 +132,14 @@ export const useFeaturedProducts = () => {
         const formattedProducts: Product[] = (data as DatabaseProduct[])?.map((product) => {
           const mainImage = product.product_images?.find(img => img.is_main)?.image_url;
           const firstImage = product.product_images?.sort((a, b) => a.display_order - b.display_order)[0]?.image_url;
-          
+
           return {
             id: product.id,
             name: product.name,
-            price: product.discount_price 
+            price: product.discount_price
               ? `₹${product.discount_price.toFixed(0)}`
               : `₹${product.base_price.toFixed(0)}`,
-            originalPrice: product.discount_price 
+            originalPrice: product.discount_price
               ? `₹${product.base_price.toFixed(0)}`
               : undefined,
             image: mainImage || firstImage || "/api/placeholder/300/300",
@@ -147,7 +148,7 @@ export const useFeaturedProducts = () => {
             isTrending: product.is_trending,
             category: product.categories?.name,
             brand: product.brands?.name,
-            stockStatus: product.stock_status,
+            stockStatus: product.stock_quantity === 0 ? 'out_of_stock' : product.stock_status,
           };
         }) || [];
 
@@ -191,14 +192,14 @@ export const useTrendingProducts = () => {
         const formattedProducts: Product[] = (data as DatabaseProduct[])?.map((product) => {
           const mainImage = product.product_images?.find(img => img.is_main)?.image_url;
           const firstImage = product.product_images?.sort((a, b) => a.display_order - b.display_order)[0]?.image_url;
-          
+
           return {
             id: product.id,
             name: product.name,
-            price: product.discount_price 
+            price: product.discount_price
               ? `₹${product.discount_price.toFixed(0)}`
               : `₹${product.base_price.toFixed(0)}`,
-            originalPrice: product.discount_price 
+            originalPrice: product.discount_price
               ? `₹${product.base_price.toFixed(0)}`
               : undefined,
             image: mainImage || firstImage || "/api/placeholder/300/300",
@@ -207,7 +208,7 @@ export const useTrendingProducts = () => {
             isTrending: product.is_trending,
             category: product.categories?.name,
             brand: product.brands?.name,
-            stockStatus: product.stock_status,
+            stockStatus: product.stock_quantity === 0 ? 'out_of_stock' : product.stock_status,
           };
         }) || [];
 

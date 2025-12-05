@@ -33,6 +33,7 @@ import ReviewForm from '@/components/reviews/ReviewForm';
 import ReviewList from '@/components/reviews/ReviewList';
 import InstallationInstructions from '@/components/product/InstallationInstructions';
 import ToteBagDetails from '@/components/product/ToteBagDetails';
+import ShippingReturns from '@/components/product/ShippingReturns';
 
 interface DatabaseProduct {
   id: string;
@@ -583,19 +584,19 @@ const Product = () => {
                 {/* Actions */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
-                    <div className="flex items-center bg-black/40 rounded-lg border border-white/10">
+                    <div className="flex items-center bg-black/40 rounded-lg border border-white/10 h-10">
                       <button
                         onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                        className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-white transition-colors"
+                        className="w-8 h-full flex items-center justify-center text-muted-foreground hover:text-white transition-colors hover:bg-white/5 rounded-l-lg"
                       >
-                        <Minus className="w-4 h-4" />
+                        <Minus className="w-3 h-3" />
                       </button>
-                      <span className="w-10 text-center font-medium">{quantity}</span>
+                      <span className="w-8 text-center font-medium text-sm">{quantity}</span>
                       <button
                         onClick={() => setQuantity(quantity + 1)}
-                        className="w-10 h-10 flex items-center justify-center text-muted-foreground hover:text-white transition-colors"
+                        className="w-8 h-full flex items-center justify-center text-muted-foreground hover:text-white transition-colors hover:bg-white/5 rounded-r-lg"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3 h-3" />
                       </button>
                     </div>
 
@@ -619,7 +620,12 @@ const Product = () => {
                       ref={addToCartBtnRef}
                       onClick={handleAddToCart}
                       disabled={!inStock}
-                      className="flex-1 h-12 bg-gradient-gold text-mtrix-black font-bold text-lg hover:shadow-gold hover:scale-[1.02] transition-all duration-300"
+                      className={cn(
+                        "flex-1 h-12 font-bold text-lg transition-all duration-300",
+                        inStock
+                          ? "bg-mtrix-dark border border-mtrix-gold text-mtrix-gold hover:bg-mtrix-gold hover:text-mtrix-black hover:shadow-[0_0_15px_rgba(255,215,0,0.3)]"
+                          : "bg-white/5 border border-white/10 text-muted-foreground cursor-not-allowed opacity-70"
+                      )}
                     >
                       <ShoppingCart className="w-5 h-5 mr-2" />
                       {inStock ? 'Add to Cart' : 'Out of Stock'}
@@ -631,7 +637,7 @@ const Product = () => {
                         toast({ title: isWishlisted ? "Removed" : "Saved", description: isWishlisted ? "Removed from wishlist" : "Added to wishlist" });
                       }}
                       className={cn(
-                        "h-12 w-12 border-white/10 bg-white/5 hover:bg-white/10 hover:border-primary/50 transition-all",
+                        "h-12 w-12 border-mtrix-gold/30 bg-mtrix-dark hover:bg-mtrix-gold/10 hover:border-mtrix-gold text-mtrix-gold transition-all",
                         isWishlisted && "text-red-500 border-red-500/50 bg-red-500/10"
                       )}
                     >
@@ -649,22 +655,26 @@ const Product = () => {
                   { icon: Shield, title: "Secure Payment", desc: "100% secure checkout" },
                   { icon: Share2, title: "Share Product", desc: "Share with friends" },
                 ].map((feature, idx) => (
-                  <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors">
-                    <feature.icon className="w-6 h-6 text-primary mb-2" />
-                    <h4 className="font-medium text-white text-sm">{feature.title}</h4>
-                    <p className="text-xs text-muted-foreground">{feature.desc}</p>
+                  <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition-colors flex flex-col justify-center">
+                    <feature.icon className="w-5 h-5 text-primary mb-1.5" />
+                    <h4 className="font-medium text-white text-sm leading-tight">{feature.title}</h4>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">{feature.desc}</p>
                   </div>
                 ))}
               </div>
 
               {/* Accordions for Mobile/Clean Layout */}
-              <Accordion type="single" collapsible className="w-full">
+              <Accordion type="single" collapsible className="w-full" defaultValue="description">
                 <AccordionItem value="description" className="border-white/10">
                   <AccordionTrigger className="text-white hover:text-primary">Description</AccordionTrigger>
                   <AccordionContent className="pt-4">
                     <div className="relative pl-4 border-l-2 border-primary/30">
                       <p className="text-gray-300 leading-8 whitespace-pre-line font-light text-base tracking-wide">
-                        {product.detailed_description || product.short_description || "No description available."}
+                        {product.detailed_description || product.short_description || (
+                          <span className="text-muted-foreground italic">
+                            Detailed description coming soon. Stay tuned for updates on this product's features and specifications.
+                          </span>
+                        )}
                       </p>
                     </div>
                   </AccordionContent>
@@ -697,21 +707,22 @@ const Product = () => {
                 </AccordionItem>
                 <AccordionItem value="shipping" className="border-white/10">
                   <AccordionTrigger className="text-white hover:text-primary">Shipping & Returns</AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground text-sm space-y-2">
-                    <p>{product.return_policy || "30-day return policy. Items must be in original condition."}</p>
-                    <p>{product.warranty_info || "1-year manufacturer warranty included."}</p>
+                  <AccordionContent>
+                    <ShippingReturns />
                   </AccordionContent>
                 </AccordionItem>
 
-                <AccordionItem value="installation" className="border-white/10">
-                  <AccordionTrigger className="text-white hover:text-primary">Installation Guide</AccordionTrigger>
-                  <AccordionContent>
-                    <InstallationInstructions
-                      categoryName={product.categories?.name}
-                      variantName={selectedVariant?.variant_name}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
+                {/poster|frame|metal|acrylic|art/i.test(product.categories?.name || '') && (
+                  <AccordionItem value="installation" className="border-white/10">
+                    <AccordionTrigger className="text-white hover:text-primary">Installation Guide</AccordionTrigger>
+                    <AccordionContent>
+                      <InstallationInstructions
+                        categoryName={product.categories?.name}
+                        variantName={selectedVariant?.variant_name}
+                      />
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
 
                 {product.categories?.name?.toLowerCase().includes('tote') && (
                   <AccordionItem value="tote-details" className="border-white/10">

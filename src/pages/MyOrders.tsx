@@ -11,6 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Package, Truck, CheckCircle, Clock, ArrowRight, ShoppingBag, MapPin, Calendar, AlertCircle, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
+import ReviewModal from '@/components/reviews/ReviewModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface OrderItem {
   id: string;
@@ -30,6 +32,7 @@ interface Order {
   payment_status: string;
   created_at: string;
   estimated_delivery_date?: string;
+  tracking_url?: string;
   order_items: OrderItem[];
 }
 
@@ -52,6 +55,8 @@ const MyOrders = () => {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reviewTarget, setReviewTarget] = useState<{ productId: string, productName: string, orderId: string } | null>(null);
+  const [orderForSelection, setOrderForSelection] = useState<Order | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -136,6 +141,18 @@ const MyOrders = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleWriteReview = (order: Order) => {
+    if (order.order_items.length === 1) {
+      setReviewTarget({
+        productId: order.order_items[0].product_id,
+        productName: order.order_items[0].products.name,
+        orderId: order.id
+      });
+    } else {
+      setOrderForSelection(order);
     }
   };
 
@@ -273,8 +290,27 @@ const MyOrders = () => {
                               View Details
                             </Button>
                             {order.status === 'delivered' && (
-                              <Button size="sm" className="bg-white text-black hover:bg-gray-200">
+                              <Button
+                                size="sm"
+                                className="bg-white text-black hover:bg-gray-200"
+                                onClick={() => handleWriteReview(order)}
+                              >
                                 Write Review
+                              </Button>
+                            )}
+                            {(order.status === 'shipped' || order.status === 'delivered') && order.tracking_url && (
+                              <Button
+                                size="sm"
+                                className="bg-mtrix-gold text-black hover:bg-mtrix-gold-light"
+                                onClick={() => {
+                                  let url = order.tracking_url!;
+                                  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                                    url = 'https://' + url;
+                                  }
+                                  window.open(url, '_blank');
+                                }}
+                              >
+                                <Truck className="w-4 h-4 mr-2" /> Track Package
                               </Button>
                             )}
                             {!isCancelled && order.status === 'processing' && (
@@ -321,6 +357,55 @@ const MyOrders = () => {
           </div>
         )}
       </main>
+
+      {/* Review Modal */}
+      {reviewTarget && user && (
+        <ReviewModal
+          isOpen={!!reviewTarget}
+          onClose={() => setReviewTarget(null)}
+          productId={reviewTarget.productId}
+          productName={reviewTarget.productName}
+          userId={user.id}
+          orderId={reviewTarget.orderId}
+        />
+      )}
+
+      {/* Product Selection Modal for Multi-item Orders */}
+      <Dialog open={!!orderForSelection} onOpenChange={() => setOrderForSelection(null)}>
+        <DialogContent className="bg-mtrix-dark border-mtrix-gray text-white">
+          <DialogHeader>
+            <DialogTitle>Select Product to Review</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {orderForSelection?.order_items.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-4 p-3 rounded-lg border border-white/10 hover:border-gold/50 cursor-pointer transition-colors bg-white/5"
+                onClick={() => {
+                  setReviewTarget({
+                    productId: item.product_id,
+                    productName: item.products.name,
+                    orderId: orderForSelection.id
+                  });
+                  setOrderForSelection(null);
+                }}
+              >
+                <div className="w-12 h-12 rounded bg-black overflow-hidden shrink-0">
+                  <img
+                    src={item.products.image_url || '/placeholder.svg'}
+                    alt={item.products.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{item.products.name}</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Footer />
     </div>

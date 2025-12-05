@@ -15,6 +15,7 @@ const VisualFeatures = lazy(() => import('@/components/home/VisualFeatures'));
 const TrendingSlider = lazy(() => import('@/components/home/TrendingSlider'));
 const SocialShowcase = lazy(() => import('@/components/home/SocialShowcase'));
 const SetupBuilder = lazy(() => import('@/components/home/SetupBuilder'));
+const LatestReviews = lazy(() => import('@/components/home/LatestReviews'));
 
 const LoadingFallback = () => (
   <div className="w-full h-48 flex items-center justify-center">
@@ -74,6 +75,10 @@ const Index = () => {
 
       <Suspense fallback={<LoadingFallback />}>
         <SetupBuilder />
+      </Suspense>
+
+      <Suspense fallback={<LoadingFallback />}>
+        <LatestReviews />
       </Suspense>
 
       <Footer />

@@ -18,7 +18,9 @@ interface Product extends Tables<'products'> {
         is_main: boolean;
         display_order: number;
     }[];
-    image_url?: string | null; // Add this if it's missing from the base type but used
+    image_url?: string | null;
+    ratings_avg?: number;
+    ratings_count?: number;
 }
 
 const CategoryPage = () => {
@@ -241,8 +243,8 @@ const CategoryPage = () => {
                                             price: `₹${product.base_price}`,
                                             originalPrice: product.discount_price ? `₹${product.discount_price}` : undefined,
                                             image: imageUrl,
-                                            rating: 5, // Default for now
-                                            stockStatus: (product.stock_status as "in_stock" | "out_of_stock" | "low_stock") || "in_stock",
+                                            rating: product.ratings_avg || 0,
+                                            stockStatus: (product.stock_quantity === 0 ? 'out_of_stock' : product.stock_status) as "in_stock" | "out_of_stock" | "low_stock" || "in_stock",
                                             isNew: product.is_new || false,
                                             isTrending: product.is_trending || false,
                                             category: category.name

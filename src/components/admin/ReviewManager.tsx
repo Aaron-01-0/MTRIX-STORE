@@ -49,12 +49,50 @@ const ReviewManager = () => {
       if (error) throw error;
 
       setReviews(reviews.map(r => r.id === id ? { ...r, is_approved: isApproved } : r));
+
+      // Update product rating
+      const review = reviews.find(r => r.id === id);
+      if (review && review.product_id) {
+        await updateProductRating(review.product_id);
+      }
+
       toast({
         title: isApproved ? "Review Approved" : "Review Rejected",
-        description: `Review has been ${isApproved ? 'approved' : 'rejected'}.`
+        description: `Review has been ${isApproved ? 'approved' : 'rejected'} and product rating updated.`
       });
     } catch (error) {
+      console.error('Error updating status:', error);
       toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
+    }
+  };
+
+  const updateProductRating = async (productId: string) => {
+    try {
+      const { data: productReviews, error: fetchError } = await supabase
+        .from('product_reviews')
+        .select('rating')
+        .eq('product_id', productId)
+        .eq('is_approved', true);
+
+      if (fetchError) throw fetchError;
+
+      const totalReviews = productReviews?.length || 0;
+      const avgRating = totalReviews > 0
+        ? productReviews.reduce((acc, curr) => acc + curr.rating, 0) / totalReviews
+        : 0;
+
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({
+          ratings_avg: avgRating,
+          ratings_count: totalReviews
+        })
+        .eq('id', productId);
+
+      if (updateError) throw updateError;
+
+    } catch (error) {
+      console.error('Error updating product rating:', error);
     }
   };
 

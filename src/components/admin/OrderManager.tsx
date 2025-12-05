@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Package, Truck, Eye, Calendar, MapPin, CreditCard } from 'lucide-react';
+import { Package, Truck, Eye, Calendar, MapPin, CreditCard, Download } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { exportToCSV } from '@/utils/exportUtils';
 
 interface OrderItem {
   id: string;
@@ -247,7 +248,8 @@ const OrderManager = () => {
                 orderNumber: order.order_number,
                 customerName: order.profiles.full_name,
                 trackingNumber: order.tracking_number,
-                trackingUrl: order.tracking_url
+                trackingUrl: order.tracking_url,
+                amount: order.total_amount.toString()
               }
             });
             toast({
@@ -277,16 +279,29 @@ const OrderManager = () => {
     if (!selectedOrder) return;
 
     try {
+      const updatePayload: any = {};
+
+      if (trackingData.tracking_number) updatePayload.tracking_number = trackingData.tracking_number;
+      if (trackingData.tracking_url) updatePayload.tracking_url = trackingData.tracking_url;
+
+      if (trackingData.estimated_delivery_date) {
+        // Ensure valid ISO string
+        updatePayload.estimated_delivery_date = new Date(trackingData.estimated_delivery_date).toISOString();
+      } else {
+        updatePayload.estimated_delivery_date = null;
+      }
+
+      console.log('Sending update payload:', updatePayload);
+
       const { error } = await supabase
         .from('orders')
-        .update({
-          tracking_number: trackingData.tracking_number,
-          tracking_url: trackingData.tracking_url,
-          estimated_delivery_date: trackingData.estimated_delivery_date || null
-        })
+        .update(updatePayload)
         .eq('id', selectedOrder.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase update error:', error);
+        throw error;
+      }
 
       toast({
         title: 'Success',
@@ -297,14 +312,13 @@ const OrderManager = () => {
       // Optimistic update
       setOrders(prev => prev.map(o => o.id === selectedOrder.id ? {
         ...o,
-        tracking_number: trackingData.tracking_number,
-        tracking_url: trackingData.tracking_url,
-        estimated_delivery_date: trackingData.estimated_delivery_date
+        ...updatePayload
       } : o));
     } catch (error: any) {
+      console.error('Error updating tracking:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update tracking',
+        description: 'Failed to update tracking: ' + (error.message || error.details || 'Unknown error'),
         variant: 'destructive'
       });
     }
@@ -341,11 +355,38 @@ const OrderManager = () => {
     );
   }
 
+  const handleExport = () => {
+    const exportData = orders.map(order => ({
+      'Order Number': order.order_number,
+      'Customer Name': order.profiles?.full_name || 'Guest',
+      'Customer Email': order.profiles?.email || '',
+      'Date': new Date(order.created_at).toLocaleDateString(),
+      'Total Amount': order.total_amount,
+      'Status': order.status,
+      'Payment Status': order.payment_status,
+      'Tracking Number': order.tracking_number || '',
+      'Shipping Address': order.shipping_address ?
+        `${order.shipping_address.address_line1}, ${order.shipping_address.city}, ${order.shipping_address.state}` : ''
+    }));
+
+    exportToCSV(exportData, `orders_export_${new Date().toISOString().split('T')[0]}`);
+  };
+
+  if (loading) {
+    // ...
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-orbitron font-bold text-gradient-gold">Order Management</h2>
-        <p className="text-muted-foreground">Track and manage customer orders.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-orbitron font-bold text-gradient-gold">Order Management</h2>
+          <p className="text-muted-foreground">Track and manage customer orders.</p>
+        </div>
+        <Button onClick={handleExport} variant="outline" className="border-mtrix-gray hover:bg-white/10">
+          <Download className="w-4 h-4 mr-2" />
+          Export CSV
+        </Button>
       </div>
 
       <Card className="bg-mtrix-dark border-mtrix-gray">

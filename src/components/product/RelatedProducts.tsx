@@ -27,6 +27,7 @@ const RelatedProducts = ({ categoryId, currentProductId }: RelatedProductsProps)
             is_new,
             is_trending,
             stock_status,
+            stock_quantity,
             product_images(image_url, is_main)
           `)
                     .eq('category_id', categoryId)
@@ -81,7 +82,7 @@ const RelatedProducts = ({ categoryId, currentProductId }: RelatedProductsProps)
                             originalPrice: product.discount_price ? `₹${product.base_price}` : undefined,
                             image: product.product_images?.find((img: any) => img.is_main)?.image_url || product.product_images?.[0]?.image_url || '/placeholder.png',
                             rating: product.ratings_avg || 0,
-                            stockStatus: product.stock_status,
+                            stockStatus: product.stock_quantity === 0 ? 'out_of_stock' : product.stock_status,
                             isNew: product.is_new,
                             isTrending: product.is_trending,
                             category: '' // Category not fetched in this query

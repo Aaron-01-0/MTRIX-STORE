@@ -25,6 +25,8 @@ const ReviewForm = ({ productId, userId, onSuccess }: ReviewFormProps) => {
 
     const checkEligibility = async () => {
         try {
+            if (!productId) return;
+
             // Check if user has purchased the product
             const { data, error } = await supabase
                 .rpc('check_user_purchased', { check_product_id: productId });
@@ -48,13 +50,14 @@ const ReviewForm = ({ productId, userId, onSuccess }: ReviewFormProps) => {
         setSubmitting(true);
         try {
             const { error } = await supabase
-                .from('reviews' as any)
+                .from('product_reviews')
                 .insert({
                     product_id: productId,
                     user_id: userId,
                     rating,
-                    comment,
-                    status: 'pending'
+                    review_text: comment,
+                    is_verified_purchase: canReview || false,
+                    is_approved: false
                 });
 
             if (error) throw error;
@@ -71,7 +74,11 @@ const ReviewForm = ({ productId, userId, onSuccess }: ReviewFormProps) => {
 
         } catch (error) {
             console.error('Error submitting review:', error);
-            toast({ title: "Error", description: "Failed to submit review.", variant: "destructive" });
+            toast({
+                title: "Error",
+                description: error.message || "Failed to submit review.",
+                variant: "destructive"
+            });
         } finally {
             setSubmitting(false);
         }
@@ -118,8 +125,8 @@ const ReviewForm = ({ productId, userId, onSuccess }: ReviewFormProps) => {
                         >
                             <Star
                                 className={`w-8 h-8 transition-colors ${star <= (hoverRating || rating)
-                                        ? "fill-primary text-primary"
-                                        : "text-muted-foreground/30 hover:text-primary/50"
+                                    ? "fill-primary text-primary"
+                                    : "text-muted-foreground/30 hover:text-primary/50"
                                     }`}
                             />
                         </button>

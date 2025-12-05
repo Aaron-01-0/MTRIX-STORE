@@ -42,6 +42,7 @@ import {
     ArrowUpDown
 } from "lucide-react";
 import { format } from 'date-fns';
+import { exportToCSV } from '@/utils/exportUtils';
 import OrderStats from './OrderStats';
 import {
     Dialog,
@@ -283,6 +284,25 @@ const OrderList = () => {
         }
     };
 
+    const handleBulkExport = () => {
+        const ordersToExport = orders.filter(o => selectedOrders.includes(o.id));
+        const exportData = ordersToExport.map(order => ({
+            'Order Number': order.order_number,
+            'Customer Name': order.user?.full_name || 'Guest',
+            'Customer Email': order.user?.email || '',
+            'Date': new Date(order.created_at).toLocaleDateString(),
+            'Total Amount': order.total_amount,
+            'Status': order.status,
+            'Payment Status': order.payment_status
+        }));
+
+        exportToCSV(exportData, `orders_export_${new Date().toISOString().split('T')[0]}`);
+    };
+
+    const handleBulkPrint = () => {
+        window.print();
+    };
+
     return (
         <div className="space-y-6">
             <OrderStats {...stats} />
@@ -320,11 +340,11 @@ const OrderList = () => {
                 {selectedOrders.length > 0 && (
                     <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
                         <span className="text-sm text-gray-400 font-medium">{selectedOrders.length} selected</span>
-                        <Button variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
+                        <Button onClick={handleBulkPrint} variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
                             <Printer className="h-4 w-4 mr-2" />
                             Print
                         </Button>
-                        <Button variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
+                        <Button onClick={handleBulkExport} variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
                             <Download className="h-4 w-4 mr-2" />
                             Export
                         </Button>

@@ -227,25 +227,32 @@ const OrderDetail = () => {
         if (!order) return;
         setUpdating(true);
         try {
+            const updatePayload: any = {};
+            if (trackingNumber) updatePayload.tracking_number = trackingNumber;
+            if (trackingUrl) updatePayload.tracking_url = trackingUrl;
+
+            console.log('Sending tracking update payload:', updatePayload);
+
             const { error } = await supabase
                 .from('orders')
-                .update({
-                    tracking_number: trackingNumber,
-                    tracking_url: trackingUrl
-                })
+                .update(updatePayload)
                 .eq('id', order.id);
 
-            if (error) throw error;
+            if (error) {
+                console.error('Supabase update error:', error);
+                throw error;
+            }
 
-            setOrder({ ...order, tracking_number: trackingNumber, tracking_url: trackingUrl });
+            setOrder({ ...order, ...updatePayload });
             toast({
                 title: "Success",
                 description: "Tracking details saved",
             });
         } catch (error: any) {
+            console.error('Error saving tracking:', error);
             toast({
                 title: "Error",
-                description: "Failed to save tracking details",
+                description: "Failed to save tracking details: " + (error.message || error.details || "Unknown error"),
                 variant: "destructive",
             });
         } finally {
@@ -573,7 +580,13 @@ const OrderDetail = () => {
                                         </div>
                                         <div className="flex justify-end gap-2">
                                             {trackingUrl && (
-                                                <Button variant="outline" size="sm" onClick={() => window.open(trackingUrl, '_blank')} className="border-mtrix-gray text-gray-300 hover:text-white hover:bg-mtrix-gray">
+                                                <Button variant="outline" size="sm" onClick={() => {
+                                                    let url = trackingUrl;
+                                                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                                                        url = 'https://' + url;
+                                                    }
+                                                    window.open(url, '_blank');
+                                                }} className="border-mtrix-gray text-gray-300 hover:text-white hover:bg-mtrix-gray">
                                                     <ExternalLink className="h-4 w-4 mr-2" />
                                                     Track Package
                                                 </Button>

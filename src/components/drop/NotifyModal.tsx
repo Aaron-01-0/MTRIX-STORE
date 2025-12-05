@@ -3,38 +3,49 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { Bell } from "lucide-react";
 
 interface NotifyModalProps {
     isOpen: boolean;
     onClose: () => void;
+    productName?: string;
 }
 
-const NotifyModal = ({ isOpen, onClose }: NotifyModalProps) => {
+const NotifyModal = ({ isOpen, onClose, productName = "this item" }: NotifyModalProps) => {
     const [email, setEmail] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsLoading(true);
+
         // Simulate API call
-        setTimeout(() => {
-            toast({
-                title: "You're on the list!",
-                description: "We'll notify you as soon as the drop goes live.",
-            });
-            onClose();
-            setEmail("");
-        }, 500);
+        // TODO: Connect to 'product_notifications' table in Supabase
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        toast({
+            title: "Notification Enabled",
+            description: `We'll notify you at ${email} when ${productName} is back in stock.`,
+        });
+
+        setIsLoading(false);
+        onClose();
+        setEmail("");
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="bg-mtrix-black border-mtrix-gray text-white sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle className="text-2xl font-orbitron font-bold text-center text-gradient-gold">
-                        GET EARLY ACCESS
+                    <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 border border-primary/20">
+                        <Bell className="w-6 h-6 text-primary" />
+                    </div>
+                    <DialogTitle className="text-2xl font-orbitron font-bold text-center text-white">
+                        Get Notified
                     </DialogTitle>
                     <DialogDescription className="text-center text-gray-400">
-                        Be the first to know when Drop 01 goes live. Limited quantities available.
+                        Enter your email to receive an update when <span className="text-primary font-medium">{productName}</span> is back in stock.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4">
@@ -44,13 +55,14 @@ const NotifyModal = ({ isOpen, onClose }: NotifyModalProps) => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
-                        className="bg-mtrix-dark border-mtrix-gray text-white placeholder:text-gray-500 focus:border-neon-cyan focus:ring-neon-cyan"
+                        className="bg-mtrix-dark border-mtrix-gray text-white placeholder:text-gray-500 focus:border-primary focus:ring-primary"
                     />
                     <Button
                         type="submit"
-                        className="w-full bg-neon-cyan text-black font-bold hover:bg-neon-cyan/80 hover:shadow-[0_0_20px_rgba(0,255,255,0.5)] transition-all duration-300"
+                        disabled={isLoading}
+                        className="w-full bg-primary text-black font-bold hover:bg-primary/80 hover:shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] transition-all duration-300"
                     >
-                        NOTIFY ME
+                        {isLoading ? "Submitting..." : "Notify Me"}
                     </Button>
                 </form>
             </DialogContent>

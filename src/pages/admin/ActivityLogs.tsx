@@ -53,10 +53,7 @@ const ActivityLogs = () => {
         try {
             let query = supabase
                 .from('activity_logs')
-                .select(`
-                    *,
-                    profiles:user_id (email, name, avatar_url)
-                `)
+                .select('*')
                 .order('created_at', { ascending: false })
                 .limit(100);
 
@@ -64,10 +61,38 @@ const ActivityLogs = () => {
                 query = query.eq('action', filterAction);
             }
 
-            const { data, error } = await query;
+            const { data: logsData, error: logsError } = await query;
 
-            if (error) throw error;
-            setLogs(data || []);
+            if (logsError) throw logsError;
+
+            if (logsData && logsData.length > 0) {
+                // Manually fetch profiles
+                const userIds = Array.from(new Set(logsData.map(log => log.user_id).filter(Boolean)));
+
+                if (userIds.length > 0) {
+                    const { data: profilesData, error: profilesError } = await supabase
+                        .from('profiles')
+                        .select('id, email, name, avatar_url')
+                        .in('id', userIds);
+
+                    if (!profilesError && profilesData) {
+                        const profilesMap = new Map(profilesData.map(p => [p.id, p]));
+
+                        const logsWithProfiles = logsData.map(log => ({
+                            ...log,
+                            profiles: profilesMap.get(log.user_id) || {
+                                email: 'Unknown',
+                                name: 'Unknown User',
+                                avatar_url: null
+                            }
+                        }));
+                        setLogs(logsWithProfiles);
+                        return;
+                    }
+                }
+            }
+
+            setLogs(logsData || []);
         } catch (error) {
             console.error('Error fetching logs:', error);
         } finally {
@@ -170,8 +195,8 @@ const ActivityLogs = () => {
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div className="flex flex-col">
-                                                    <span className="font-medium text-sm">{log.profiles?.name || 'Unknown'}</span>
-                                                    <span className="text-xs text-gray-500">{log.profiles?.email}</span>
+                                                    <span className="font-medium text-sm">{log.profiles?.name !== 'Unknown User' ? log.profiles?.name : 'Unknown'}</span>
+                                                    <span className="text-xs text-gray-500">{log.profiles?.email !== 'Unknown' ? log.profiles?.email : log.user_id}</span>
                                                 </div>
                                             </div>
                                         </TableCell>
