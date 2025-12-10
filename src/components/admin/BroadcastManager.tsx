@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -435,7 +436,7 @@ const BroadcastManager = () => {
                                 <CardContent className="flex-1 bg-white/5 p-4 rounded-b-xl overflow-hidden">
                                     <div className="bg-white rounded-md h-full w-full overflow-auto p-4 min-h-[600px]">
                                         <div
-                                            dangerouslySetInnerHTML={{ __html: previewHtml }}
+                                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
                                             className="preview-content"
                                         />
                                     </div>

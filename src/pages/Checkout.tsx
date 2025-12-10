@@ -73,7 +73,22 @@ const Checkout = () => {
         .select('*')
         .eq('code', location.state.couponCode)
         .single()
-        .then(({ data }) => setCouponData(data));
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            if (data.usage_limit && data.used_count >= data.usage_limit) {
+              toast({
+                title: "Coupon Limit Reached",
+                description: "The applied promo code has reached its usage limit and has been removed.",
+                variant: "destructive"
+              });
+              setCouponCode(null);
+              setCouponData(null);
+            } else {
+              setCouponData(data);
+            }
+          }
+        });
     }
   }, [location.state]);
 

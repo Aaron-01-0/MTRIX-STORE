@@ -96,6 +96,15 @@ const Cart = () => {
         return;
       }
 
+      if (data.usage_limit && data.used_count >= data.usage_limit) {
+        toast({
+          title: "Coupon Limit Reached",
+          description: "This promo code has reached its usage limit.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       setAppliedPromo(data.code);
       toast({
         title: "Promo Code Applied!",
