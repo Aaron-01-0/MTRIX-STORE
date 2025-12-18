@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useWishes } from '@/hooks/useWishes';
 import { cn } from '@/lib/utils';
-import { Users, ArrowRight, Check, Sparkles } from 'lucide-react';
-import { AnimatePresence, motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
+import { Users, ArrowRight, Check, Sparkles, Send, Snowflake, Share2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import GlowingLogo from '@/components/home/GlowingLogo';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import ChristmasAudio from '@/components/ChristmasAudio';
 
-// Define outside to avoid initialization errors
+// Target Date: Dec 25, 2025
 const TARGET_DATE = new Date('2025-12-25T00:00:00');
 
 function calculateTimeLeft() {
@@ -24,98 +29,103 @@ function calculateTimeLeft() {
     return timeLeft;
 }
 
-const AccessCard = ({ email, count }: { email: string, count: number }) => {
-    const x = useMotionValue(0);
-    const y = useMotionValue(0);
+// Snowfall Component
+const Snowfall = () => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    const rotateX = useTransform(y, [-100, 100], [10, -10]);
-    const rotateY = useTransform(x, [-100, 100], [-10, 10]);
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-    function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
-        const rect = event.currentTarget.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        x.set(event.clientX - centerX);
-        y.set(event.clientY - centerY);
-    }
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
 
-    function handleMouseLeave() {
-        x.set(0);
-        y.set(0);
-    }
+        const snowflakes: { x: number, y: number, r: number, d: number }[] = [];
+        const maxSnowflakes = 100;
 
-    return (
-        <motion.div
-            style={{
-                perspective: 1000,
-            }}
-            className="w-full max-w-md mx-auto"
-        >
-            <motion.div
-                style={{
-                    rotateX: useSpring(rotateX),
-                    rotateY: useSpring(rotateY),
-                }}
-                onMouseMove={handleMouseMove}
-                onMouseLeave={handleMouseLeave}
-                className="relative bg-black/40 border border-gold/30 p-8 rounded-xl backdrop-blur-xl overflow-hidden group"
-            >
-                {/* Holographic Shine */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" style={{ transform: 'translateZ(1px)' }} />
+        for (let i = 0; i < maxSnowflakes; i++) {
+            snowflakes.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                r: Math.random() * 3 + 1, // radius
+                d: Math.random() // density (speed factor)
+            });
+        }
 
-                {/* Card Content */}
-                <div className="relative z-10 flex flex-col items-center text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-gold/10 flex items-center justify-center border border-gold/50 shadow-[0_0_15px_rgba(212,175,55,0.3)]">
-                        <Check className="w-8 h-8 text-gold" />
-                    </div>
+        function draw() {
+            if (!ctx || !canvas) return;
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+            ctx.beginPath();
+            for (let i = 0; i < maxSnowflakes; i++) {
+                const f = snowflakes[i];
+                ctx.moveTo(f.x, f.y);
+                ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2, true);
+            }
+            ctx.fill();
+            move();
+        }
 
-                    <div>
-                        <h3 className="text-2xl font-black text-white tracking-widest uppercase mb-1">Access Granted</h3>
-                        <p className="text-gold/60 text-xs tracking-[0.2em] uppercase">Official Launch</p>
-                    </div>
+        let angle = 0;
+        function move() {
+            angle += 0.01;
+            for (let i = 0; i < maxSnowflakes; i++) {
+                const f = snowflakes[i];
+                // Gentle gravity with variation based on 'density'
+                f.y += f.d + 1 + f.r / 2;
+                // Swaying motion
+                f.x += Math.sin(angle + f.d) * 0.5;
 
-                    <div className="w-full h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent my-4" />
+                // Reset if out of bounds
+                if (f.y > height) {
+                    snowflakes[i] = { x: Math.random() * width, y: -10, r: f.r, d: f.d };
+                }
+                if (f.x > width + 5 || f.x < -5) {
+                    if (Math.sin(angle) > 0) snowflakes[i].x = -5;
+                    else snowflakes[i].x = width + 5;
+                }
+            }
+        }
 
-                    <div className="space-y-1">
-                        <p className="text-neutral-400 text-xs uppercase tracking-wider">Member ID</p>
-                        <p className="text-white font-mono font-bold tracking-widest">{email.split('@')[0]}</p>
-                    </div>
+        const animationId = setInterval(draw, 33);
 
-                    <div className="flex items-center gap-2 text-gold/80 bg-gold/5 px-4 py-1.5 rounded-full border border-gold/10 mt-2">
-                        <Sparkles className="w-3 h-3" />
-                        <span className="text-xs font-bold tracking-wider">PRIORITY STATUS: CONFIRMED</span>
-                    </div>
-                </div>
+        const handleResize = () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        };
+        window.addEventListener('resize', handleResize);
 
-                {/* Corner Accents */}
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-gold/30 rounded-tl-lg" />
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-gold/30 rounded-tr-lg" />
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-gold/30 rounded-bl-lg" />
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-gold/30 rounded-br-lg" />
-            </motion.div>
-        </motion.div>
-    );
+        return () => {
+            clearInterval(animationId);
+            window.removeEventListener('resize', handleResize);
+        };
+    }, []);
+
+    return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />;
 };
+
 
 const ComingSoon = () => {
     const [email, setEmail] = useState('');
+    const [wish, setWish] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [wishStatus, setWishStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+    const [showWishes, setShowWishes] = useState(false);
 
-    // Counter State
-    // Randomize base count between 1420 and 1460 to look organic
+    // Wishes Hook
+    const { wishes, loading: wishesLoading, submitWish } = useWishes();
+
+    // Counter State (Legacy logic)
     const [baseCount] = useState(() => 1420 + Math.floor(Math.random() * 41));
     const [realCount, setRealCount] = useState(0);
     const [fakeCount, setFakeCount] = useState(() => {
         const saved = localStorage.getItem('mtrix_fake_count');
         return saved ? parseInt(saved, 10) : 0;
     });
-
     const subscriberCount = baseCount + realCount + fakeCount;
-
-    const [showIntro, setShowIntro] = useState(false);
-    const canvasRef = React.useRef<HTMLCanvasElement>(null);
-    const mouseRef = useRef({ x: 0, y: 0 });
 
     const [isMobile, setIsMobile] = useState(false);
 
@@ -133,203 +143,224 @@ const ComingSoon = () => {
         return () => clearTimeout(timer);
     });
 
-    // Persist fake count
     useEffect(() => {
         localStorage.setItem('mtrix_fake_count', fakeCount.toString());
-    }, [fakeCount]);
-
-    // Fetch Real Subscriber Count
-    useEffect(() => {
         const fetchCount = async () => {
-            const { count, error } = await supabase
-                .from('launch_subscribers' as any)
-                .select('*', { count: 'exact', head: true });
-
-            if (!error && count !== null) {
-                setRealCount(count);
-            }
+            const { count } = await supabase.from('launch_subscribers' as any).select('*', { count: 'exact', head: true });
+            if (count !== null) setRealCount(count);
         };
         fetchCount();
-
-        // Real-time subscription
-        const channel = supabase
-            .channel('public:launch_subscribers')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'launch_subscribers' }, () => {
-                setRealCount(prev => prev + 1);
-            })
-            .subscribe();
-
-        // Fake "Live" Activity
-        const fakeActivity = setInterval(() => {
-            if (Math.random() > 0.4) { // Increased chance to 60%
-                setFakeCount(prev => prev + 1);
-            }
-        }, 2000); // Faster interval: 2 seconds
-
-        return () => {
-            supabase.removeChannel(channel);
-            clearInterval(fakeActivity);
-        };
+        const fakeActivity = setInterval(() => { if (Math.random() > 0.4) setFakeCount(prev => prev + 1); }, 2000);
+        return () => clearInterval(fakeActivity);
     }, []);
 
-    const { user } = useAuth();
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubscribe = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email) return;
-
         setStatus('loading');
-
         try {
-            const { error } = await supabase
-                .from('launch_subscribers' as any)
-                .insert([{ email }]);
-
-            if (error) {
-                if (error.code === '23505') { // Unique violation
-                    setStatus('success');
-                    return;
-                }
-                throw error;
-            }
-
-            const { error: funcError } = await supabase.functions.invoke('subscribe-launch', {
-                body: { email }
-            });
-
-            if (funcError) {
-                console.error('Function Error:', funcError);
-                // For now, we still show success to the user to not break the flow, 
-                // but we log it. Or maybe we should show it?
-                // Let's throw it to catch block if we want to show error state.
-                throw funcError;
-            }
-
+            const { error } = await supabase.from('launch_subscribers' as any).insert([{ email }]);
+            if (error && error.code !== '23505') throw error;
             setStatus('success');
-            // Don't clear email immediately so we can show it on the card
             setRealCount(prev => prev + 1);
         } catch (error) {
             console.error('Error:', error);
             setStatus('error');
-            // Optional: Show a toast or alert with the specific error if needed
-            alert("Failed to join: " + (error.message || "Unknown error"));
         }
     };
 
-    return (
-        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-gold/30">
-            {/* Intro Animation Removed */}
+    const handleWishSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!wish.trim()) return;
+        setWishStatus('sending');
+        const res = await submitWish(wish);
+        if (res.error) {
+            setWishStatus('error');
+        } else {
+            setWishStatus('sent');
+            setWish('');
+            setTimeout(() => setWishStatus('idle'), 3000);
+        }
+    };
 
-            {/* Premium Background */}
+    const handleShare = () => {
+        const text = "I just made a wish for the Christmas Drop at mtrix.store 🎄✨ #MTRIX";
+        const url = "https://mtrix.store";
+
+        if (navigator.share) {
+            navigator.share({ title: 'MTRIX Christmas', text, url }).catch(console.error);
+        } else {
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+        }
+    };
+
+
+
+    return (
+        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-red-500/30">
+            {/* Background & Effects */}
             <div className="absolute inset-0 bg-black">
                 {/* Christmas Gradients */}
-                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-900/20 rounded-full blur-[120px] animate-pulse" />
-                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-900/20 rounded-full blur-[120px] animate-pulse delay-1000" />
-                <div className="absolute top-[40%] left-[40%] w-[20%] h-[20%] bg-gold/5 rounded-full blur-[100px] animate-pulse delay-500" />
+                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-red-900/40 rounded-full blur-[120px] animate-pulse" />
+                <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-green-900/30 rounded-full blur-[120px] animate-pulse delay-1000" />
+                <div className="absolute top-[30%] left-[40%] w-[30%] h-[30%] bg-gold/10 rounded-full blur-[100px] animate-pulse delay-500" />
             </div>
 
-            {/* Glowing Logo Background */}
-            <GlowingLogo className="absolute inset-0 z-0 opacity-80" fontSize={isMobile ? 100 : 250} />
+            <Snowfall />
 
-            {/* Main Content - Centered */}
-            <div className={`z-10 w-full max-w-4xl mx-auto px-4 flex flex-col items-center justify-center text-center relative transition-opacity duration-1000 ${showIntro ? 'opacity-0' : 'opacity-100'}`}>
+            {/* Glowing Logo */}
+            <GlowingLogo className="absolute inset-0 z-0 opacity-40 mix-blend-screen" fontSize={isMobile ? 100 : 250} />
 
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 fill-mode-forwards w-full max-w-2xl">
-                    <div className="relative group cursor-default pt-20">
-                        {/* Title removed as it's in the background now */}
-                        <p className="text-lg md:text-xl text-gold/80 tracking-[0.3em] uppercase font-medium">
-                            Official Launch
-                        </p>
+            <div className="z-10 w-full max-w-4xl mx-auto px-4 flex flex-col items-center justify-center text-center relative py-12">
+
+                {/* Header */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 1 }}
+                    className="space-y-6 mb-12"
+                >
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-gold/30 bg-gold/5 backdrop-blur-md mb-4">
+                        <Snowflake className="w-4 h-4 text-gold animate-spin-slow" />
+                        <span className="text-xs font-bold tracking-widest text-gold uppercase">Christmas Drop 2025</span>
                     </div>
 
-                    <p className="text-neutral-400 text-lg max-w-md mx-auto leading-relaxed">
-                        Redefining Minimalism. Premium Thrift Store. Secure your spot on the guest list for our exclusive holiday drop.
+                    <h1 className="text-4xl md:text-7xl font-orbitron font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-white to-green-500 animate-gradient-x drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+                        COMING SOON
+                    </h1>
+
+                    <p className="text-neutral-400 text-lg max-w-lg mx-auto leading-relaxed">
+                        The store is currently locked. We are preparing something special for the holidays.
                     </p>
+                </motion.div>
 
-                    {/* Countdown */}
-                    <div className="flex justify-center gap-6 md:gap-8">
-                        {Object.entries(timeLeft).map(([unit, value]) => (
-                            <div key={unit} className="flex flex-col items-center group">
-                                <span className="text-3xl md:text-4xl font-bold text-white mb-1 font-mono group-hover:text-gold transition-colors duration-300">
-                                    {String(value).padStart(2, '0')}
-                                </span>
-                                <span className="text-[10px] text-neutral-600 uppercase tracking-widest">{unit}</span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Scarcity Counter */}
-                    <div className="max-w-md mx-auto bg-white/5 border border-white/10 p-4 rounded-xl backdrop-blur-sm hover:border-gold/30 transition-colors duration-300">
-                        <div className="flex justify-between items-end mb-2">
-                            <div className="flex items-center gap-2 text-gold">
-                                <Users className="w-4 h-4" />
-                                <span className="font-bold text-sm uppercase tracking-wider">Spots Claimed</span>
-                            </div>
-                            <span className="font-mono text-white font-bold w-16 text-right inline-block">
-                                {subscriberCount.toLocaleString()}
+                {/* Countdown */}
+                <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.2, duration: 0.8 }}
+                    className="flex justify-center gap-4 md:gap-8 mb-16"
+                >
+                    {Object.entries(timeLeft).map(([unit, value]) => (
+                        <div key={unit} className="flex flex-col items-center p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm min-w-[80px] md:min-w-[100px]">
+                            <span className="text-3xl md:text-5xl font-bold text-white mb-2 font-mono">
+                                {String(value).padStart(2, '0')}
                             </span>
+                            <span className="text-[10px] text-neutral-500 uppercase tracking-widest">{unit}</span>
                         </div>
-                        <p className="text-[10px] text-neutral-500 mt-2 text-right">
-                            Join the waitlist
-                        </p>
+                    ))}
+                </motion.div>
+
+
+                {/* Interactive Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
+
+                    {/* Access Form */}
+                    <div className="bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-xl">
+                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                            <Users className="w-5 h-5 text-gold" />
+                            Join Valid List
+                            <span className="text-xs ml-auto font-mono text-neutral-400">{subscriberCount.toLocaleString()} Waiting</span>
+                        </h3>
+
+                        {status === 'success' ? (
+                            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-center gap-3 text-green-400">
+                                <Check className="w-6 h-6" />
+                                <div className="text-left">
+                                    <p className="font-bold text-sm">You are on the list!</p>
+                                    <p className="text-xs opacity-80">We'll notify you when the drop goes live.</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleSubscribe} className="space-y-4">
+                                <Input
+                                    type="email"
+                                    placeholder="Enter your email"
+                                    className="bg-white/5 border-white/10 h-11 focus:border-gold/50"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                />
+                                <Button type="submit" disabled={status === 'loading'} className="w-full bg-white text-black hover:bg-gold font-bold h-11">
+                                    {status === 'loading' ? 'Checking List...' : 'Get Early Access'}
+                                </Button>
+                            </form>
+                        )}
                     </div>
 
-                    {/* Notify Form or Access Card */}
-                    <div className="max-w-md mx-auto w-full">
-                        <AnimatePresence mode="wait">
-                            {(status === 'success' || user) ? (
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
-                                    transition={{ duration: 0.5 }}
-                                >
-                                    <AccessCard email={user?.email || email} count={subscriberCount} />
-                                </motion.div>
-                            ) : (
-                                <motion.form
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    onSubmit={handleSubmit}
-                                    className="relative"
-                                >
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="Enter your email address"
-                                        className="w-full bg-white/5 border border-white/10 text-white pl-6 pr-32 py-4 rounded-full focus:outline-none focus:border-gold/50 focus:bg-white/10 transition-all placeholder:text-neutral-600"
-                                        required
-                                    />
-                                    <button
-                                        type="submit"
-                                        disabled={status === 'loading'}
-                                        className="absolute right-1.5 top-1.5 bottom-1.5 bg-white text-black font-bold px-6 rounded-full hover:bg-gold hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 group"
-                                    >
-                                        {status === 'loading' ? 'Processing...' : (
-                                            <>
-                                                Join <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                            </>
-                                        )}
-                                    </button>
-                                </motion.form>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                    {/* Wishes Section */}
+                    <div className="bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-xl flex flex-col h-[300px]">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <Sparkles className="w-5 h-5 text-red-500 shrink-0" />
+                                <span>Make your wishes, Santa can't - but maybe we can!</span>
+                            </h3>
+                            <div className="flex gap-1">
+                                <span className="w-2 h-2 rounded-full bg-red-500" />
+                                <span className="w-2 h-2 rounded-full bg-green-500" />
+                                <span className="w-2 h-2 rounded-full bg-gold" />
+                            </div>
+                        </div>
 
+                        {/* Recent Wishes Feed */}
+                        <ScrollArea className="flex-1 mb-4 pr-4 -mr-4">
+                            <div className="space-y-3">
+                                {wishesLoading ? (
+                                    <div className="text-center text-neutral-500 text-sm py-4">Loading wishes...</div>
+                                ) : wishes.length === 0 ? (
+                                    <div className="text-center text-neutral-500 text-sm py-4">Be the first to wish!</div>
+                                ) : (
+                                    wishes.map((w) => (
+                                        <div key={w.id} className="bg-white/5 border border-white/5 p-3 rounded-lg text-left animate-in fade-in slide-in-from-bottom-2">
+                                            <p className="text-sm text-neutral-300">{w.message}</p>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </ScrollArea>
+
+                        {/* Wish Input */}
+                        <form onSubmit={handleWishSubmit} className="relative mt-auto">
+                            <Input
+                                placeholder="Make a wish..."
+                                className="bg-white/5 border-white/10 pr-10 focus:border-red-500/50"
+                                value={wish}
+                                onChange={(e) => setWish(e.target.value)}
+                                maxLength={100}
+                            />
+                            <button
+                                type="submit"
+                                disabled={wishStatus === 'sending' || !wish.trim()}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white disabled:opacity-50"
+                            >
+                                {wishStatus === 'sent' ? <Check className="w-4 h-4 text-green-500" /> : <Send className="w-4 h-4" />}
+                            </button>
+                        </form>
+                    </div>
 
                 </div>
+
+                {/* Share Button */}
+                <button
+                    onClick={handleShare}
+                    className="mt-8 mx-auto flex items-center justify-center gap-2 text-neutral-400 hover:text-gold transition-colors py-2 px-6 rounded-full border border-white/10 bg-black/40 backdrop-blur-md hover:bg-white/10"
+                >
+                    <Share2 className="w-4 h-4" />
+                    Share the Spirit
+                </button>
+
             </div>
 
-            {/* Admin Access Link */}
-            <div className="absolute bottom-8 text-center w-full">
-                <a href="/auth" className="text-neutral-800 hover:text-neutral-600 text-xs uppercase tracking-widest transition-colors">
+            <ChristmasAudio />
+
+            {/* Admin Link */}
+            <div className="absolute bottom-4 text-center w-full z-20">
+                <a href="/auth" className="text-neutral-800 hover:text-neutral-600 text-[10px] uppercase tracking-widest transition-colors">
                     Admin Access
                 </a>
             </div>
         </div>
-
     );
 };
 

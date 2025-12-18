@@ -85,6 +85,7 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const targetDate = new Date('2025-12-25T00:00:00');
   const now = new Date();
   const isPreLaunch = now < targetDate;
+  // const isPreLaunch = false; // Disabled for SEO Indexing
   const isBypassed = localStorage.getItem('mtrix_bypass') === 'true';
 
   // Whitelisted paths that are always accessible

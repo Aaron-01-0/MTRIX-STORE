@@ -24,6 +24,7 @@ const SEO = ({
             {/* Basic */}
             <title>{siteTitle}</title>
             <meta name="description" content={description} />
+            <link rel="canonical" href={url} />
 
             {/* Open Graph */}
             <meta property="og:title" content={siteTitle} />
