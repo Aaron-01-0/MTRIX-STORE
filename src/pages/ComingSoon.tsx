@@ -129,6 +129,8 @@ const ComingSoon = () => {
 
     const [isMobile, setIsMobile] = useState(false);
 
+    const [name, setName] = useState('');
+
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
         checkMobile();
@@ -170,16 +172,31 @@ const ComingSoon = () => {
         }
     };
 
+    const containsExplicitContent = (text: string) => {
+        const explicitTerms = ['bad', 'ugly', 'hate', 'stupid', 'idiot', 'scam', 'fake']; // Placeholder list - expand as needed
+        const lowerText = text.toLowerCase();
+        return explicitTerms.some(term => lowerText.includes(term));
+    };
+
     const handleWishSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!wish.trim()) return;
+        if (!wish.trim() || !name.trim()) return;
+
+        if (containsExplicitContent(wish) || containsExplicitContent(name)) {
+            setWishStatus('error');
+            setTimeout(() => setWishStatus('idle'), 3000);
+            return; // Silent fail or show error? Using error status for now.
+        }
+
         setWishStatus('sending');
-        const res = await submitWish(wish);
+        // Pass name and email to submitWish
+        const res = await submitWish(wish, name, email);
         if (res.error) {
             setWishStatus('error');
         } else {
             setWishStatus('sent');
             setWish('');
+            // Optional: keep name or clear it? keep it for multiple wishes maybe.
             setTimeout(() => setWishStatus('idle'), 3000);
         }
     };
@@ -269,7 +286,7 @@ const ComingSoon = () => {
                                 <Check className="w-6 h-6" />
                                 <div className="text-left">
                                     <p className="font-bold text-sm">You are on the list!</p>
-                                    <p className="text-xs opacity-80">We'll notify you when the drop goes live.</p>
+                                    <p className="text-xs opacity-80">Wishes Unlocked. Make a wish!</p>
                                 </div>
                             </div>
                         ) : (
@@ -290,11 +307,11 @@ const ComingSoon = () => {
                     </div>
 
                     {/* Wishes Section */}
-                    <div className="bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-xl flex flex-col h-[300px]">
+                    <div className="bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-xl flex flex-col h-[350px]">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-white flex items-center gap-2">
                                 <Sparkles className="w-5 h-5 text-red-500 shrink-0" />
-                                <span>Make your wishes, Santa can't - but maybe we can!</span>
+                                <span>Make a Wish</span>
                             </h3>
                             <div className="flex gap-1">
                                 <span className="w-2 h-2 rounded-full bg-red-500" />
@@ -313,7 +330,10 @@ const ComingSoon = () => {
                                 ) : (
                                     wishes.map((w) => (
                                         <div key={w.id} className="bg-white/5 border border-white/5 p-3 rounded-lg text-left animate-in fade-in slide-in-from-bottom-2">
-                                            <p className="text-sm text-neutral-300">{w.message}</p>
+                                            <p className="text-sm text-neutral-300">
+                                                <span className="text-gold font-semibold mr-2">{w.name || 'Anonymous'}:</span>
+                                                {w.message}
+                                            </p>
                                         </div>
                                     ))
                                 )}
@@ -321,22 +341,41 @@ const ComingSoon = () => {
                         </ScrollArea>
 
                         {/* Wish Input */}
-                        <form onSubmit={handleWishSubmit} className="relative mt-auto">
-                            <Input
-                                placeholder="Make a wish..."
-                                className="bg-white/5 border-white/10 pr-10 focus:border-red-500/50"
-                                value={wish}
-                                onChange={(e) => setWish(e.target.value)}
-                                maxLength={100}
-                            />
-                            <button
-                                type="submit"
-                                disabled={wishStatus === 'sending' || !wish.trim()}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white disabled:opacity-50"
-                            >
-                                {wishStatus === 'sent' ? <Check className="w-4 h-4 text-green-500" /> : <Send className="w-4 h-4" />}
-                            </button>
-                        </form>
+                        <div className="relative mt-auto space-y-2">
+                            {status === 'success' ? (
+                                <form onSubmit={handleWishSubmit} className="space-y-2">
+                                    <Input
+                                        placeholder="Your Name"
+                                        className="bg-white/5 border-white/10 h-9 focus:border-red-500/50 text-sm"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        maxLength={30}
+                                        required
+                                    />
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Make a wish..."
+                                            className="bg-white/5 border-white/10 pr-10 focus:border-red-500/50 h-10"
+                                            value={wish}
+                                            onChange={(e) => setWish(e.target.value)}
+                                            maxLength={100}
+                                            required
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={wishStatus === 'sending' || !wish.trim() || !name.trim()}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white disabled:opacity-50"
+                                        >
+                                            {wishStatus === 'sent' ? <Check className="w-4 h-4 text-green-500" /> : <Send className="w-4 h-4" />}
+                                        </button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <div className="bg-white/5 border border-white/5 rounded-lg p-3 text-center">
+                                    <p className="text-xs text-neutral-400">Join the list above to unlock wishes</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                 </div>

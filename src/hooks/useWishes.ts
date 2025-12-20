@@ -6,6 +6,7 @@ export interface Wish {
     message: string;
     created_at: string;
     is_approved: boolean;
+    name?: string;
 }
 
 export const useWishes = () => {
@@ -34,7 +35,7 @@ export const useWishes = () => {
         try {
             const { data, error } = await supabase
                 .from('wishes')
-                .select('*')
+                .select('id, message, created_at, is_approved, name')
                 .eq('is_approved', true) // Default true in DB migration
                 .order('created_at', { ascending: false })
                 .limit(50); // Fetch last 50 wishes
@@ -48,14 +49,16 @@ export const useWishes = () => {
         }
     };
 
-    const submitWish = async (message: string) => {
+    const submitWish = async (message: string, name: string, email: string) => {
         try {
             // Check if message is empty
             if (!message.trim()) return { error: 'Message cannot be empty' };
+            if (!name.trim()) return { error: 'Name cannot be empty' };
+            if (!email.trim()) return { error: 'Email cannot be empty' };
 
             const { error } = await supabase
                 .from('wishes')
-                .insert([{ message }]);
+                .insert([{ message, name, email }]);
 
             if (error) throw error;
             return { success: true };
