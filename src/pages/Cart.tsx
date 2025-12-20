@@ -108,7 +108,9 @@ const Cart = () => {
       setAppliedPromo(data.code);
       toast({
         title: "Promo Code Applied!",
-        description: `${data.discount_type === 'percentage' ? data.discount_value + '%' : '₹' + data.discount_value} discount applied.`,
+        description: data.discount_type === 'free_shipping'
+          ? "Free Shipping applied!"
+          : `${data.discount_type === 'percentage' ? data.discount_value + '%' : '₹' + data.discount_value} discount applied.`,
       });
     } catch (error) {
       toast({
@@ -173,8 +175,6 @@ const Cart = () => {
       return sum + calculateBundlePrice(group.bundle, group.items);
     }, 0);
 
-  const shipping = subtotal >= shippingSettings.threshold ? 0 : shippingSettings.cost;
-
   const [couponData, setCouponData] = useState<any>(null);
 
   useEffect(() => {
@@ -190,6 +190,9 @@ const Cart = () => {
     }
   }, [appliedPromo]);
 
+  const isFreeShipping = couponData?.discount_type === 'free_shipping';
+  const shipping = (subtotal >= shippingSettings.threshold || isFreeShipping) ? 0 : shippingSettings.cost;
+
   const calculateDiscount = () => {
     if (!couponData) return 0;
     if (couponData.discount_type === 'percentage') {
@@ -197,8 +200,10 @@ const Cart = () => {
       return couponData.max_discount_amount
         ? Math.min(discount, couponData.max_discount_amount)
         : discount;
+    } else if (couponData.discount_type === 'fixed') {
+      return couponData.discount_value;
     }
-    return couponData.discount_value;
+    return 0;
   };
 
   const promoDiscount = calculateDiscount();

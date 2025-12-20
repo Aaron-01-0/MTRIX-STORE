@@ -204,8 +204,9 @@ const MyOrders = () => {
         ) : (
           <div className="grid gap-6">
             {orders.map((order, index) => {
-              const isRefunded = order.payment_status === 'refunded' || order.payment_status === 'failed';
-              const isCancelled = order.status === 'cancelled' || isRefunded;
+              const isRefunded = order.payment_status === 'refunded';
+              const isFailed = order.payment_status === 'failed';
+              const isCancelled = order.status === 'cancelled' || isRefunded || isFailed;
 
               return (
                 <motion.div
@@ -228,11 +229,12 @@ const MyOrders = () => {
                                 </h3>
                                 <Badge variant="outline" className={`
                                   ${isRefunded ? 'border-orange-500 text-orange-500 bg-orange-500/10' :
-                                    order.status === 'delivered' ? 'border-green-500 text-green-500 bg-green-500/10' :
-                                      order.status === 'cancelled' ? 'border-red-500 text-red-500 bg-red-500/10' :
-                                        'border-gold text-gold bg-gold/10'}
+                                    isFailed ? 'border-red-500 text-red-500 bg-red-500/10' :
+                                      order.status === 'delivered' ? 'border-green-500 text-green-500 bg-green-500/10' :
+                                        order.status === 'cancelled' ? 'border-red-500 text-red-500 bg-red-500/10' :
+                                          'border-gold text-gold bg-gold/10'}
                                 `}>
-                                  {isRefunded ? 'REFUNDED' : order.status.toUpperCase()}
+                                  {isRefunded ? 'REFUNDED' : isFailed ? 'PAYMENT FAILED' : order.status.toUpperCase()}
                                 </Badge>
                               </div>
                               <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -273,7 +275,12 @@ const MyOrders = () => {
                               <RefreshCcw className="w-3 h-3" /> Payment has been refunded. Order closed.
                             </div>
                           )}
-                          {!isRefunded && order.status === 'cancelled' && (
+                          {isFailed && (
+                            <div className="flex items-center gap-2 text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
+                              <AlertCircle className="w-3 h-3" /> Payment failed. Order cancelled.
+                            </div>
+                          )}
+                          {!isRefunded && !isFailed && order.status === 'cancelled' && (
                             <div className="flex items-center gap-2 text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
                               <AlertTriangle className="w-3 h-3" /> Order cancelled.
                             </div>

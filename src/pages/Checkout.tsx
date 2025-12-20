@@ -45,9 +45,59 @@ const Checkout = () => {
   });
 
   const [couponCode, setCouponCode] = useState<string | null>(null);
+  const [couponInput, setCouponInput] = useState(''); // New State for Input
   const [couponData, setCouponData] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isPolicyAccepted, setIsPolicyAccepted] = useState(false);
+  const [myRewards, setMyRewards] = useState<any[]>([]);
+  const [loadingRewards, setLoadingRewards] = useState(true);
+
+  // Sync Input with Applied Code
+  useEffect(() => {
+    if (couponCode) setCouponInput(couponCode);
+  }, [couponCode]);
+
+  // Fetch My Rewards
+  useEffect(() => {
+    if (!user) return;
+    const fetchRewards = async () => {
+      const { data, error } = await supabase
+        .from('user_rewards' as any) // Generic cast to bypass type check
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        setMyRewards(data);
+
+        // Auto Apply Logic: Find first unused, unexpired reward
+        const activeReward = data.find((r: any) => !r.is_used && new Date(r.expires_at) > new Date());
+
+        // Only auto-apply if no coupon code currently set (or if we want to force it)
+        if (activeReward && !location.state?.couponCode) {
+          setCouponCode(activeReward.code);
+          // Trigger coupon data fetch
+          supabase
+            .from('coupons')
+            .select('*')
+            .eq('code', activeReward.code)
+            .single()
+            .then(({ data: cData }) => {
+              if (cData) {
+                if (cData.usage_limit && cData.used_count >= cData.usage_limit) {
+                  // Limit check
+                } else {
+                  setCouponData(cData);
+                  toast({ title: "Reward Auto-Applied", description: `${activeReward.code} applied!` });
+                }
+              }
+            });
+        }
+      }
+      setLoadingRewards(false);
+    };
+    fetchRewards();
+  }, [user, location.state]);
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -64,31 +114,43 @@ const Checkout = () => {
     checkAdmin();
   }, [user]);
 
+  // Centralized Coupon Fetch
+  useEffect(() => {
+    if (!couponCode) {
+      setCouponData(null);
+      return;
+    }
+
+    // Avoid re-fetching if data is already correct (optional optimization, but simple fetch is safer)
+    if (couponData?.code === couponCode) return;
+
+    const fetchCoupon = async () => {
+      const { data } = await supabase.from('coupons').select('*').eq('code', couponCode).single();
+      if (data) {
+        if (data.usage_limit && data.used_count >= data.usage_limit) {
+          toast({ title: "Limit Reached", description: "This coupon is no longer valid.", variant: "destructive" });
+          setCouponCode(null);
+          setCouponData(null);
+        } else {
+          setCouponData(data);
+          // toast({ title: "Coupon Applied", description: `${data.code} applied!` }); // Can be annoying if auto-applied, maybe silent or distinctive
+        }
+      } else {
+        // If manual entry failed
+        if (couponCode) { // Only toast if code exists
+          toast({ title: "Invalid Code", description: "Coupon not found.", variant: "destructive" });
+          setCouponCode(null);
+          setCouponData(null);
+        }
+      }
+    }
+    fetchCoupon();
+  }, [couponCode]); // Removed couponData dependancy to avoid loops, handled inside
+
   useEffect(() => {
     if (location.state?.couponCode) {
       setCouponCode(location.state.couponCode);
-      // Fetch coupon details for display
-      supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', location.state.couponCode)
-        .single()
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            if (data.usage_limit && data.used_count >= data.usage_limit) {
-              toast({
-                title: "Coupon Limit Reached",
-                description: "The applied promo code has reached its usage limit and has been removed.",
-                variant: "destructive"
-              });
-              setCouponCode(null);
-              setCouponData(null);
-            } else {
-              setCouponData(data);
-            }
-          }
-        });
+      // Removed manual fetch
     }
   }, [location.state]);
 
@@ -269,7 +331,9 @@ const Checkout = () => {
 
   // --- Bundle Logic End ---
 
-  const shippingCost = subtotal >= shippingSettings.threshold ? 0 : shippingSettings.cost;
+  // Calc Shipping & Discount
+  const isFreeShipping = couponData?.discount_type === 'free_shipping';
+  const shippingCost = (subtotal >= shippingSettings.threshold || isFreeShipping) ? 0 : shippingSettings.cost;
 
   // Calculate discount for display
   let discountAmount = 0;
@@ -279,9 +343,10 @@ const Checkout = () => {
       discountAmount = couponData.max_discount_amount
         ? Math.min(discount, couponData.max_discount_amount)
         : discount;
-    } else {
+    } else if (couponData.discount_type === 'fixed') {
       discountAmount = couponData.discount_value;
     }
+    // For free_shipping, discountAmount remains 0 locally, but shipping becomes 0.
   }
 
   const totalAmount = Math.max(0, subtotal + shippingCost - discountAmount);
@@ -619,6 +684,68 @@ const Checkout = () => {
 
             {/* Right Column: Order Summary */}
             <div className="lg:col-span-1">
+
+              {/* My Rewards Section */}
+              <Card className="bg-mtrix-dark/50 border-mtrix-gray backdrop-blur-sm mb-6 border-gold/20">
+                <CardHeader className="pb-3 border-b border-white/5">
+                  <CardTitle className="text-lg font-orbitron font-bold text-gold flex items-center gap-2">
+                    <Tag className="w-4 h-4" /> My Rewards
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-3">
+                  {loadingRewards ? (
+                    <p className="text-xs text-muted-foreground animate-pulse">Loading rewards...</p>
+                  ) : myRewards.length > 0 ? (
+                    myRewards.map((reward: any) => {
+                      const isExpired = new Date(reward.expires_at) < new Date();
+                      const isUsed = reward.is_used;
+                      const isActive = !isExpired && !isUsed;
+
+                      return (
+                        <div
+                          key={reward.id}
+                          className={`p-3 rounded-md border text-sm flex justify-between items-center transition-all ${isActive
+                            ? 'bg-gold/5 border-gold/30 text-white cursor-pointer hover:bg-gold/10'
+                            : 'bg-black/20 border-white/5 text-gray-600 grayscale'
+                            }`}
+                          onClick={() => {
+                            if (isActive) {
+                              setCouponCode(reward.code);
+                              // Manually trigger fetch logic if needed, or rely on useEffect dependency
+                              toast({ title: "Applying Code", description: reward.code });
+                              // Force fetch logic
+                              supabase
+                                .from('coupons')
+                                .select('*')
+                                .eq('code', reward.code)
+                                .single()
+                                .then(({ data }) => {
+                                  if (data) setCouponData(data);
+                                });
+                            }
+                          }}
+                        >
+                          <div>
+                            <div className="font-bold font-mono tracking-wider">{reward.code}</div>
+                            <div className="text-[10px] mt-1 opacity-70">
+                              {isUsed ? 'Used' : isExpired ? 'Expired' : `Expires in ${Math.ceil((new Date(reward.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days`}
+                            </div>
+                          </div>
+                          {isActive && (
+                            couponCode === reward.code
+                              ? <Badge className="bg-gold text-black hover:bg-gold">Applied</Badge>
+                              : <span className="text-gold text-xs underline">Apply</span>
+                          )}
+                          {!isActive && <Badge variant="secondary" className="text-[10px]">{isUsed ? 'Redeemed' : 'Expired'}</Badge>}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No rewards yet. Spin the wheel!</p>
+                  )}
+                </CardContent>
+              </Card>
+
               <div className="sticky top-24 space-y-6">
                 <Card className="bg-mtrix-dark/50 border-mtrix-gray backdrop-blur-sm shadow-xl shadow-black/20">
                   <CardHeader className="border-b border-mtrix-gray/50 pb-4">
@@ -674,6 +801,26 @@ const Checkout = () => {
                     </div>
 
                     <Separator className="bg-mtrix-gray" />
+
+                    {/* Manual Coupon Input */}
+                    <div className="flex gap-2 py-2">
+                      <Input
+                        placeholder="Enter promo code"
+                        className="bg-mtrix-black border-mtrix-gray focus:border-gold uppercase"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                      />
+                      <Button
+                        variant="outline"
+                        className="border-gold text-gold hover:bg-gold hover:text-black"
+                        onClick={() => {
+                          if (couponInput) setCouponCode(couponInput);
+                        }}
+                        disabled={!couponInput || couponInput === couponCode}
+                      >
+                        Apply
+                      </Button>
+                    </div>
 
                     {/* Cost Breakdown */}
                     <div className="space-y-3">

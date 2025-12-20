@@ -80,7 +80,8 @@ serve(async (req) => {
             .from('invoices')
             .upload(fileName, pdfBuffer, {
                 contentType: 'application/pdf',
-                upsert: true
+                upsert: true,
+                cacheControl: '0'
             });
 
         if (uploadError) {

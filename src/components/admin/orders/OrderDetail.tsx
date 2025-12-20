@@ -35,7 +35,8 @@ import {
     Calendar,
     Loader2,
     ExternalLink,
-    Undo2
+    Undo2,
+    RefreshCcw
 } from "lucide-react";
 import { format } from 'date-fns';
 
@@ -262,6 +263,46 @@ const OrderDetail = () => {
 
     const [sendingEmail, setSendingEmail] = useState(false);
     const [printingInvoice, setPrintingInvoice] = useState(false);
+    const [regeneratingInvoice, setRegeneratingInvoice] = useState(false);
+
+    const handleRegenerateInvoice = async () => {
+        if (!order) return;
+        setRegeneratingInvoice(true);
+        try {
+            toast({
+                title: "Generating...",
+                description: "Regenerating invoice, please wait.",
+            });
+
+            const { data, error } = await supabase.functions.invoke('generate-invoice', {
+                body: { order_id: order.id }
+            });
+
+            if (error) throw error;
+
+            if (data?.url) {
+                const timestamp = new Date().getTime();
+                const urlWithCacheBust = `${data.url}?t=${timestamp}`;
+
+                toast({
+                    title: "Success",
+                    description: "Invoice regenerated. Opening now...",
+                });
+                window.open(urlWithCacheBust, '_blank');
+            } else {
+                throw new Error('No invoice URL returned');
+            }
+        } catch (error: any) {
+            console.error('Invoice regeneration error:', error);
+            toast({
+                title: "Generation Failed",
+                description: error.message || "Could not generate invoice.",
+                variant: "destructive"
+            });
+        } finally {
+            setRegeneratingInvoice(false);
+        }
+    };
 
     const handlePrintInvoice = async () => {
         if (!order) return;
@@ -417,6 +458,17 @@ const OrderDetail = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gold/10 text-white hover:text-mtrix-gold hover:border-mtrix-gold/50"
+                            onClick={handleRegenerateInvoice}
+                            disabled={regeneratingInvoice}
+                            title="Regenerate Invoice & Update Cache"
+                        >
+                            <RefreshCcw className={`h-4 w-4 mr-2 ${regeneratingInvoice ? 'animate-spin' : ''}`} />
+                            Regenerate
+                        </Button>
                         <Button
                             variant="outline"
                             size="sm"

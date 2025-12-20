@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Package, Truck, Eye, Calendar, MapPin, CreditCard, Download } from 'lucide-react';
+import { Package, Truck, Eye, Calendar, MapPin, CreditCard, Download, FileText, RefreshCcw } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { exportToCSV } from '@/utils/exportUtils';
 
@@ -37,6 +37,7 @@ interface Order {
   tracking_number?: string;
   tracking_url?: string;
   estimated_delivery_date?: string;
+  invoice_url?: string;
   profiles?: {
     full_name: string | null;
     email?: string; // Optional, might not exist in profiles
@@ -63,7 +64,7 @@ const OrderManager = () => {
     try {
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .select('id, order_number, total_amount, status, payment_status, created_at, shipping_address, user_id, tracking_number, tracking_url, estimated_delivery_date')
+        .select('id, order_number, total_amount, status, payment_status, created_at, shipping_address, user_id, tracking_number, tracking_url, estimated_delivery_date, invoice_url')
         .eq('id', orderId)
         .single();
 
@@ -134,7 +135,7 @@ const OrderManager = () => {
       // 1. Fetch Orders
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('id, order_number, total_amount, status, payment_status, created_at, shipping_address, user_id, tracking_number, tracking_url, estimated_delivery_date')
+        .select('id, order_number, total_amount, status, payment_status, created_at, shipping_address, user_id, tracking_number, tracking_url, estimated_delivery_date, invoice_url')
         .order('created_at', { ascending: false });
 
       if (ordersError) throw ordersError;
@@ -217,6 +218,48 @@ const OrderManager = () => {
     setSelectedOrder(order);
     fetchOrderItems(order.id);
     setShowDetailDialog(true);
+  };
+
+  const handleRegenerateInvoice = async (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      toast({
+        title: "Generating Invoice...",
+        description: "Please wait while we generate the invoice.",
+      });
+
+      const { data, error } = await supabase.functions.invoke('generate-invoice', {
+        body: { order_id: orderId }
+      });
+
+      if (error) throw error;
+
+      if (data?.url) {
+        // Update local state
+        const timestamp = new Date().getTime();
+        const urlWithCacheBust = `${data.url}?t=${timestamp}`;
+
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, invoice_url: urlWithCacheBust } : o));
+        if (selectedOrder?.id === orderId) {
+          setSelectedOrder(prev => prev ? { ...prev, invoice_url: urlWithCacheBust } : null);
+        }
+
+        toast({
+          title: "Invoice Generated",
+          description: "Invoice has been successfully generated.",
+        });
+
+        // Open it
+        window.open(urlWithCacheBust, '_blank');
+      }
+    } catch (error: any) {
+      console.error('Invoice generation error:', error);
+      toast({
+        title: "Generation Failed",
+        description: error.message || "Could not generate invoice.",
+        variant: "destructive"
+      });
+    }
   };
 
   const updateOrderStatus = async (orderId: string, status: string) => {
@@ -372,10 +415,6 @@ const OrderManager = () => {
     exportToCSV(exportData, `orders_export_${new Date().toISOString().split('T')[0]}`);
   };
 
-  if (loading) {
-    // ...
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -519,8 +558,31 @@ const OrderManager = () => {
         <DialogContent className="bg-mtrix-dark border-mtrix-gray max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Order #{selectedOrder?.order_number}</span>
-              <Badge variant="outline" className="ml-4">{selectedOrder?.status}</Badge>
+              <div className="flex items-center gap-4">
+                <span>Order #{selectedOrder?.order_number}</span>
+                <Badge variant="outline" className="ml-2">{selectedOrder?.status}</Badge>
+              </div>
+              <div className="flex gap-2">
+                {selectedOrder?.invoice_url && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 border-mtrix-gray hover:bg-white/10"
+                    onClick={() => window.open(selectedOrder.invoice_url, '_blank')}
+                  >
+                    <Download className="w-4 h-4 mr-2" /> Invoice
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20"
+                  onClick={(e) => selectedOrder && handleRegenerateInvoice(selectedOrder.id, e)}
+                  title="Regenerate Invoice"
+                >
+                  <RefreshCcw className="w-4 h-4" />
+                </Button>
+              </div>
             </DialogTitle>
           </DialogHeader>
 

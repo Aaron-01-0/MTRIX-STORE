@@ -96,7 +96,7 @@ serve(async (req) => {
 
         // Brand Info (Left)
         drawText('MTRIX', 50, headerY, 24, boldFont, goldColor);
-        drawText('Support: noa@mtrix.com', 50, headerY - 20, 10, font, grayColor);
+        drawText('Support: noa@mtrix.store', 50, headerY - 20, 10, font, grayColor);
 
         // Invoice Info (Right)
         const rightColX = 350;
@@ -114,6 +114,8 @@ serve(async (req) => {
             hour12: true
         });
 
+        const isPaid = ['paid', 'success'].includes(order.payment_status);
+
         const drawInfoRow = (label: string, value: string) => {
             drawText(`${label}:`, rightColX, infoY, 10, boldFont);
             drawText(value, rightColX + 100, infoY, 10, font);
@@ -123,8 +125,8 @@ serve(async (req) => {
         drawInfoRow('Invoice No', invoiceNumber);
         drawInfoRow('Invoice Date', orderDate);
         drawInfoRow('Order ID', order.order_number);
-        drawInfoRow('Payment Mode', 'Online'); // Assuming online for now
-        drawInfoRow('Status', order.payment_status === 'paid' ? 'Paid' : 'Pending');
+        drawInfoRow('Payment Mode', 'Online');
+        drawInfoRow('Status', isPaid ? 'Paid' : 'Pending');
         drawInfoRow('Place of Supply', order.shipping_address?.state || 'N/A');
         drawInfoRow('Channel', 'Website');
 
@@ -147,7 +149,7 @@ serve(async (req) => {
         let billY = sectionY - 20;
 
         const billLines = [
-            billingAddress.name || profile?.full_name || 'Valued Customer',
+            billingAddress.full_name || billingAddress.name || profile?.full_name || 'Valued Customer',
             billingAddress.phone || profile?.phone_number || 'N/A',
             billingAddress.email || email || 'N/A',
             `${billingAddress.address_line_1 || ''} ${billingAddress.address_line_2 || ''}`,
@@ -168,11 +170,12 @@ serve(async (req) => {
         const payY = billY - 30;
         drawText('PAYMENT DETAILS', 50, payY, 12, boldFont, goldColor);
 
-        drawText('Transaction ID: ' + (order.payment_id || 'N/A'), 50, payY - 20, 10, font);
+        const transactionId = order.razorpay_payment_id || order.payment_id || 'N/A';
+        drawText('Transaction ID: ' + transactionId, 50, payY - 20, 10, font);
         drawText('Gateway: Razorpay', 50, payY - 35, 10, font);
 
-        drawText('Status: ' + (order.payment_status === 'paid' ? 'Paid' : 'Pending'), 300, payY - 20, 10, font);
-        drawText('Paid On: ' + (order.payment_status === 'paid' ? orderDate : 'Pending'), 300, payY - 35, 10, font);
+        drawText('Status: ' + (isPaid ? 'Paid' : 'Pending'), 300, payY - 20, 10, font);
+        drawText('Paid On: ' + (isPaid ? orderDate : 'Pending'), 300, payY - 35, 10, font);
 
         // --- PRODUCT TABLE ---
         sectionY = payY - 60;
@@ -226,12 +229,22 @@ serve(async (req) => {
             footerY -= 20;
         };
 
-        const shippingCharges = 0; // Assuming free shipping for now
         const discount = Number(order.discount_amount) || 0;
-        const grandTotal = subtotal + shippingCharges - discount;
+        // Back-calculate shipping: Total + Discount - Subtotal
+        let shippingCharges = order.total_amount + discount - subtotal;
+        // Floating point safety check
+        if (shippingCharges < 0 || Math.abs(shippingCharges) < 0.01) shippingCharges = 0;
+
+        const grandTotal = order.total_amount;
 
         drawFooterRow('Subtotal:', `Rs. ${subtotal.toFixed(2)}`);
-        drawFooterRow('Discounts:', `-Rs. ${discount.toFixed(2)}`);
+
+        if (order.coupon_code) {
+            drawFooterRow(`Discount (${order.coupon_code}):`, `-Rs. ${discount.toFixed(2)}`);
+        } else {
+            drawFooterRow('Discounts:', `-Rs. ${discount.toFixed(2)}`);
+        }
+
         drawFooterRow('Shipping:', `Rs. ${shippingCharges.toFixed(2)}`);
         // Removed Tax Row
 
@@ -250,12 +263,17 @@ serve(async (req) => {
 
         // 6. Upload to Storage
         const fileName = `${order.order_number}.pdf`;
+
+        // Attempt to remove existing file to ensure clean write
+        await supabaseAdmin.storage.from('invoices').remove([fileName]);
+
         const { error: uploadError } = await supabaseAdmin
             .storage
             .from('invoices')
             .upload(fileName, pdfBytes, {
                 contentType: 'application/pdf',
-                upsert: true
+                upsert: true,
+                cacheControl: '0'
             });
 
         if (uploadError) throw uploadError;

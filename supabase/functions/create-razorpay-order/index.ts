@@ -183,6 +183,7 @@ serve(async (req) => {
     // --- COUPON LOGIC ---
     let discountAmount = 0;
     let appliedCouponCode = null;
+    let isFreeShipping = false;
 
     if (couponCode) {
       const { data: coupon, error: couponError } = await supabaseAdmin
@@ -211,8 +212,10 @@ serve(async (req) => {
               discount = Math.min(discount, coupon.max_discount_amount);
             }
             discountAmount = discount;
-          } else {
+          } else if (coupon.discount_type === 'fixed') {
             discountAmount = coupon.discount_value;
+          } else if (coupon.discount_type === 'free_shipping') {
+            isFreeShipping = true;
           }
           appliedCouponCode = couponCode;
         }
@@ -229,7 +232,7 @@ serve(async (req) => {
     const freeShippingThreshold = settingsData?.free_shipping_threshold ?? 499;
 
     // Calculate shipping
-    const shippingAmount = calculatedTotal >= freeShippingThreshold ? 0 : shippingCost;
+    const shippingAmount = (calculatedTotal >= freeShippingThreshold || isFreeShipping) ? 0 : shippingCost;
 
     // Final Calculation
     calculatedTotal = calculatedTotal + shippingAmount - discountAmount;

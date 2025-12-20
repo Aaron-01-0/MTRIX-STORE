@@ -76,6 +76,27 @@ serve(async (req) => {
 
         if (insertError) {
             console.log("Subscriber insert error (ignore if duplicate):", insertError);
+        } else {
+            // Trigger Welcome Email / Subscribe Launch
+            try {
+                // Construct Functions URL (Local vs Prod)
+                // SUPABASE_URL is like https://xyz.supabase.co
+                const functionsUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/subscribe-launch`;
+
+                console.log("Triggering welcome email to:", email);
+
+                fetch(functionsUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`
+                    },
+                    body: JSON.stringify({ email })
+                }).catch(err => console.error("Background email trigger failed:", err));
+
+            } catch (emailErr) {
+                console.error("Failed to init welcome email:", emailErr);
+            }
         }
 
         return new Response(JSON.stringify({ valid: true }), {

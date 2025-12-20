@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Package, CreditCard, Clock, Truck, MessageSquare, CheckCircle, ArrowRight, Download, XCircle, AlertTriangle, RefreshCcw, FileText } from 'lucide-react';
+import { MapPin, Package, CreditCard, Clock, Truck, MessageSquare, CheckCircle, ArrowRight, Download, XCircle, AlertTriangle, RefreshCcw, FileText, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import ProductReview from '@/components/ProductReview';
 import { Button } from '@/components/ui/button';
@@ -262,9 +262,9 @@ const OrderDetail = () => {
         description: "Invoice generated successfully",
       });
 
-      // Update local state immediately
+      // Update local state immediately with cache buster
       if (order) {
-        setOrder({ ...order, invoice_url: url });
+        setOrder({ ...order, invoice_url: `${url}?t=${Date.now()}` });
       }
     } catch (error: any) {
       console.error('Error generating invoice:', error);
@@ -295,8 +295,9 @@ const OrderDetail = () => {
     );
   }
 
-  const isRefunded = order.payment_status === 'refunded' || order.payment_status === 'failed';
-  const isCancelled = order.status === 'cancelled' || isRefunded; // Treat refunded as cancelled visually
+  const isRefunded = order.payment_status === 'refunded';
+  const isFailed = order.payment_status === 'failed';
+  const isCancelled = order.status === 'cancelled' || isRefunded || isFailed; // Treat refunded/failed as cancelled visually
 
   const getProgress = () => {
     if (!order) return 0;
@@ -333,6 +334,18 @@ const OrderDetail = () => {
               </h1>
               <p className="text-muted-foreground text-lg max-w-lg mx-auto">
                 The payment for order <span className="text-white font-mono">#{order.order_number}</span> has been refunded. This order is now closed.
+              </p>
+            </>
+          ) : isFailed ? (
+            <>
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-500/10 mb-4 border border-red-500/20 shadow-[0_0_30px_-5px_rgba(239,68,68,0.3)]">
+                <AlertCircle className="w-10 h-10 text-red-500" />
+              </div>
+              <h1 className="text-4xl md:text-5xl font-orbitron font-bold text-red-500">
+                Payment Failed
+              </h1>
+              <p className="text-muted-foreground text-lg max-w-lg mx-auto">
+                The payment for order <span className="text-white font-mono">#{order.order_number}</span> failed. This order has been cancelled.
               </p>
             </>
           ) : isCancelled ? (
@@ -397,22 +410,30 @@ const OrderDetail = () => {
             )}
 
             {!isCancelled && (
-              order.invoice_url ? (
-                <Button
-                  variant="outline"
-                  className="border-mtrix-gray hover:bg-mtrix-gray/20"
-                  onClick={() => window.open(order.invoice_url, '_blank')}
-                >
-                  <Download className="mr-2 w-4 h-4" /> Download Invoice
-                </Button>
-              ) : (
+              <>
+                {order.invoice_url && (
+                  <Button
+                    variant="outline"
+                    className="border-mtrix-gray hover:bg-mtrix-gray/20"
+                    onClick={() => {
+                      const url = order.invoice_url!.includes('?')
+                        ? `${order.invoice_url}&t=${Date.now()}`
+                        : `${order.invoice_url}?t=${Date.now()}`;
+                      window.open(url, '_blank');
+                    }}
+                  >
+                    <Download className="mr-2 w-4 h-4" /> Download
+                  </Button>
+                )}
                 <Button
                   onClick={handleGenerateInvoice}
-                  className="bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all"
+                  variant={order.invoice_url ? "ghost" : "default"}
+                  className={order.invoice_url ? "text-muted-foreground hover:text-white" : "bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all"}
+                  title="Regenerate Invoice"
                 >
-                  <FileText className="mr-2 w-4 h-4" /> Generate Invoice
+                  {order.invoice_url ? <RefreshCcw className="w-4 h-4" /> : <><FileText className="mr-2 w-4 h-4" /> Generate Invoice</>}
                 </Button>
-              )
+              </>
             )}
           </div>
         </div>

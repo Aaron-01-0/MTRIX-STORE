@@ -15,7 +15,7 @@ interface Coupon {
   id: string;
   code: string;
   description: string;
-  discount_type: 'percentage' | 'fixed';
+  discount_type: 'percentage' | 'fixed' | 'free_shipping';
   discount_value: number;
   min_order_value: number;
   max_discount_amount?: number;
@@ -34,7 +34,7 @@ const CouponManager = () => {
   const [formData, setFormData] = useState({
     code: '',
     description: '',
-    discount_type: 'percentage' as 'percentage' | 'fixed',
+    discount_type: 'percentage' as 'percentage' | 'fixed' | 'free_shipping',
     discount_value: 0,
     min_order_value: 0,
     max_discount_amount: undefined as number | undefined,
@@ -68,7 +68,7 @@ const CouponManager = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       const { error } = await supabase.from('coupons').insert({
         ...formData,
@@ -81,7 +81,7 @@ const CouponManager = () => {
         title: 'Success',
         description: 'Coupon created successfully'
       });
-      
+
       setOpen(false);
       setFormData({
         code: '',
@@ -111,7 +111,7 @@ const CouponManager = () => {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       toast({
         title: 'Success',
         description: `Coupon ${isActive ? 'activated' : 'deactivated'}`
@@ -130,7 +130,7 @@ const CouponManager = () => {
     try {
       const { error } = await supabase.from('coupons').delete().eq('id', id);
       if (error) throw error;
-      
+
       toast({
         title: 'Success',
         description: 'Coupon deleted'
@@ -186,7 +186,7 @@ const CouponManager = () => {
                   <Label>Discount Type</Label>
                   <Select
                     value={formData.discount_type}
-                    onValueChange={(value: 'percentage' | 'fixed') => setFormData({ ...formData, discount_type: value })}
+                    onValueChange={(value: 'percentage' | 'fixed' | 'free_shipping') => setFormData({ ...formData, discount_type: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -194,18 +194,21 @@ const CouponManager = () => {
                     <SelectContent>
                       <SelectItem value="percentage">Percentage</SelectItem>
                       <SelectItem value="fixed">Fixed Amount</SelectItem>
+                      <SelectItem value="free_shipping">Free Shipping</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Discount Value</Label>
-                  <Input
-                    type="number"
-                    value={formData.discount_value}
-                    onChange={(e) => setFormData({ ...formData, discount_value: Number(e.target.value) })}
-                    required
-                  />
-                </div>
+                {formData.discount_type !== 'free_shipping' && (
+                  <div>
+                    <Label>Discount Value</Label>
+                    <Input
+                      type="number"
+                      value={formData.discount_value}
+                      onChange={(e) => setFormData({ ...formData, discount_value: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
+                )}
                 <div>
                   <Label>Minimum Order Value</Label>
                   <Input
@@ -264,7 +267,12 @@ const CouponManager = () => {
                 <TableCell className="font-bold">{coupon.code}</TableCell>
                 <TableCell>{coupon.discount_type}</TableCell>
                 <TableCell>
-                  {coupon.discount_type === 'percentage' ? `${coupon.discount_value}%` : `₹${coupon.discount_value}`}
+                  {coupon.discount_type === 'free_shipping'
+                    ? <span className="text-gold">Free Shipping</span>
+                    : coupon.discount_type === 'percentage'
+                      ? `${coupon.discount_value}%`
+                      : `₹${coupon.discount_value}`
+                  }
                 </TableCell>
                 <TableCell>
                   {coupon.used_count}{coupon.usage_limit && `/${coupon.usage_limit}`}

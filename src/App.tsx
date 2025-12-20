@@ -22,15 +22,20 @@ import Profile from "./pages/Profile";
 import Wishlist from "./pages/Wishlist";
 import MyOrders from "./pages/MyOrders";
 import OrderDetail from "./pages/OrderDetail";
-
-
 import Categories from "./pages/Categories";
 import SubCategories from "./pages/SubCategories";
 import CategoryPage from "./pages/CategoryPage";
 import CommunityPage from "./pages/CommunityPage";
 import NotFound from "./pages/NotFound";
+import ComingSoon from "./pages/ComingSoon";
+import Arena from "./pages/Arena";
+import ArenaLobby from "./pages/ArenaLobby";
+import ArenaSubmit from "./pages/ArenaSubmit";
+import ArenaRules from "./pages/ArenaRules";
+import About from "./pages/About";
+import Onboarding from "./pages/onboarding/Onboarding"; // Imported Onboarding
 
-
+// Admin Imports
 import DropAdminLayout from "./layouts/DropAdminLayout";
 import DropDashboard from "./pages/admin/drop/DropDashboard";
 import DropEditor from "./pages/admin/drop/DropEditor";
@@ -43,7 +48,6 @@ import Privacy from "./pages/Privacy";
 import FAQ from "./pages/FAQ";
 import Cookies from "./pages/Cookies";
 
-// New Admin Imports
 import ReturnManager from "./components/admin/ReturnManager";
 import CommunityManager from "./components/admin/CommunityManager";
 import BundleManager from "./components/admin/BundleManager";
@@ -72,13 +76,6 @@ import AnnouncementBar from "./components/AnnouncementBar";
 
 const queryClient = new QueryClient();
 
-import ComingSoon from "./pages/ComingSoon";
-import Arena from "./pages/Arena";
-import ArenaLobby from "./pages/ArenaLobby";
-import ArenaSubmit from "./pages/ArenaSubmit";
-import ArenaRules from "./pages/ArenaRules";
-import About from "./pages/About";
-
 const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -91,6 +88,7 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   // Whitelisted paths that are always accessible
   const publicPaths = [
     '/auth',
+    '/onboarding', // Allow access so authenticated users can see it (LaunchGuard passes through, Onboarding checks user)
     '/shipping',
     '/terms',
     '/returns',
@@ -156,6 +154,7 @@ const App = () => (
               <Route path="/cart" element={<LaunchGuard><Cart /></LaunchGuard>} />
               <Route path="/checkout" element={<LaunchGuard><Checkout /></LaunchGuard>} />
               <Route path="/auth" element={<LaunchGuard><Auth /></LaunchGuard>} />
+              <Route path="/onboarding" element={<LaunchGuard><Onboarding /></LaunchGuard>} /> {/* Added Onboarding Route */}
               <Route path="/profile" element={<LaunchGuard><Profile /></LaunchGuard>} />
               <Route path="/wishlist" element={<LaunchGuard><Wishlist /></LaunchGuard>} />
               <Route path="/my-orders" element={<LaunchGuard><MyOrders /></LaunchGuard>} />
