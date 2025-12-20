@@ -21,7 +21,11 @@ export const useWishes = () => {
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wishes' }, (payload) => {
                 const newWish = payload.new as Wish;
                 if (newWish.is_approved) {
-                    setWishes(prev => [newWish, ...prev]);
+                    setWishes(prev => {
+                        // Prevent duplicates if optimistic update already added it
+                        if (prev.some(w => w.id === newWish.id)) return prev;
+                        return [newWish, ...prev];
+                    });
                 }
             })
             .subscribe();
@@ -56,11 +60,19 @@ export const useWishes = () => {
             if (!name.trim()) return { error: 'Name cannot be empty' };
             if (!email.trim()) return { error: 'Email cannot be empty' };
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('wishes')
-                .insert([{ message, name, email }]);
+                .insert([{ message, name, email }])
+                .select()
+                .single();
 
             if (error) throw error;
+
+            // Optimistic update
+            if (data && data.is_approved) {
+                setWishes(prev => [data as Wish, ...prev]);
+            }
+
             return { success: true };
         } catch (error) {
             console.error('Error submitting wish:', error);

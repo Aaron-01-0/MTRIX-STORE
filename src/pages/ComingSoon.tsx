@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWishes } from '@/hooks/useWishes';
 import { cn } from '@/lib/utils';
+import { validateEmailStrict } from '@/lib/email-validator';
 import { Users, ArrowRight, Check, Sparkles, Send, Snowflake, Share2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import GlowingLogo from '@/components/home/GlowingLogo';
@@ -16,7 +17,7 @@ const TARGET_DATE = new Date('2025-12-25T00:00:00');
 
 function calculateTimeLeft() {
     const difference = +TARGET_DATE - +new Date();
-    let timeLeft = {};
+    let timeLeft = { days: 0, hours: 0, minutes: 0, seconds: 0 };
 
     if (difference > 0) {
         timeLeft = {
@@ -29,8 +30,8 @@ function calculateTimeLeft() {
     return timeLeft;
 }
 
-// Snowfall Component
-const Snowfall = () => {
+// 1. Optimized Snowfall with requestAnimationFrame
+const Snowfall = memo(() => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -41,6 +42,7 @@ const Snowfall = () => {
 
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
+        let animationFrameId: number;
 
         const snowflakes: { x: number, y: number, r: number, d: number }[] = [];
         const maxSnowflakes = 100;
@@ -49,10 +51,12 @@ const Snowfall = () => {
             snowflakes.push({
                 x: Math.random() * width,
                 y: Math.random() * height,
-                r: Math.random() * 3 + 1, // radius
-                d: Math.random() // density (speed factor)
+                r: Math.random() * 3 + 1,
+                d: Math.random()
             });
         }
+
+        let angle = 0;
 
         function draw() {
             if (!ctx || !canvas) return;
@@ -66,19 +70,16 @@ const Snowfall = () => {
             }
             ctx.fill();
             move();
+            animationFrameId = requestAnimationFrame(draw);
         }
 
-        let angle = 0;
         function move() {
             angle += 0.01;
             for (let i = 0; i < maxSnowflakes; i++) {
                 const f = snowflakes[i];
-                // Gentle gravity with variation based on 'density'
                 f.y += f.d + 1 + f.r / 2;
-                // Swaying motion
                 f.x += Math.sin(angle + f.d) * 0.5;
 
-                // Reset if out of bounds
                 if (f.y > height) {
                     snowflakes[i] = { x: Math.random() * width, y: -10, r: f.r, d: f.d };
                 }
@@ -89,7 +90,7 @@ const Snowfall = () => {
             }
         }
 
-        const animationId = setInterval(draw, 33);
+        draw();
 
         const handleResize = () => {
             width = canvas.width = window.innerWidth;
@@ -98,22 +99,65 @@ const Snowfall = () => {
         window.addEventListener('resize', handleResize);
 
         return () => {
-            clearInterval(animationId);
+            cancelAnimationFrame(animationFrameId);
             window.removeEventListener('resize', handleResize);
         };
     }, []);
 
     return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />;
-};
+});
 
+// 2. Isolated Countdown Component
+const Countdown = memo(() => {
+    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    return (
+        <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
+            className="flex justify-center gap-4 md:gap-8 mb-16"
+        >
+            {Object.entries(timeLeft).map(([unit, value]) => (
+                <div key={unit} className="flex flex-col items-center p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm min-w-[80px] md:min-w-[100px]">
+                    <span className="text-3xl md:text-5xl font-bold text-white mb-2 font-mono">
+                        {String(value).padStart(2, '0')}
+                    </span>
+                    <span className="text-[10px] text-neutral-500 uppercase tracking-widest">{unit}</span>
+                </div>
+            ))}
+        </motion.div>
+    );
+});
 
 const ComingSoon = () => {
     const [email, setEmail] = useState('');
     const [wish, setWish] = useState('');
     const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [wishStatus, setWishStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
     const [showWishes, setShowWishes] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+
+    // OTP State
+    const [otpSent, setOtpSent] = useState(false);
+    const [otp, setOtp] = useState('');
+
+    useEffect(() => {
+        if (status === 'error' || errorMessage) {
+            const timer = setTimeout(() => {
+                setStatus('idle');
+                setErrorMessage('');
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [status, errorMessage]);
 
     // Wishes Hook
     const { wishes, loading: wishesLoading, submitWish } = useWishes();
@@ -128,7 +172,6 @@ const ComingSoon = () => {
     const subscriberCount = baseCount + realCount + fakeCount;
 
     const [isMobile, setIsMobile] = useState(false);
-
     const [name, setName] = useState('');
 
     useEffect(() => {
@@ -138,13 +181,9 @@ const ComingSoon = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setTimeLeft(calculateTimeLeft());
-        }, 1000);
-        return () => clearTimeout(timer);
-    });
-
+    // Optimized: Only fetch real count once, handle fake count in local interval but don't re-render parent if possible.
+    // Actually, subscriberCount usage means we MUST re-render. 
+    // But let's keep the interval logic simpler or memoize the heavy parts.
     useEffect(() => {
         localStorage.setItem('mtrix_fake_count', fakeCount.toString());
         const fetchCount = async () => {
@@ -160,20 +199,60 @@ const ComingSoon = () => {
     const handleSubscribe = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email) return;
+
+        // Strict Validation
+        const validation = validateEmailStrict(email);
+        if (!validation.valid) {
+            setErrorMessage(validation.error || 'Invalid email');
+            return;
+        }
+
         setStatus('loading');
         try {
-            const { error } = await supabase.from('launch_subscribers' as any).insert([{ email }]);
-            if (error && error.code !== '23505') throw error;
-            setStatus('success');
-            setRealCount(prev => prev + 1);
-        } catch (error) {
+            const { error } = await supabase.functions.invoke('send-otp', {
+                body: { email }
+            });
+
+            if (error) throw error;
+
+            setStatus('idle');
+            setOtpSent(true);
+        } catch (error: any) {
             console.error('Error:', error);
             setStatus('error');
+            setErrorMessage(error.message || 'Failed to send verification code.');
+        }
+    };
+
+    const handleVerifyOtp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!otp || otp.length < 6) return;
+
+        setStatus('loading');
+        try {
+            const { data, error } = await supabase.functions.invoke('verify-otp', {
+                body: { email, otp }
+            });
+
+            if (error) throw error;
+
+            if (!data.valid) {
+                setStatus('error');
+                setErrorMessage(data.message || 'Invalid code');
+                return;
+            }
+
+            setStatus('success');
+            setRealCount(prev => prev + 1);
+        } catch (error: any) {
+            console.error('Error:', error);
+            setStatus('error');
+            setErrorMessage(error.message || 'Verification failed.');
         }
     };
 
     const containsExplicitContent = (text: string) => {
-        const explicitTerms = ['bad', 'ugly', 'hate', 'stupid', 'idiot', 'scam', 'fake']; // Placeholder list - expand as needed
+        const explicitTerms = ['bad', 'ugly', 'hate', 'stupid', 'idiot', 'scam', 'fake'];
         const lowerText = text.toLowerCase();
         return explicitTerms.some(term => lowerText.includes(term));
     };
@@ -185,18 +264,16 @@ const ComingSoon = () => {
         if (containsExplicitContent(wish) || containsExplicitContent(name)) {
             setWishStatus('error');
             setTimeout(() => setWishStatus('idle'), 3000);
-            return; // Silent fail or show error? Using error status for now.
+            return;
         }
 
         setWishStatus('sending');
-        // Pass name and email to submitWish
         const res = await submitWish(wish, name, email);
         if (res.error) {
             setWishStatus('error');
         } else {
             setWishStatus('sent');
             setWish('');
-            // Optional: keep name or clear it? keep it for multiple wishes maybe.
             setTimeout(() => setWishStatus('idle'), 3000);
         }
     };
@@ -212,22 +289,19 @@ const ComingSoon = () => {
         }
     };
 
-
-
     return (
         <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-red-500/30">
-            {/* Background & Effects */}
-            <div className="absolute inset-0 bg-black">
-                {/* Christmas Gradients */}
-                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-red-900/40 rounded-full blur-[120px] animate-pulse" />
-                <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-green-900/30 rounded-full blur-[120px] animate-pulse delay-1000" />
-                <div className="absolute top-[30%] left-[40%] w-[30%] h-[30%] bg-gold/10 rounded-full blur-[100px] animate-pulse delay-500" />
+            {/* Background & Effects - Static / GPU accelerated */}
+            <div className="absolute inset-0 bg-black pointer-events-none">
+                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-red-900/40 rounded-full blur-[120px] animate-pulse will-change-transform" />
+                <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-green-900/30 rounded-full blur-[120px] animate-pulse delay-1000 will-change-transform" />
+                <div className="absolute top-[30%] left-[40%] w-[30%] h-[30%] bg-gold/10 rounded-full blur-[100px] animate-pulse delay-500 will-change-transform" />
             </div>
 
             <Snowfall />
 
             {/* Glowing Logo */}
-            <GlowingLogo className="absolute inset-0 z-0 opacity-40 mix-blend-screen" fontSize={isMobile ? 100 : 250} />
+            <GlowingLogo className="absolute inset-0 z-0 opacity-40 mix-blend-screen pointer-events-none" fontSize={isMobile ? 100 : 250} />
 
             <div className="z-10 w-full max-w-4xl mx-auto px-4 flex flex-col items-center justify-center text-center relative py-12">
 
@@ -252,32 +326,16 @@ const ComingSoon = () => {
                     </p>
                 </motion.div>
 
-                {/* Countdown */}
-                <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.2, duration: 0.8 }}
-                    className="flex justify-center gap-4 md:gap-8 mb-16"
-                >
-                    {Object.entries(timeLeft).map(([unit, value]) => (
-                        <div key={unit} className="flex flex-col items-center p-4 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm min-w-[80px] md:min-w-[100px]">
-                            <span className="text-3xl md:text-5xl font-bold text-white mb-2 font-mono">
-                                {String(value).padStart(2, '0')}
-                            </span>
-                            <span className="text-[10px] text-neutral-500 uppercase tracking-widest">{unit}</span>
-                        </div>
-                    ))}
-                </motion.div>
-
+                <Countdown />
 
                 {/* Interactive Section */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
 
                     {/* Access Form */}
-                    <div className="bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-xl">
+                    <div className="bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-xl relative">
                         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                             <Users className="w-5 h-5 text-gold" />
-                            Join Valid List
+                            {otpSent && status !== 'success' ? 'Verify Code' : 'Join Valid List'}
                             <span className="text-xs ml-auto font-mono text-neutral-400">{subscriberCount.toLocaleString()} Waiting</span>
                         </h3>
 
@@ -289,18 +347,77 @@ const ComingSoon = () => {
                                     <p className="text-xs opacity-80">Wishes Unlocked. Make a wish!</p>
                                 </div>
                             </div>
+                        ) : otpSent ? (
+                            <form onSubmit={handleVerifyOtp} className="space-y-4">
+                                <div className="space-y-2">
+                                    <p className="text-xs text-neutral-400 text-left">Code sent to {email}</p>
+                                    <Input
+                                        type="text"
+                                        placeholder="Enter 6-digit code"
+                                        className={cn(
+                                            "bg-white/5 border-white/10 h-11 focus:border-gold/50 transition-all duration-300 text-center tracking-[0.5em] text-lg font-mono",
+                                            errorMessage && "border-red-500/50 focus:border-red-500"
+                                        )}
+                                        value={otp}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                            setOtp(val);
+                                            if (errorMessage) setErrorMessage('');
+                                        }}
+                                        required
+                                    />
+                                    {errorMessage && (
+                                        <motion.p
+                                            initial={{ opacity: 0, y: -5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-red-400 text-xs pl-1 font-medium flex items-center gap-1"
+                                        >
+                                            <span className="w-1 h-1 rounded-full bg-red-400" />
+                                            {errorMessage}
+                                        </motion.p>
+                                    )}
+                                </div>
+                                <Button type="submit" disabled={status === 'loading' || otp.length < 6} className="w-full bg-white text-black hover:bg-gold font-bold h-11">
+                                    {status === 'loading' ? 'Verifying...' : 'Unlock Wishes'}
+                                </Button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setOtpSent(false); setOtp(''); }}
+                                    className="text-xs text-neutral-500 hover:text-white underline underline-offset-2"
+                                >
+                                    Change Email
+                                </button>
+                            </form>
                         ) : (
                             <form onSubmit={handleSubscribe} className="space-y-4">
-                                <Input
-                                    type="email"
-                                    placeholder="Enter your email"
-                                    className="bg-white/5 border-white/10 h-11 focus:border-gold/50"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                />
+                                <div className="space-y-2">
+                                    <Input
+                                        type="email"
+                                        placeholder="Enter your email"
+                                        className={cn(
+                                            "bg-white/5 border-white/10 h-11 focus:border-gold/50 transition-all duration-300",
+                                            errorMessage && "border-red-500/50 focus:border-red-500"
+                                        )}
+                                        value={email}
+                                        onChange={(e) => {
+                                            setEmail(e.target.value);
+                                            if (errorMessage) setErrorMessage('');
+                                        }}
+                                        required
+                                    />
+                                    {errorMessage && (
+                                        <motion.p
+                                            initial={{ opacity: 0, y: -5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-red-400 text-xs pl-1 font-medium flex items-center gap-1"
+                                        >
+                                            <span className="w-1 h-1 rounded-full bg-red-400" />
+                                            {errorMessage}
+                                        </motion.p>
+                                    )}
+                                </div>
                                 <Button type="submit" disabled={status === 'loading'} className="w-full bg-white text-black hover:bg-gold font-bold h-11">
-                                    {status === 'loading' ? 'Checking List...' : 'Get Early Access'}
+                                    {status === 'loading' ? 'Sending Code...' : 'Get Early Access'}
                                 </Button>
                             </form>
                         )}
@@ -372,7 +489,9 @@ const ComingSoon = () => {
                                 </form>
                             ) : (
                                 <div className="bg-white/5 border border-white/5 rounded-lg p-3 text-center">
-                                    <p className="text-xs text-neutral-400">Join the list above to unlock wishes</p>
+                                    <p className="text-xs text-neutral-400">
+                                        {otpSent ? 'Enter code to unlock wishes' : 'Join the list above to unlock wishes'}
+                                    </p>
                                 </div>
                             )}
                         </div>
