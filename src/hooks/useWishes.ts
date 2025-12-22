@@ -66,6 +66,12 @@ export const useWishes = () => {
             // Let's pass what we have.
             const nameToSave = name && name.trim() ? name : email;
 
+            // Manual check for existing wish to mimic upsert/idempotency
+            const existing = await checkWishByEmail(email);
+            if (existing.wish) {
+                return { success: true, wish: existing.wish };
+            }
+
             const { data, error } = await supabase
                 .from('wishes')
                 .insert([{ message, name: nameToSave, email } as any]) // Cast to any to assume email column exists/is handled
@@ -80,9 +86,9 @@ export const useWishes = () => {
             }
 
             return { success: true, wish: data };
-        } catch (error) {
-            console.error('Error submitting wish:', error);
-            return { error: 'Failed to submit wish' };
+        } catch (error: any) {
+            console.error('Error submitting wish:', JSON.stringify(error, null, 2));
+            return { error: error.message || 'Failed to submit wish' };
         }
     };
 
