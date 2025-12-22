@@ -139,7 +139,8 @@ const handler = async (req: Request): Promise<Response> => {
         }
 
         const customerName = order.user?.full_name || order.user?.name || (order.shipping_address as any)?.name || "Valued Customer";
-        const invoiceUrl = invoice.pdf_url;
+        const timestamp = new Date().getTime();
+        const invoiceUrl = `${invoice.pdf_url}?t=${timestamp}`;
         const invoiceNumber = invoice.invoice_number || `INV-${order.order_number}`;
         const orderDate = new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
         const paymentStatus = order.payment_status ? (order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)) : 'Pending';

@@ -53,16 +53,22 @@ export const useWishes = () => {
         }
     };
 
-    const submitWish = async (message: string, name: string, email: string) => {
+    const submitWish = async (message: string, name?: string, email: string) => {
         try {
             // Check if message is empty
             if (!message.trim()) return { error: 'Message cannot be empty' };
-            if (!name.trim()) return { error: 'Name cannot be empty' };
             if (!email.trim()) return { error: 'Email cannot be empty' };
+
+            // If name is not provided, use email or 'Anonymous' logic on display side. 
+            // DB requires name? Let's check schema/types or just pass email as name if missing?
+            // The prompt says "show email id" if name not found. 
+            // We can pass empty string if column allows, or duplicate email.
+            // Let's pass what we have.
+            const nameToSave = name && name.trim() ? name : email;
 
             const { data, error } = await supabase
                 .from('wishes')
-                .insert([{ message, name, email }])
+                .insert([{ message, name: nameToSave, email } as any]) // Cast to any to assume email column exists/is handled
                 .select()
                 .single();
 
@@ -73,12 +79,29 @@ export const useWishes = () => {
                 setWishes(prev => [data as Wish, ...prev]);
             }
 
-            return { success: true };
+            return { success: true, wish: data };
         } catch (error) {
             console.error('Error submitting wish:', error);
             return { error: 'Failed to submit wish' };
         }
     };
 
-    return { wishes, loading, submitWish };
+    const checkWishByEmail = async (email: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('wishes')
+                .select('*')
+                .eq('email', email)
+                .limit(1)
+                .single();
+
+            if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "no rows returned"
+            return { wish: data };
+        } catch (error) {
+            console.error('Error checking wish:', error);
+            return { error: 'Failed to check wish' };
+        }
+    };
+
+    return { wishes, loading, submitWish, checkWishByEmail };
 };

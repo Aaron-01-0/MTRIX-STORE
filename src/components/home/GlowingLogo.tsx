@@ -96,8 +96,8 @@ const GlowingLogo = ({ className, fontSize = 100 }: GlowingLogoProps) => {
             const pixels = textCtx.getImageData(0, 0, textCanvas.width, textCanvas.height).data;
 
             // Create particles from pixels
-            // Skip pixels for performance (step = 7) - Higher number = fewer particles = better performance
-            const step = 7;
+            // Skip pixels for performance (step = 12) - Higher number = fewer particles = better performance
+            const step = 12;
             for (let y = 0; y < textCanvas.height; y += step) {
                 for (let x = 0; x < textCanvas.width; x += step) {
                     const index = (y * textCanvas.width + x) * 4;

@@ -45,7 +45,7 @@ const Snowfall = memo(() => {
         let animationFrameId: number;
 
         const snowflakes: { x: number, y: number, r: number, d: number }[] = [];
-        const maxSnowflakes = 100;
+        const maxSnowflakes = 50; // Optimized from 100 for better performance
 
         for (let i = 0; i < maxSnowflakes; i++) {
             snowflakes.push({
@@ -138,116 +138,83 @@ const Countdown = memo(() => {
 });
 
 const ComingSoon = () => {
+    // Session & UI State
     const [email, setEmail] = useState('');
+    const [isAuthenticated, setIsAuthenticated] = useState(false); // If true, we know the email
+    const [activeTab, setActiveTab] = useState<'make-wish' | 'see-wishes'>('make-wish');
+
+    // Wish State
     const [wish, setWish] = useState('');
-    const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-    const [wishStatus, setWishStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-    const [showWishes, setShowWishes] = useState(false);
+    const [myWish, setMyWish] = useState<{ message: string, name: string } | null>(null);
+    const [status, setStatus] = useState<'idle' | 'checking' | 'sending' | 'success' | 'existing' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState('');
 
-    // OTP State
-    const [otpSent, setOtpSent] = useState(false);
-    const [otp, setOtp] = useState('');
-
-    useEffect(() => {
-        if (status === 'error' || errorMessage) {
-            const timer = setTimeout(() => {
-                setStatus('idle');
-                setErrorMessage('');
-            }, 3000);
-            return () => clearTimeout(timer);
-        }
-    }, [status, errorMessage]);
-
-    // Wishes Hook
-    const { wishes, loading: wishesLoading, submitWish } = useWishes();
-
-    // Counter State (Legacy logic)
-    const [baseCount] = useState(() => 1420 + Math.floor(Math.random() * 41));
-    const [realCount, setRealCount] = useState(0);
-    const [fakeCount, setFakeCount] = useState(() => {
-        const saved = localStorage.getItem('mtrix_fake_count');
-        return saved ? parseInt(saved, 10) : 0;
-    });
-    const subscriberCount = baseCount + realCount + fakeCount;
-
+    // Hooks
+    const { wishes, loading: wishesLoading, submitWish, checkWishByEmail } = useWishes();
     const [isMobile, setIsMobile] = useState(false);
-    const [name, setName] = useState('');
 
+    // Initial Load - Check Session
     useEffect(() => {
+        document.title = "MTRIX Christmas Drop | Coming Soon";
+
+        const savedEmail = sessionStorage.getItem('mtrix_user_email');
+        if (savedEmail) {
+            setEmail(savedEmail);
+            handleEmailCheck(savedEmail, true);
+        }
+
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
         checkMobile();
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Optimized: Only fetch real count once, handle fake count in local interval but don't re-render parent if possible.
-    // Actually, subscriberCount usage means we MUST re-render. 
-    // But let's keep the interval logic simpler or memoize the heavy parts.
-    useEffect(() => {
-        localStorage.setItem('mtrix_fake_count', fakeCount.toString());
-        const fetchCount = async () => {
-            const { count } = await supabase.from('launch_subscribers' as any).select('*', { count: 'exact', head: true });
-            if (count !== null) setRealCount(count);
-        };
-        fetchCount();
-        const fakeActivity = setInterval(() => { if (Math.random() > 0.4) setFakeCount(prev => prev + 1); }, 2000);
-        return () => clearInterval(fakeActivity);
-    }, []);
-
-
-    const handleSubscribe = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!email) return;
-
-        // Strict Validation
-        const validation = validateEmailStrict(email);
-        if (!validation.valid) {
-            setErrorMessage(validation.error || 'Invalid email');
+    const handleEmailCheck = async (emailToCheck: string = email, isAutoCheck = false) => {
+        if (!emailToCheck || !validateEmailStrict(emailToCheck).valid) {
+            if (!isAutoCheck) setErrorMessage('Please enter a valid email');
             return;
         }
 
-        setStatus('loading');
-        try {
-            const { error } = await supabase.functions.invoke('send-otp', {
-                body: { email }
-            });
+        setStatus('checking');
+        setErrorMessage('');
 
-            if (error) throw error;
+        const res = await checkWishByEmail(emailToCheck);
 
-            setStatus('idle');
-            setOtpSent(true);
-        } catch (error: any) {
-            console.error('Error:', error);
+        if (res.error) {
             setStatus('error');
-            setErrorMessage(error.message || 'Failed to send verification code.');
+            setErrorMessage('Something went wrong. Please try again.');
+        } else {
+            setIsAuthenticated(true);
+            sessionStorage.setItem('mtrix_user_email', emailToCheck);
+            if (res.wish) {
+                setMyWish(res.wish);
+                setStatus('existing');
+            } else {
+                setStatus('idle'); // Ready to make a wish
+            }
         }
     };
 
-    const handleVerifyOtp = async (e: React.FormEvent) => {
+    const handleWishSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!otp || otp.length < 6) return;
+        if (!wish.trim()) return;
 
-        setStatus('loading');
-        try {
-            const { data, error } = await supabase.functions.invoke('verify-otp', {
-                body: { email, otp }
-            });
+        if (containsExplicitContent(wish)) {
+            setErrorMessage("Let's keep it positive! ✨");
+            return;
+        }
 
-            if (error) throw error;
+        setStatus('sending');
+        // Use email as name if name input is removed as requested
+        const res = await submitWish(wish, email, email);
 
-            if (!data.valid) {
-                setStatus('error');
-                setErrorMessage(data.message || 'Invalid code');
-                return;
-            }
-
-            setStatus('success');
-            setRealCount(prev => prev + 1);
-        } catch (error: any) {
-            console.error('Error:', error);
+        if (res.error) {
             setStatus('error');
-            setErrorMessage(error.message || 'Verification failed.');
+            setErrorMessage(res.error);
+        } else {
+            setMyWish({ message: wish, name: email });
+            setStatus('success');
+            setWish('');
         }
     };
 
@@ -257,51 +224,37 @@ const ComingSoon = () => {
         return explicitTerms.some(term => lowerText.includes(term));
     };
 
-    const handleWishSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!wish.trim() || !name.trim()) return;
-
-        if (containsExplicitContent(wish) || containsExplicitContent(name)) {
-            setWishStatus('error');
-            setTimeout(() => setWishStatus('idle'), 3000);
-            return;
-        }
-
-        setWishStatus('sending');
-        const res = await submitWish(wish, name, email);
-        if (res.error) {
-            setWishStatus('error');
-        } else {
-            setWishStatus('sent');
-            setWish('');
-            setTimeout(() => setWishStatus('idle'), 3000);
-        }
-    };
-
     const handleShare = () => {
         const text = "I just made a wish for the Christmas Drop at mtrix.store 🎄✨ #MTRIX";
         const url = "https://mtrix.store";
-
-        if (navigator.share) {
-            navigator.share({ title: 'MTRIX Christmas', text, url }).catch(console.error);
-        } else {
-            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
-        }
+        if (navigator.share) navigator.share({ title: 'MTRIX Christmas', text, url }).catch(console.error);
+        else window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
     };
+
+    // Calculate time left (keep existing logic)
+    // ... (reusing existing Countdown component effectively by not touching it) ...
 
     return (
         <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center relative overflow-hidden font-sans selection:bg-red-500/30">
-            {/* Background & Effects - Static / GPU accelerated */}
+            {/* Background & Effects */}
             <div className="absolute inset-0 bg-black pointer-events-none">
-                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-red-900/40 rounded-full blur-[120px] animate-pulse will-change-transform" />
-                <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-green-900/30 rounded-full blur-[120px] animate-pulse delay-1000 will-change-transform" />
-                <div className="absolute top-[30%] left-[40%] w-[30%] h-[30%] bg-gold/10 rounded-full blur-[100px] animate-pulse delay-500 will-change-transform" />
+                <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-red-900/20 rounded-full blur-[100px]" />
+                <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-green-900/20 rounded-full blur-[100px]" />
+                <div className="absolute top-[30%] left-[40%] w-[30%] h-[30%] bg-gold/5 rounded-full blur-[80px]" />
             </div>
 
             <Snowfall />
 
             {/* Glowing Logo */}
-            <GlowingLogo className="absolute inset-0 z-0 opacity-40 mix-blend-screen pointer-events-none" fontSize={isMobile ? 100 : 250} />
+            {/* Glowing Logo - Constrained to prevent stretching */}
+            {/* Glowing Logo - Constrained to prevent stretching */}
+            <div
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[1000px] h-[500px] z-0 opacity-40 mix-blend-screen pointer-events-none"
+                role="img"
+                aria-label="MTRIX Glowing Logo"
+            >
+                <GlowingLogo className="w-full h-full" fontSize={isMobile ? 80 : 180} />
+            </div>
 
             <div className="z-10 w-full max-w-4xl mx-auto px-4 flex flex-col items-center justify-center text-center relative py-12">
 
@@ -322,189 +275,211 @@ const ComingSoon = () => {
                     </h1>
 
                     <p className="text-neutral-400 text-lg max-w-lg mx-auto leading-relaxed">
-                        The store is currently locked. We are preparing something special for the holidays.
+                        The store is currently locked. Make a wish to unlock the magic.
                     </p>
                 </motion.div>
 
                 <Countdown />
 
-                {/* Interactive Section */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
+                {/* Main Interaction Area */}
+                <div
+                    className={cn(
+                        "w-full bg-black/40 border border-white/10 rounded-2xl backdrop-blur-md overflow-hidden shadow-2xl transition-all duration-500 ease-in-out",
+                        activeTab === 'see-wishes' ? "max-w-5xl" : "max-w-md"
+                    )}
+                >
 
-                    {/* Access Form */}
-                    <div className="bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-xl relative">
-                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                            <Users className="w-5 h-5 text-gold" />
-                            {otpSent && status !== 'success' ? 'Verify Code' : 'Join Valid List'}
-                            <span className="text-xs ml-auto font-mono text-neutral-400">{subscriberCount.toLocaleString()} Waiting</span>
-                        </h3>
-
-                        {status === 'success' ? (
-                            <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-center gap-3 text-green-400">
-                                <Check className="w-6 h-6" />
-                                <div className="text-left">
-                                    <p className="font-bold text-sm">You are on the list!</p>
-                                    <p className="text-xs opacity-80">Wishes Unlocked. Make a wish!</p>
-                                </div>
-                            </div>
-                        ) : otpSent ? (
-                            <form onSubmit={handleVerifyOtp} className="space-y-4">
-                                <div className="space-y-2">
-                                    <p className="text-xs text-neutral-400 text-left">Code sent to {email}</p>
-                                    <Input
-                                        type="text"
-                                        placeholder="Enter 6-digit code"
-                                        className={cn(
-                                            "bg-white/5 border-white/10 h-11 focus:border-gold/50 transition-all duration-300 text-center tracking-[0.5em] text-lg font-mono",
-                                            errorMessage && "border-red-500/50 focus:border-red-500"
-                                        )}
-                                        value={otp}
-                                        onChange={(e) => {
-                                            const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                                            setOtp(val);
-                                            if (errorMessage) setErrorMessage('');
-                                        }}
-                                        required
-                                    />
-                                    {errorMessage && (
-                                        <motion.p
-                                            initial={{ opacity: 0, y: -5 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            className="text-red-400 text-xs pl-1 font-medium flex items-center gap-1"
-                                        >
-                                            <span className="w-1 h-1 rounded-full bg-red-400" />
-                                            {errorMessage}
-                                        </motion.p>
-                                    )}
-                                </div>
-                                <Button type="submit" disabled={status === 'loading' || otp.length < 6} className="w-full bg-white text-black hover:bg-gold font-bold h-11">
-                                    {status === 'loading' ? 'Verifying...' : 'Unlock Wishes'}
-                                </Button>
-                                <button
-                                    type="button"
-                                    onClick={() => { setOtpSent(false); setOtp(''); }}
-                                    className="text-xs text-neutral-500 hover:text-white underline underline-offset-2"
-                                >
-                                    Change Email
-                                </button>
-                            </form>
-                        ) : (
-                            <form onSubmit={handleSubscribe} className="space-y-4">
-                                <div className="space-y-2">
-                                    <Input
-                                        type="email"
-                                        placeholder="Enter your email"
-                                        className={cn(
-                                            "bg-white/5 border-white/10 h-11 focus:border-gold/50 transition-all duration-300",
-                                            errorMessage && "border-red-500/50 focus:border-red-500"
-                                        )}
-                                        value={email}
-                                        onChange={(e) => {
-                                            setEmail(e.target.value);
-                                            if (errorMessage) setErrorMessage('');
-                                        }}
-                                        required
-                                    />
-                                    {errorMessage && (
-                                        <motion.p
-                                            initial={{ opacity: 0, y: -5 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            className="text-red-400 text-xs pl-1 font-medium flex items-center gap-1"
-                                        >
-                                            <span className="w-1 h-1 rounded-full bg-red-400" />
-                                            {errorMessage}
-                                        </motion.p>
-                                    )}
-                                </div>
-                                <Button type="submit" disabled={status === 'loading'} className="w-full bg-white text-black hover:bg-gold font-bold h-11">
-                                    {status === 'loading' ? 'Sending Code...' : 'Get Early Access'}
-                                </Button>
-                            </form>
-                        )}
-                    </div>
-
-                    {/* Wishes Section */}
-                    <div className="bg-black/40 border border-white/10 p-6 rounded-2xl backdrop-blur-xl flex flex-col h-[350px]">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 text-red-500 shrink-0" />
-                                <span>Make a Wish</span>
-                            </h3>
-                            <div className="flex gap-1">
-                                <span className="w-2 h-2 rounded-full bg-red-500" />
-                                <span className="w-2 h-2 rounded-full bg-green-500" />
-                                <span className="w-2 h-2 rounded-full bg-gold" />
-                            </div>
-                        </div>
-
-                        {/* Recent Wishes Feed */}
-                        <ScrollArea className="flex-1 mb-4 pr-4 -mr-4">
-                            <div className="space-y-3">
-                                {wishesLoading ? (
-                                    <div className="text-center text-neutral-500 text-sm py-4">Loading wishes...</div>
-                                ) : wishes.length === 0 ? (
-                                    <div className="text-center text-neutral-500 text-sm py-4">Be the first to wish!</div>
-                                ) : (
-                                    wishes.map((w) => (
-                                        <div key={w.id} className="bg-white/5 border border-white/5 p-3 rounded-lg text-left animate-in fade-in slide-in-from-bottom-2">
-                                            <p className="text-sm text-neutral-300">
-                                                <span className="text-gold font-semibold mr-2">{w.name || 'Anonymous'}:</span>
-                                                {w.message}
-                                            </p>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </ScrollArea>
-
-                        {/* Wish Input */}
-                        <div className="relative mt-auto space-y-2">
-                            {status === 'success' ? (
-                                <form onSubmit={handleWishSubmit} className="space-y-2">
-                                    <Input
-                                        placeholder="Your Name"
-                                        className="bg-white/5 border-white/10 h-9 focus:border-red-500/50 text-sm"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        maxLength={30}
-                                        required
-                                    />
-                                    <div className="relative">
-                                        <Input
-                                            placeholder="Make a wish..."
-                                            className="bg-white/5 border-white/10 pr-10 focus:border-red-500/50 h-10"
-                                            value={wish}
-                                            onChange={(e) => setWish(e.target.value)}
-                                            maxLength={100}
-                                            required
-                                        />
-                                        <button
-                                            type="submit"
-                                            disabled={wishStatus === 'sending' || !wish.trim() || !name.trim()}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white disabled:opacity-50"
-                                        >
-                                            {wishStatus === 'sent' ? <Check className="w-4 h-4 text-green-500" /> : <Send className="w-4 h-4" />}
-                                        </button>
-                                    </div>
-                                </form>
-                            ) : (
-                                <div className="bg-white/5 border border-white/5 rounded-lg p-3 text-center">
-                                    <p className="text-xs text-neutral-400">
-                                        {otpSent ? 'Enter code to unlock wishes' : 'Join the list above to unlock wishes'}
-                                    </p>
-                                </div>
+                    {/* Tabs */}
+                    <div className="flex border-b border-white/10">
+                        <button
+                            onClick={() => setActiveTab('make-wish')}
+                            className={cn(
+                                "flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors relative",
+                                activeTab === 'make-wish' ? "text-white" : "text-neutral-500 hover:text-neutral-300"
                             )}
-                        </div>
+                        >
+                            Make a Wish
+                            {activeTab === 'make-wish' && <motion.div layoutId="tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-500 to-green-500" />}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('see-wishes')}
+                            className={cn(
+                                "flex-1 py-4 text-sm font-bold uppercase tracking-wider transition-colors relative",
+                                activeTab === 'see-wishes' ? "text-white" : "text-neutral-500 hover:text-neutral-300"
+                            )}
+                        >
+                            Community
+                            {activeTab === 'see-wishes' && <motion.div layoutId="tab-indicator" className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-500 to-green-500" />}
+                        </button>
                     </div>
 
+                    <div className="p-6 min-h-[300px] flex flex-col">
+                        <AnimatePresence mode="wait">
+                            {activeTab === 'make-wish' ? (
+                                <motion.div
+                                    key="make-wish"
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 20 }}
+                                    className="flex-1 flex flex-col"
+                                >
+                                    {!isAuthenticated ? (
+                                        <div className="flex flex-col gap-4 justify-center flex-1">
+                                            <div className="text-center space-y-2">
+                                                <h3 className="text-xl font-bold text-white">Identify Yourself</h3>
+                                                <p className="text-neutral-400 text-sm">Enter your email to make a wish or see your stats.</p>
+                                            </div>
+                                            <form onSubmit={(e) => { e.preventDefault(); handleEmailCheck(); }} className="space-y-4 mt-4">
+                                                <Input
+                                                    type="email"
+                                                    placeholder="Enter your email"
+                                                    className="bg-white/5 border-white/10 h-11 focus:border-gold/50 text-center"
+                                                    value={email}
+                                                    onChange={(e) => setEmail(e.target.value)}
+                                                    required
+                                                />
+                                                {errorMessage && <p className="text-red-400 text-xs text-center">{errorMessage}</p>}
+                                                <Button type="submit" disabled={status === 'checking'} className="w-full bg-white text-black hover:bg-gold font-bold h-11">
+                                                    {status === 'checking' ? 'Checking...' : 'Continue'}
+                                                </Button>
+                                            </form>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col flex-1">
+                                            {status === 'existing' || status === 'success' ? (
+                                                <div className="text-center space-y-6 animate-in fade-in zoom-in duration-500 flex-1 flex flex-col justify-center">
+                                                    <div className="w-16 h-16 bg-gold/10 rounded-full flex items-center justify-center mx-auto mb-2">
+                                                        <Sparkles className="w-8 h-8 text-gold animate-pulse" />
+                                                    </div>
+
+                                                    <div>
+                                                        <h3 className="text-2xl font-bold text-white mb-2">
+                                                            {status === 'success' ? 'Wish Granted!' : 'Wish Recorded'}
+                                                        </h3>
+                                                        <p className="text-neutral-400 text-sm mb-4">
+                                                            {status === 'success' ? 'Your wish has been cast into the Matrix.' : 'You have already made a wish.'}
+                                                        </p>
+                                                        <div className="bg-white/5 border border-white/10 p-4 rounded-xl italic text-gold/90">
+                                                            "{myWish?.message}"
+                                                        </div>
+                                                        <p className="text-xs text-neutral-500 mt-2">
+                                                            Identity: {email}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="bg-gradient-to-r from-red-900/20 to-green-900/20 border border-white/5 p-4 rounded-xl">
+                                                        <p className="text-sm font-medium text-white">
+                                                            "The magic you are looking for is in the work you're avoiding."
+                                                        </p>
+                                                        <p className="text-xs text-neutral-400 mt-1">- MTRIX Team</p>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col gap-4 flex-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                                            <Sparkles className="w-5 h-5 text-gold" />
+                                                            Make a Wish
+                                                        </h3>
+                                                        <span className="text-xs text-neutral-500">{email}</span>
+                                                    </div>
+
+                                                    <textarea
+                                                        className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder:text-neutral-500 focus:outline-none focus:border-gold/50 resize-none"
+                                                        placeholder="What do you wish for this Christmas?"
+                                                        value={wish}
+                                                        onChange={(e) => setWish(e.target.value)}
+                                                        maxLength={200}
+                                                    />
+
+                                                    {errorMessage && <p className="text-red-400 text-xs text-center">{errorMessage}</p>}
+
+                                                    <div className="mt-auto">
+                                                        <Button
+                                                            onClick={handleWishSubmit}
+                                                            disabled={status === 'sending' || !wish.trim()}
+                                                            className="w-full bg-gradient-to-r from-red-600 to-green-600 hover:from-red-500 hover:to-green-500 text-white font-bold h-11 border-none"
+                                                        >
+                                                            {status === 'sending' ? 'Sending to North Pole...' : 'Grant Wish'}
+                                                        </Button>
+                                                        <button onClick={() => { setIsAuthenticated(false); setErrorMessage(''); }} className="w-full text-xs text-neutral-500 hover:text-white py-2 mt-2">
+                                                            Not you? Change Email
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </motion.div>
+                            ) : (
+                                <motion.div
+                                    key="see-wishes"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    className="flex-1 flex flex-col h-full overflow-hidden"
+                                >
+                                    <h3 className="text-white font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-widest opacity-70">
+                                        <Users className="w-4 h-4" />
+                                        Community Wishes
+                                    </h3>
+                                    <ScrollArea className="flex-1 -mr-4 pr-4">
+                                        <div className="pb-4 columns-1 md:columns-3 lg:columns-4 gap-4 space-y-4">
+                                            {wishesLoading ? (
+                                                <div className="text-center text-neutral-500 text-sm py-8 col-span-full">Loading wishes...</div>
+                                            ) : wishes.length === 0 ? (
+                                                <div className="text-center text-neutral-500 text-sm py-8 col-span-full">No wishes yet. Be the first!</div>
+                                            ) : (
+                                                wishes.map((w, i) => {
+                                                    // Festive nuances: Cycle through subtle border colors
+                                                    const bColors = [
+                                                        'border-red-500/20 hover:border-red-500/40 bg-red-950/10',
+                                                        'border-green-500/20 hover:border-green-500/40 bg-green-950/10',
+                                                        'border-gold/20 hover:border-gold/40 bg-yellow-950/10'
+                                                    ];
+                                                    const styleClass = bColors[i % 3];
+
+                                                    return (
+                                                        <div
+                                                            key={w.id}
+                                                            className={`break-inside-avoid mb-4 border p-4 rounded-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-lg backdrop-blur-sm group ${styleClass}`}
+                                                        >
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <span className="text-[10px] text-neutral-500 font-mono opacity-50">
+                                                                    #{w.id.slice(0, 4)}
+                                                                </span>
+                                                                {i % 3 === 0 && <Snowflake className="w-3 h-3 text-white/20" />}
+                                                                {i % 3 === 1 && <Sparkles className="w-3 h-3 text-white/20" />}
+                                                            </div>
+                                                            <p className="text-neutral-200 text-sm mb-3 font-light leading-relaxed">
+                                                                "{w.message}"
+                                                            </p>
+                                                            <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-2">
+                                                                <span className="text-xs font-medium text-white/70">
+                                                                    {w.name && w.name !== w.email ? w.name : (w.email === email ? w.email : 'Anonymous')}
+                                                                </span>
+                                                                <span className="text-[10px] text-neutral-600">
+                                                                    {new Date(w.created_at).toLocaleDateString()}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </ScrollArea>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
 
                 {/* Share Button */}
                 <button
                     onClick={handleShare}
-                    className="mt-8 mx-auto flex items-center justify-center gap-2 text-neutral-400 hover:text-gold transition-colors py-2 px-6 rounded-full border border-white/10 bg-black/40 backdrop-blur-md hover:bg-white/10"
+                    className="mt-8 mx-auto flex items-center justify-center gap-2 text-neutral-400 hover:text-gold transition-colors py-2 px-6 rounded-full border border-white/10 bg-black/40 backdrop-blur-md hover:bg-white/10 group"
                 >
-                    <Share2 className="w-4 h-4" />
+                    <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
                     Share the Spirit
                 </button>
 
