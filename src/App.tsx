@@ -88,7 +88,6 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   // Whitelisted paths that are always accessible
   const publicPaths = [
     '/auth',
-    '/onboarding', // Allow access so authenticated users can see it (LaunchGuard passes through, Onboarding checks user)
     '/shipping',
     '/terms',
     '/returns',
@@ -100,6 +99,7 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   ];
 
   const isPublicPath = publicPaths.some(path => location.pathname.startsWith(path));
+  const isOnboardingPath = location.pathname.startsWith('/onboarding');
 
   // Check for OAuth redirect hash
   const isOAuthCallback = window.location.hash.includes('access_token') ||
@@ -117,7 +117,28 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
 
   if (loading || isOAuthCallback) return <div className="min-h-screen bg-black" />; // Prevent flash & allow OAuth to process
 
-  if (isPreLaunch && !isBypassed && !isPublicPath && !isAuthorizedUser) {
+  // GLOBAL ONBOARDING CHECK
+  // If user is logged in, NOT on onboarding, NOT on a public path, and hasn't completed onboarding -> Redirect
+  // We check 'profile?.has_completed_onboarding === false' explicitly
+  // Note: We need 'profile' from useAuth for this
+  const { profile } = useAuth();
+
+  if (user && !isOnboardingPath && !isPublicPath) {
+    // If we have profile data and know they haven't completed onboarding
+    if (profile && profile.has_completed_onboarding === false) {
+      return <Navigate to="/onboarding" replace />;
+    }
+    // If profile is still loading (it might be null briefly even if user component exists), we might want to wait
+    // But usually 'loading' from useAuth handles the initial session load.
+    // The profile fetch is async inside useAuth, so 'profile' might be null for a split second.
+    // Ideally useAuth should have a 'profileLoading' state, but for now this lazy check is okay or we can add a spinner.
+    if (!profile) {
+      // Optional: return <Loading /> or just let it pass until profile loads and triggers re-render
+      // Better to wait if we want to be strict
+    }
+  }
+
+  if (isPreLaunch && !isBypassed && !isPublicPath && !isAuthorizedUser && !isOnboardingPath) {
     return <Navigate to="/coming-soon" replace />;
   }
 

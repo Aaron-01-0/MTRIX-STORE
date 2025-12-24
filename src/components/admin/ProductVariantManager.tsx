@@ -117,6 +117,25 @@ export const ProductVariantManager = ({ productId, productSku, productName, base
     queryClient.invalidateQueries({ queryKey: ['variants', productId] });
   };
 
+  const generateSku = () => {
+    const base = productSku || productName?.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 6) || 'VAR';
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+
+    let attributesSuffix = '';
+    if (variantType === 'multi' && newVariant.attribute_json) {
+      // Append first 2 letters of each attribute value
+      Object.values(newVariant.attribute_json).forEach(val => {
+        if (typeof val === 'string') attributesSuffix += `-${val.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 3)}`;
+      });
+    } else {
+      if (newVariant.color) attributesSuffix += `-${newVariant.color.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 3)}`;
+      if (newVariant.size) attributesSuffix += `-${newVariant.size.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()}`;
+    }
+
+    setNewVariant(prev => ({ ...prev, sku: `${base}${attributesSuffix}-${random}` }));
+  };
+
+
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isNew: boolean = true, variantId?: string) => {
     const file = e.target.files?.[0];
