@@ -181,13 +181,16 @@ const Auth = () => {
   const onAuthSuccess = async () => {
     setIsSuccess(true);
 
+    // Get fresh user data directly from Supabase to avoid stale closure state
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+
     // Check if user has completed onboarding
     let hasCompleted = false;
-    if (user) {
+    if (currentUser) {
       const { data } = await supabase
         .from('profiles')
         .select('has_completed_onboarding')
-        .eq('id', user.id)
+        .eq('id', currentUser.id)
         .single();
       if (data?.has_completed_onboarding) hasCompleted = true;
     }
