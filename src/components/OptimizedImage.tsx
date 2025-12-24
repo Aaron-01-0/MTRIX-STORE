@@ -15,9 +15,24 @@ export const OptimizedImage = ({
     loading = "lazy",
     decoding = "async",
     aspectRatio = "auto",
+    width, // Optional width for resizing
     ...props
-}: OptimizedImageProps) => {
+}: OptimizedImageProps & { width?: number }) => {
     const [error, setError] = useState(false);
+
+    // Optimized URL Generator
+    // If it's a Supabase Storage URL, append transformation params
+    const getOptimizedUrl = (originalSrc: string, targetWidth?: number) => {
+        if (!originalSrc) return '';
+        if (originalSrc.includes('supabase.co/storage/v1/object/public') && targetWidth) {
+            // Check if query params already exist
+            const separator = originalSrc.includes('?') ? '&' : '?';
+            return `${originalSrc}${separator}width=${targetWidth}&resize=contain`;
+        }
+        return originalSrc;
+    };
+
+    const optimizedSrc = width ? getOptimizedUrl(src || '', width) : src;
 
     const aspectRatioClasses = {
         square: "aspect-square",
@@ -44,7 +59,7 @@ export const OptimizedImage = ({
 
     return (
         <img
-            src={src}
+            src={optimizedSrc}
             alt={alt}
             className={cn(
                 "object-cover w-full h-full",

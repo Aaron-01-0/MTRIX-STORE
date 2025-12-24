@@ -179,21 +179,34 @@ export const useCart = () => {
       return;
     }
 
+    // Optimistic Update
+    const tempId = `temp-${Date.now()}`;
+    const previousCart = [...cartItems];
+
+    // We can't easily mock the full product structure here without fetching, but for perceived speed
+    // we just want 'success' feedback immediately. 
+    // BUT 'useCart' exposes 'cartItems'. We should try to optimistically add it if possible.
+    // For now, let's just allow the Toast to show immediately and handle error later.
+
     try {
       // Validate stock availability
+      // Note: We skip validation for optimistic feeling, but actual insert will fail if no stock.
+      // Actually, keep validation for now but maybe make it faster or skip? 
+      // No, stock check is fast. The INSERT is slow.
+
       if (variantId) {
         const { data: variant, error: variantError } = await supabase
           .from('product_variants')
           .select('stock_quantity')
           .eq('id', variantId)
-          .single();
+          .maybeSingle();
 
         if (variantError) throw variantError;
 
-        if (variant.stock_quantity < quantity) {
+        if (!variant || variant.stock_quantity < quantity) {
           toast({
             title: "Insufficient Stock",
-            description: `Only ${variant.stock_quantity} units available`,
+            description: variant ? `Only ${variant.stock_quantity} units available` : "Variant not found",
             variant: "destructive"
           });
           return;
@@ -203,19 +216,25 @@ export const useCart = () => {
           .from('products')
           .select('stock_quantity')
           .eq('id', productId)
-          .single();
+          .maybeSingle();
 
         if (productError) throw productError;
 
-        if (product.stock_quantity < quantity) {
+        if (!product || product.stock_quantity < quantity) {
           toast({
             title: "Insufficient Stock",
-            description: `Only ${product.stock_quantity} units available`,
+            description: product ? `Only ${product.stock_quantity} units available` : "Product not found",
             variant: "destructive"
           });
           return;
         }
       }
+
+      // Optimistic UI for Toast: Show Success before await
+      toast({
+        title: "Adding to Cart...",
+        description: "Item is being added."
+      });
 
       if (bundleId) {
         await supabase.from('cart_items').insert({
@@ -241,6 +260,9 @@ export const useCart = () => {
         title: "Success",
         description: bundleId ? "Bundle item added" : "Item added to cart"
       });
+      // Trigger fetch to ensure ID and details are correct
+      fetchCartItems();
+
     } catch (error: any) {
       console.error('Error adding to cart:', error);
       toast({

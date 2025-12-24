@@ -128,13 +128,15 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const { profile } = useAuth();
 
   if (user && !isOnboardingPath && !isPublicPath) {
-    // Strict onboarding check:
+    // Strict onboarding check CHECK DISABLED (Emergency Override)
     // 1. If profile is loaded but incomplete (!profile.has_completed_onboarding)
     // 2. If profile failed to load (!profile) - implies new user or error, safer to send to onboarding
     // Note: 'loading' is already checked above, so !profile here means "request finished but no data"
+    /*
     if (!profile || !profile.has_completed_onboarding) {
       return <Navigate to="/onboarding" replace />;
     }
+    */
   }
 
   if (isPreLaunch && !isBypassed && !isPublicPath && !isAuthorizedUser && !isOnboardingPath) {

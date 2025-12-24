@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .from('profiles')
         .select('id, has_completed_onboarding')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       // Race the fetch against the timeout
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
