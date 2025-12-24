@@ -1,82 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tables } from '@/integrations/supabase/types';
 
-type Category = Tables<'categories'>;
+import { useCategories } from '@/hooks/useCategories';
 
 const SubCategories = () => {
     const { slug } = useParams();
     const navigate = useNavigate();
-    const [parentCategory, setParentCategory] = useState<Category | null>(null);
-    const [subcategories, setSubcategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { categories, loading } = useCategories();
+
+    // Derived state from cached categories
+    const parentCategory = categories.find(c => c.slug === slug) || null;
+    const subcategories = parentCategory
+        ? categories.filter(c => c.parent_id === parentCategory.id).sort((a, b) => a.name.localeCompare(b.name))
+        : [];
 
     useEffect(() => {
-        if (slug) {
-            loadContent();
+        if (!loading && !parentCategory && slug) {
+            console.error('Parent category not found');
+            navigate('/categories');
         }
-    }, [slug]);
+    }, [loading, parentCategory, slug, navigate]);
 
-    const loadContent = async () => {
-        setLoading(true);
-        try {
-            // 1. Fetch Parent Category
-            const { data: parent, error: parentError } = await supabase
-                .from('categories')
-                .select('*')
-                .eq('slug', slug)
-                .single();
+    // Ensure we don't render "not found" redirect inside the render loop, handled by effect above
+    // But we need to handle loading state
 
-            if (parentError || !parent) {
-                console.error('Parent category not found');
-                navigate('/categories');
-                return;
-            }
-
-            setParentCategory(parent);
-
-            // 2. Fetch Subcategories
-            const { data: children, error: childrenError } = await supabase
-                .from('categories')
-                .select('*')
-                .eq('parent_id', parent.id)
-                .eq('is_active', true)
-                .order('name');
-
-            if (childrenError) throw childrenError;
-
-            // Get product counts for each subcategory
-            const { data: productsData } = await supabase
-                .from('products')
-                .select('category_id')
-                .eq('is_active', true)
-                .in('category_id', children?.map(c => c.id) || []);
-
-            const productCounts = productsData?.reduce((acc: Record<string, number>, product) => {
-                if (product.category_id) {
-                    acc[product.category_id] = (acc[product.category_id] || 0) + 1;
-                }
-                return acc;
-            }, {}) || {};
-
-            const formattedChildren = children?.map(child => ({
-                ...child,
-                count: productCounts[child.id] || 0
-            })) || [];
-
-            setSubcategories(formattedChildren);
-
-        } catch (error) {
-            console.error('Error loading subcategories:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     return (
         <div className="min-h-screen bg-black text-white">

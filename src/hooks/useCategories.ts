@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface Category {
     id: string;
     name: string;
+    slug: string; // Added slug
     count: number;
     image_url?: string;
     description?: string;
@@ -39,10 +40,11 @@ export const useCategories = () => {
             }, {}) || {};
 
             const formattedCategories: Category[] = [
-                { id: 'all', name: 'All Categories', count: productsData?.length || 0, parent_id: null },
+                { id: 'all', name: 'All Categories', slug: 'all', count: productsData?.length || 0, parent_id: null },
                 ...(categoriesData?.map(cat => ({
                     id: cat.id,
                     name: cat.name,
+                    slug: cat.slug, // Map slug
                     count: productCounts[cat.id] || 0,
                     image_url: cat.image_url,
                     description: cat.description,

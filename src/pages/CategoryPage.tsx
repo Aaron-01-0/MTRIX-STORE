@@ -9,159 +9,51 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft } from 'lucide-react';
 import SEO from '@/components/SEO';
 import { OptimizedImage } from '@/components/OptimizedImage';
+import { useCategoryDetail } from '@/hooks/useCategoryDetail';
 
-type Category = Tables<'categories'>;
-// Extend the Product type to include the joined product_images
-interface Product extends Tables<'products'> {
-    product_images?: {
-        image_url: string;
-        is_main: boolean;
-        display_order: number;
-    }[];
-    image_url?: string | null;
-    ratings_avg?: number;
-    ratings_count?: number;
-}
+
 
 const CategoryPage = () => {
     const { slug } = useParams();
     const navigate = useNavigate();
-    const [category, setCategory] = useState<Category | null>(null);
-    const [parentCategory, setParentCategory] = useState<Category | null>(null);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [collectionType, setCollectionType] = useState<'category' | 'new' | 'bestsellers' | 'restocked'>('category');
 
-    useEffect(() => {
-        if (slug) {
-            loadContent();
-        }
-    }, [slug]);
+    const { category, products, parentCategory, loading } = useCategoryDetail(slug);
 
-    const loadContent = async () => {
-        setLoading(true);
-        try {
-            // Check for Special Collections first
-            if (['new-drop', 'bestsellers', 'back-in-stock'].includes(slug!)) {
-                await loadCollection(slug!);
-            } else {
-                await loadCategory(slug!);
-            }
-        } catch (error) {
-            console.error('Error loading content:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const isLoading = loading || !category;
 
-    const loadCollection = async (type: string) => {
-        let query = supabase.from('products').select('*').eq('status', 'published').eq('is_active', true);
-        let title = '';
-        let description = '';
-
-        if (type === 'new-drop') {
-            setCollectionType('new');
-            title = 'New Drops';
-            description = 'The latest heat, just landed.';
-            // Logic: Created in last 10 days OR tagged 'new-drop' OR is_new=true
-            const tenDaysAgo = new Date();
-            tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
-            query = query.or(`created_at.gte.${tenDaysAgo.toISOString()},is_new.eq.true,tags.cs.{new-drop}`);
-            query = query.order('created_at', { ascending: false });
-        } else if (type === 'bestsellers') {
-            setCollectionType('bestsellers');
-            title = 'Bestsellers';
-            description = 'Most wanted gear right now.';
-            query = query.eq('is_trending', true); // Using trending flag as proxy for bestsellers for now
-        } else if (type === 'back-in-stock') {
-            setCollectionType('restocked');
-            title = 'Back in Stock';
-            description = 'Secured the bag. Re-up now.';
-            // Logic: updated_at recently AND stock > 0 (simplified)
-            query = query.gt('stock_quantity', 0).order('updated_at', { ascending: false });
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        setCategory({
-            id: type,
-            name: title,
-            description: description,
-            slug: type,
-            image_url: null, // Could add static images for collections later
-            parent_id: null,
-            is_active: true,
-            created_at: '',
-            updated_at: '',
-            meta_title: title,
-            meta_description: description,
-            display_order: 0
-        });
-        setParentCategory(null);
-        setProducts(data || []);
-    };
-
-    const loadCategory = async (slug: string) => {
-        setCollectionType('category');
-        // 1. Get Category Details
-        const { data: cat, error: catError } = await supabase
-            .from('categories')
-            .select('*')
-            .eq('slug', slug)
-            .single();
-
-        if (catError || !cat) {
-            console.error('Category not found');
-            navigate('/catalog'); // Or handle gracefully
-            return;
-        }
-
-        setCategory(cat);
-
-        // 2. Get Parent Category if exists
-        if (cat.parent_id) {
-            const { data: parent } = await supabase
-                .from('categories')
-                .select('*')
-                .eq('id', cat.parent_id)
-                .single();
-            setParentCategory(parent);
-        } else {
-            setParentCategory(null);
-        }
-
-        // 3. Get Products (Directly in this category OR in its subcategories)
-        // First, find all subcategory IDs if this is a parent
-        const { data: subcats } = await supabase
-            .from('categories')
-            .select('id')
-            .eq('parent_id', cat.id);
-
-        const subcatIds = subcats?.map(sc => sc.id) || [];
-        const allCategoryIds = [cat.id, ...subcatIds];
-
-        const { data: prods, error: prodError } = await supabase
-            .from('products')
-            .select('*, product_images(image_url, is_main, display_order)')
-            .in('category_id', allCategoryIds)
-            .eq('status', 'published')
-            .eq('is_active', true)
-            .order('created_at', { ascending: false });
-
-        if (prodError) throw prodError;
-        setProducts(prods || []);
-    };
-
-    if (loading) {
+    if (isLoading) {
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="min-h-screen bg-black text-white">
+                <Navbar />
+                <main className="pb-20">
+                    <section className="relative pt-32 pb-20 px-6 overflow-hidden mb-12">
+                        <div className="container mx-auto text-center relative z-10">
+                            <div className="h-12 w-3/4 mx-auto bg-white/10 animate-pulse rounded-lg mb-6"></div>
+                            <div className="h-6 w-1/2 mx-auto bg-white/10 animate-pulse rounded-lg"></div>
+                        </div>
+                    </section>
+                    <div className="container mx-auto px-4 lg:px-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {[...Array(8)].map((_, i) => (
+                                <div key={i} className="aspect-[4/5] bg-white/5 animate-pulse rounded-xl border border-white/5" />
+                            ))}
+                        </div>
+                    </div>
+                </main>
+                <Footer />
             </div>
         );
     }
 
-    if (!category) return null;
+    if (!category) {
+        // Optional: Redirect or show Not Found
+        return (
+            <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+                <h1 className="text-4xl font-bold mb-4">Category Not Found</h1>
+                <Button onClick={() => navigate('/catalog')}>Return to Catalog</Button>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-black text-white selection:bg-primary/30 selection:text-primary">

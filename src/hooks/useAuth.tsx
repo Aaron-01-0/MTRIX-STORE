@@ -45,8 +45,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       // Create a promise that rejects after 5 seconds
+      // Create a promise that rejects after 2.5 seconds (reduced from 5s)
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000);
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 2500);
       });
 
       const fetchPromise = supabase
@@ -68,14 +69,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!error && data) {
         setProfile(data);
       } else {
-        console.error("Profile fetch error or empty:", error);
+        console.warn("Profile fetch error or empty (Fail-Open active):", error);
         setProfile(null);
       }
     } catch (err) {
       // Safety check before applying fail-open
       if (!mountedRef.current || currentUserIdRef.current !== userId) return;
 
-      console.error("Profile unexpected error/timeout:", err);
+      console.warn("Profile fetch timeout - Applying Fail-Open Strategy (User allowed):", err);
       // FAIL OPEN STRATEGY
       // If the DB times out or errors, do NOT block the user.
       // Assume they are an existing user and let them through.

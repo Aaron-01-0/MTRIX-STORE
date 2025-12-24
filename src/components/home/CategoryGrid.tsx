@@ -1,41 +1,18 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface Category {
-    id: string;
-    name: string;
-    image_url: string | null;
-}
+import { useCategories } from '@/hooks/useCategories';
 
 const CategoryGrid = () => {
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { categories: allCategories, loading } = useCategories();
 
-    useEffect(() => {
-        const fetchCategories = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('categories')
-                    .select('id, name, image_url')
-                    .eq('is_active', true)
-                    .limit(4);
-
-                if (error) throw error;
-                setCategories(data || []);
-            } catch (error) {
-                console.error('Error fetching categories:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchCategories();
-    }, []);
+    // Filter to show only top 4 main categories (ignoring 'all' and subcategories if needed)
+    // Assuming we want top-level categories.
+    const categories = allCategories
+        .filter(c => c.id !== 'all' && !c.parent_id)
+        .slice(0, 4);
 
     return (
         <section className="py-20 bg-mtrix-black">
@@ -64,7 +41,7 @@ const CategoryGrid = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {categories.map((category) => (
-                            <Link key={category.id} to={`/catalog?category=${category.id}`} className="group">
+                            <Link key={category.id} to={`/category/${category.slug}`} className="group">
                                 <Card className="bg-mtrix-dark border-mtrix-gray overflow-hidden h-[300px] relative transition-all duration-300 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/50">
                                     <div className="absolute inset-0">
                                         <img

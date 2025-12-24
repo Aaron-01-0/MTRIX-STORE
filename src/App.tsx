@@ -115,31 +115,26 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const authorizedEmails = ['raj00.mkv@gmail.com', 'admin.gamma@mtrix.store'];
   const isAuthorizedUser = userEmail && authorizedEmails.includes(userEmail);
 
-  if (loading || isOAuthCallback) return (
+  // BLOCKING LOADING STATE:
+  // Only show spinner if we strictly need to wait.
+  // We MUST wait if:
+  // 1. It is an OAuth callback (to prevent flash of login content)
+  // 2. It is a PRIVATE path and we don't know if user is logged in yet
+  if (isOAuthCallback || (loading && !isPublicPath)) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
     </div>
   ); // Prevent flash & allow OAuth to process
 
   // GLOBAL ONBOARDING CHECK
-  // If user is logged in, NOT on onboarding, NOT on a public path, and hasn't completed onboarding -> Redirect
-  // We check 'profile?.has_completed_onboarding === false' explicitly
-  // Note: We need 'profile' from useAuth for this
+  // ... existing onboarding logic ...
   const { profile } = useAuth();
 
-  if (user && !isOnboardingPath && !isPublicPath) {
-    // Strict onboarding check CHECK DISABLED (Emergency Override)
-    // 1. If profile is loaded but incomplete (!profile.has_completed_onboarding)
-    // 2. If profile failed to load (!profile) - implies new user or error, safer to send to onboarding
-    // Note: 'loading' is already checked above, so !profile here means "request finished but no data"
-    /*
-    if (!profile || !profile.has_completed_onboarding) {
-      return <Navigate to="/onboarding" replace />;
-    }
-    */
-  }
+  // Note: We deliberately don't block public paths on onboarding check either
+  // ...
 
   if (isPreLaunch && !isBypassed && !isPublicPath && !isAuthorizedUser && !isOnboardingPath) {
+    if (loading) return null; // Wait for auth if checking permissions
     return <Navigate to="/coming-soon" replace />;
   }
 
@@ -158,22 +153,22 @@ const App = () => (
               <Route path="/coming-soon" element={<ComingSoon />} />
               <Route path="/about" element={<About />} />
 
-              <Route path="/" element={<LaunchGuard><Index /></LaunchGuard>} />
-              <Route path="/catalog" element={<LaunchGuard><Catalog /></LaunchGuard>} />
-              <Route path="/drop" element={<LaunchGuard><Drop /></LaunchGuard>} />
+              <Route path="/" element={<Index />} />
+              <Route path="/catalog" element={<Catalog />} />
+              <Route path="/drop" element={<Drop />} />
               <Route path="/category/:slug" element={<CategoryPage />} />
               <Route path="/community" element={<CommunityPage />} />
               <Route path="/collections/:slug" element={<CategoryPage />} />
-              <Route path="/categories" element={<LaunchGuard><Categories /></LaunchGuard>} />
-              <Route path="/categories/:slug" element={<LaunchGuard><SubCategories /></LaunchGuard>} />
+              <Route path="/categories" element={<Categories />} />
+              <Route path="/categories/:slug" element={<SubCategories />} />
               <Route path="/bundles" element={<Bundles />} />
               <Route path="/bundle/:id" element={<BundleDetail />} />
-              <Route path="/promotions" element={<LaunchGuard><Promotions /></LaunchGuard>} />
-              <Route path="/support" element={<LaunchGuard><Support /></LaunchGuard>} />
-              <Route path="/product/:id" element={<LaunchGuard><Product /></LaunchGuard>} />
+              <Route path="/promotions" element={<Promotions />} />
+              <Route path="/support" element={<Support />} />
+              <Route path="/product/:id" element={<Product />} />
               <Route path="/cart" element={<LaunchGuard><Cart /></LaunchGuard>} />
               <Route path="/checkout" element={<LaunchGuard><Checkout /></LaunchGuard>} />
-              <Route path="/auth" element={<LaunchGuard><Auth /></LaunchGuard>} />
+              <Route path="/auth" element={<Auth />} />
               <Route path="/onboarding" element={<LaunchGuard><Onboarding /></LaunchGuard>} /> {/* Added Onboarding Route */}
               <Route path="/profile" element={<LaunchGuard><Profile /></LaunchGuard>} />
               <Route path="/wishlist" element={<LaunchGuard><Wishlist /></LaunchGuard>} />

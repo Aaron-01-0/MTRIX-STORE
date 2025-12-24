@@ -263,8 +263,36 @@ const Product = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-primary animate-spin"></div>
+      <div className="min-h-screen bg-black text-white font-inter">
+        <Navbar />
+        <main className="pt-24 pb-20">
+          <div className="container mx-auto px-4 lg:px-8">
+            {/* Skeleton Layout */}
+            <div className="h-6 w-48 bg-white/10 animate-pulse rounded mb-8"></div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+              {/* Left: Image Skeleton */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="aspect-square w-full rounded-2xl bg-white/5 animate-pulse border border-white/5"></div>
+                <div className="flex gap-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="w-20 h-20 rounded-lg bg-white/5 animate-pulse"></div>
+                  ))}
+                </div>
+              </div>
+              {/* Right: Details Skeleton */}
+              <div className="lg:col-span-5 space-y-8">
+                <div className="h-10 w-3/4 bg-white/10 animate-pulse rounded mb-4"></div>
+                <div className="h-6 w-1/3 bg-white/10 animate-pulse rounded mb-8"></div>
+                <div className="h-32 bg-white/5 animate-pulse rounded-2xl mb-8"></div>
+                <div className="space-y-4">
+                  <div className="h-12 w-full bg-white/10 animate-pulse rounded"></div>
+                  <div className="h-12 w-full bg-white/10 animate-pulse rounded"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
       </div>
     );
   }
