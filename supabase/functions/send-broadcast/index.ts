@@ -45,14 +45,21 @@ Deno.serve(async (req) => {
             // PRODUCTION MODE: Fetch Users based on Segment
             let rawData: { email: string }[] = [];
 
+            console.log(`Processing broadcast for segment: ${segment}`);
+
             if (segment === 'verified_users') {
                 // All Registered Users (Profiles)
                 const { data, error } = await supabase
                     .from('profiles')
                     .select('email')
                     .not('email', 'is', null);
-                if (error) throw error;
+
+                if (error) {
+                    console.error("Error fetching profiles:", error);
+                    throw error;
+                }
                 rawData = data || [];
+                console.log(`Found ${rawData.length} verified users`);
 
             } else if (segment === 'customers') {
                 // Users who have placed at least one order
@@ -60,18 +67,35 @@ Deno.serve(async (req) => {
                     .from('orders')
                     .select('user_id');
 
-                if (orderError) throw orderError;
+                if (orderError) {
+                    console.error("Error fetching orders:", orderError);
+                    throw orderError;
+                }
 
                 if (orderData && orderData.length > 0) {
                     const userIds = [...new Set(orderData.map(o => o.user_id))];
+                    console.log(`Found ${userIds.length} unique customers`);
+
                     const { data, error } = await supabase
                         .from('profiles')
                         .select('email')
-                        .in('user_id', userIds)
+                        .in('user_id', userIds) // Assuming user_id is the foreign key in profiles
                         .not('email', 'is', null);
 
-                    if (error) throw error;
-                    rawData = data || [];
+                    if (error) {
+                        // Fallback: Try querying by 'id' if 'user_id' fails or returns empty unexpectedly
+                        console.warn("Error fetching customer profiles with user_id, trying id...", error);
+                        const { data: retryData, error: retryError } = await supabase
+                            .from('profiles')
+                            .select('email')
+                            .in('id', userIds)
+                            .not('email', 'is', null);
+
+                        if (retryError) throw retryError;
+                        rawData = retryData || [];
+                    } else {
+                        rawData = data || [];
+                    }
                 }
 
             } else {
@@ -81,13 +105,18 @@ Deno.serve(async (req) => {
                     .select("email")
                     .eq("status", "subscribed");
 
-                if (error) throw error;
+                if (error) {
+                    console.error("Error fetching subscribers:", error);
+                    throw error;
+                }
                 rawData = data || [];
+                console.log(`Found ${rawData.length} subscribers`);
             }
 
             if (!rawData || rawData.length === 0) {
+                console.log("No recipients found.");
                 return new Response(JSON.stringify({ message: `No recipients found for segment: ${segment}` }), {
-                    status: 200, // Not an error, just 0 sent
+                    status: 200,
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
             }
@@ -95,6 +124,7 @@ Deno.serve(async (req) => {
             // Deduplicate and filter empty
             emails = [...new Set(rawData.map(r => r.email).filter(e => e && e.includes('@')))];
             recipientCount = emails.length;
+            console.log(`Final recipient count after dedupe: ${recipientCount}`);
         }
 
         // 2. Send emails (Batching)

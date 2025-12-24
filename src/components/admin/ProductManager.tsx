@@ -394,14 +394,22 @@ const ProductManager = () => {
       loadData();
     } catch (error: any) {
       if (error.code === '23503') {
-        const product = products.find(p => p.id === productId);
-        toast({
-          title: "Cannot Delete Product",
-          description: product?.status === 'archived'
-            ? "This product is part of existing orders and cannot be deleted. It is safely archived."
-            : "This product is part of existing orders and cannot be deleted. Please archive it instead.",
-          variant: "destructive"
-        });
+        // Auto-archive fallback
+        const { error: archiveError } = await supabase
+          .from('products')
+          .update({ status: 'archived', is_active: false })
+          .eq('id', productId);
+
+        if (archiveError) {
+          console.error('Error archiving product:', archiveError);
+          toast({ title: "Error", description: "Failed to delete or archive product.", variant: "destructive" });
+        } else {
+          toast({ 
+            title: "Product Archived", 
+            description: "Product could not be deleted due to existing orders, so it was archived instead." 
+          });
+          loadData();
+        }
       } else {
         toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
       }
