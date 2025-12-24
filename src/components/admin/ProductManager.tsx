@@ -145,20 +145,27 @@ const ProductManager = () => {
       loadData();
     } catch (error: any) {
       console.error('Error deleting products:', error);
-      if (error.code === '23503') {
-        const areArchived = Array.from(selectedProductIds).every(id =>
-          products.find(p => p.id === id)?.status === 'archived'
-        );
+      // Check for Foreign Key violation (23503) OR generic 409 (Conflict)
+      if (error.code === '23503' || error.status === 409) {
+        // Auto-archive fallback for bulk action
+        const { error: archiveError } = await supabase
+          .from('products')
+          .update({ status: 'archived', is_active: false })
+          .in('id', Array.from(selectedProductIds));
 
-        toast({
-          title: "Cannot Delete Products",
-          description: areArchived
-            ? "Some selected products are part of existing orders and cannot be deleted. They are safely archived."
-            : "Some selected products are part of existing orders and cannot be deleted. Please archive them instead to preserve order history.",
-          variant: "destructive"
-        });
+        if (archiveError) {
+          console.error('Error archiving products:', archiveError);
+          toast({ title: "Error", description: "Failed to delete or archive products.", variant: "destructive" });
+        } else {
+          toast({
+            title: "Products Archived",
+            description: "Some products could not be deleted due to existing orders (or network conflict), so all selected products were archived instead."
+          });
+          setSelectedProductIds(new Set());
+          loadData();
+        }
       } else {
-        toast({ title: "Error", description: "Failed to delete products.", variant: "destructive" });
+        toast({ title: "Error", description: `Failed to delete products: ${error.message || 'Unknown error'}`, variant: "destructive" });
       }
     } finally {
       setLoading(false);
@@ -393,7 +400,9 @@ const ProductManager = () => {
       toast({ title: "Success", description: "Product deleted." });
       loadData();
     } catch (error: any) {
-      if (error.code === '23503') {
+      console.error('Delete error:', error);
+      // Check for Foreign Key violation (23503) OR generic 409 (Conflict) which sometimes masks the violation
+      if (error.code === '23503' || error.status === 409) {
         // Auto-archive fallback
         const { error: archiveError } = await supabase
           .from('products')
@@ -404,14 +413,14 @@ const ProductManager = () => {
           console.error('Error archiving product:', archiveError);
           toast({ title: "Error", description: "Failed to delete or archive product.", variant: "destructive" });
         } else {
-          toast({ 
-            title: "Product Archived", 
-            description: "Product could not be deleted due to existing orders, so it was archived instead." 
+          toast({
+            title: "Product Archived",
+            description: "Product could not be deleted due to existing orders (or network conflict), so it was archived instead."
           });
           loadData();
         }
       } else {
-        toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
+        toast({ title: "Error", description: `Failed to delete: ${error.message || 'Unknown error'}`, variant: "destructive" });
       }
     }
   };
