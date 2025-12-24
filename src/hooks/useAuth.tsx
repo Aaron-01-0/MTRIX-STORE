@@ -27,6 +27,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper to fetch profile with timeout
+  const fetchProfile = async (userId: string) => {
+    try {
+      // Create a promise that rejects after 5 seconds
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000);
+      });
+
+      const fetchPromise = supabase
+        .from('profiles')
+        .select('id, has_completed_onboarding')
+        .eq('id', userId)
+        .single();
+
+      // Race the fetch against the timeout
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+
+      if (!error && data) {
+        setProfile(data);
+      } else {
+        console.error("Profile fetch error or empty:", error);
+        setProfile(null);
+      }
+    } catch (err) {
+      console.error("Profile unexpected error/timeout:", err);
+      // Fallback: profile null
+      setProfile(null);
+    }
+  };
+
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -35,12 +65,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          setProfile(data);
+          await fetchProfile(session.user.id);
         } else {
           setProfile(null);
         }
@@ -62,18 +87,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        setProfile(data);
+        await fetchProfile(session.user.id);
+      } else {
+        setProfile(null);
       }
 
+      // Force loading false after a max delay just in case everything above hangs
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // Safety valve: Force loading false after 6 seconds absolute max
+    // This ensures that even if DB/network totally hangs, the app unlocks.
+    const safetyTimer = setTimeout(() => setLoading(false), 6000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(safetyTimer);
+    };
   }, []);
 
   const signUp = async (email: string, password: string, userData: {
@@ -188,18 +218,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         p_entity_id: targetUser.id,
         p_details: { method, userAgent: navigator.userAgent }
       });
-
-      // 3. Trigger Security Alert (Fire and Forget)
-      // We don't await this because we don't want to block the UI
-      /* 
-      supabase.functions.invoke('send-login-alert', {
-        body: {
-          userAgent: navigator.userAgent,
-        }
-      }).then(({ error }) => {
-        if (error) console.error('Failed to send login alert:', error);
-      });
-      */
 
     } catch (error) {
       console.error('Failed to record login:', error);

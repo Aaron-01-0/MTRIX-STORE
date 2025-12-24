@@ -115,7 +115,11 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const authorizedEmails = ['raj00.mkv@gmail.com', 'admin.gamma@mtrix.store'];
   const isAuthorizedUser = userEmail && authorizedEmails.includes(userEmail);
 
-  if (loading || isOAuthCallback) return <div className="min-h-screen bg-black" />; // Prevent flash & allow OAuth to process
+  if (loading || isOAuthCallback) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+    </div>
+  ); // Prevent flash & allow OAuth to process
 
   // GLOBAL ONBOARDING CHECK
   // If user is logged in, NOT on onboarding, NOT on a public path, and hasn't completed onboarding -> Redirect
@@ -124,17 +128,12 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const { profile } = useAuth();
 
   if (user && !isOnboardingPath && !isPublicPath) {
-    // If we have profile data and know they haven't completed onboarding
-    if (profile && profile.has_completed_onboarding === false) {
+    // Strict onboarding check:
+    // 1. If profile is loaded but incomplete (!profile.has_completed_onboarding)
+    // 2. If profile failed to load (!profile) - implies new user or error, safer to send to onboarding
+    // Note: 'loading' is already checked above, so !profile here means "request finished but no data"
+    if (!profile || !profile.has_completed_onboarding) {
       return <Navigate to="/onboarding" replace />;
-    }
-    // If profile is still loading (it might be null briefly even if user component exists), we might want to wait
-    // But usually 'loading' from useAuth handles the initial session load.
-    // The profile fetch is async inside useAuth, so 'profile' might be null for a split second.
-    // Ideally useAuth should have a 'profileLoading' state, but for now this lazy check is okay or we can add a spinner.
-    if (!profile) {
-      // Optional: return <Loading /> or just let it pass until profile loads and triggers re-render
-      // Better to wait if we want to be strict
     }
   }
 

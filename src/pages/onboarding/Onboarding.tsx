@@ -23,7 +23,11 @@ const Onboarding = () => {
                 .single();
 
             if (data?.has_completed_onboarding) {
-                navigate('/', { replace: true });
+                // navigate('/', { replace: true }); 
+                // DISABLED TO PREVENT INFINITE LOOP WITH APP.TSX
+                // Instead, we can show a message or just let them re-do it?
+                // Or better, set a local state to show "You are already set up"
+                setStep('done' as any);
             }
         };
 
@@ -51,8 +55,24 @@ const Onboarding = () => {
             }).eq('id', user.id);
         }
 
-        navigate('/'); // Go to Dashboard/Home
+        // Force a page reload to clear any stale auth states if needed
+        window.location.href = '/';
     };
+
+    if (step === 'done' as any) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4">
+                <h1 className="text-2xl font-bold mb-4">You're all set!</h1>
+                <p className="mb-8 text-gray-400">You have already completed the onboarding.</p>
+                <button
+                    onClick={() => window.location.href = '/'}
+                    className="px-6 py-3 bg-primary text-black font-medium rounded-full hover:bg-white transition-colors"
+                >
+                    Go to Dashboard
+                </button>
+            </div>
+        );
+    }
 
     return (
         <>
