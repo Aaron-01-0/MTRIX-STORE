@@ -52,8 +52,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     } catch (err) {
       console.error("Profile unexpected error/timeout:", err);
-      // Fallback: profile null
-      setProfile(null);
+      // FAIL OPEN STRATEGY
+      // If the DB times out or errors, do NOT block the user.
+      // Assume they are an existing user and let them through.
+      // This prevents the infinite onboarding loop during high traffic.
+      setProfile({
+        id: userId,
+        has_completed_onboarding: true
+      });
     }
   };
 
