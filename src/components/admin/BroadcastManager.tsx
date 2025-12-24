@@ -11,9 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Send, Megaphone, History, Eye, Trash2 } from 'lucide-react';
+import { Loader2, Send, Megaphone, History, Eye, Trash2, PenTool } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { generateEmailHtml, EmailTemplateType, EmailTemplateData } from '@/lib/EmailTemplates';
+import EmailBuilder from './email-builder/EmailBuilder';
 
 type Announcement = Tables<'announcements'>;
 type Broadcast = Tables<'broadcasts'>;
@@ -30,6 +31,7 @@ const BroadcastManager = () => {
 
     // Broadcast State
     const [subject, setSubject] = useState('');
+    const [segment, setSegment] = useState('subscribers');
     const [broadcastHistory, setBroadcastHistory] = useState<Broadcast[]>([]);
 
     // Template State
@@ -44,6 +46,33 @@ const BroadcastManager = () => {
     const [customHtml, setCustomHtml] = useState('');
     const [previewHtml, setPreviewHtml] = useState('');
 
+    // Test Email State
+    const [isTestOpen, setIsTestOpen] = useState(false);
+    const [testEmail, setTestEmail] = useState('');
+
+    // ... existing code ...
+
+    const handleSendTest = async () => {
+        if (!testEmail) return;
+        setLoading(true);
+        try {
+            const finalContent = (templateType === 'custom' || templateType === 'builder') ? customHtml : generateEmailHtml(templateType, templateData);
+
+            const { error } = await supabase.functions.invoke('send-broadcast', {
+                body: { subject, content: finalContent, testEmail }
+            });
+
+            if (error) throw error;
+
+            toast({ title: "Success", description: `Test email sent to ${testEmail}` });
+            setIsTestOpen(false);
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchAnnouncement();
         fetchHistory();
@@ -55,6 +84,9 @@ const BroadcastManager = () => {
 
     const updatePreview = () => {
         if (templateType === 'custom') {
+            setPreviewHtml(customHtml);
+        } else if (templateType === 'builder') {
+            // Builder updates customHtml directly via onChange, and we use that for preview
             setPreviewHtml(customHtml);
         } else {
             setPreviewHtml(generateEmailHtml(templateType, templateData));
@@ -177,10 +209,11 @@ const BroadcastManager = () => {
 
         setLoading(true);
         try {
-            const finalContent = templateType === 'custom' ? customHtml : generateEmailHtml(templateType, templateData);
+            // For builder, we use customHtml which is updated via onChange
+            const finalContent = (templateType === 'custom' || templateType === 'builder') ? customHtml : generateEmailHtml(templateType, templateData);
 
             const { data, error } = await supabase.functions.invoke('send-broadcast', {
-                body: { subject, content: finalContent }
+                body: { subject, content: finalContent, segment }
             });
 
             if (error) throw error;
@@ -209,6 +242,7 @@ const BroadcastManager = () => {
                 <TabsList>
                     <TabsTrigger value="announcement">Site Banner</TabsTrigger>
                     <TabsTrigger value="email">Email Broadcast</TabsTrigger>
+                    <TabsTrigger value="automation">Automation Flows</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="announcement">
@@ -298,6 +332,20 @@ const BroadcastManager = () => {
                                 </CardHeader>
                                 <CardContent className="space-y-4">
                                     <div className="space-y-2">
+                                        <Label>Target Audience</Label>
+                                        <Select value={segment} onValueChange={setSegment}>
+                                            <SelectTrigger className="bg-black/20 border-white/10">
+                                                <SelectValue placeholder="Select audience" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="subscribers">Newsletter Subscribers (Launch List)</SelectItem>
+                                                <SelectItem value="verified_users">All Registered Users</SelectItem>
+                                                <SelectItem value="customers">Customers (Previous Orders)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
                                         <Label>Subject Line</Label>
                                         <Input
                                             value={subject}
@@ -309,7 +357,7 @@ const BroadcastManager = () => {
 
                                     <div className="space-y-2">
                                         <Label>Template</Label>
-                                        <Select defaultValue="minimal" onValueChange={(v) => setTemplateType(v as EmailTemplateType)}>
+                                        <Select defaultValue="minimal" value={templateType} onValueChange={(v) => setTemplateType(v as EmailTemplateType)}>
                                             <SelectTrigger className="bg-black/20 border-white/10">
                                                 <SelectValue placeholder="Select template" />
                                             </SelectTrigger>
@@ -317,12 +365,21 @@ const BroadcastManager = () => {
                                                 <SelectItem value="minimal">Minimal (Text Focus)</SelectItem>
                                                 <SelectItem value="showcase">Product Showcase (Image Focus)</SelectItem>
                                                 <SelectItem value="newsletter">Newsletter (Structured)</SelectItem>
+                                                <SelectItem value="builder">Visual Builder (Drag & Drop)</SelectItem>
                                                 <SelectItem value="custom">Custom HTML</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
 
-                                    {templateType === 'custom' ? (
+                                    {templateType === 'builder' ? (
+                                        <div className="mt-4 border-t border-white/10 pt-4">
+                                            <div className="flex items-center gap-2 mb-4 text-gold">
+                                                <PenTool className="w-4 h-4" />
+                                                <span className="font-bold text-sm">Visual Editor Mode</span>
+                                            </div>
+                                            <EmailBuilder onChange={setCustomHtml} />
+                                        </div>
+                                    ) : templateType === 'custom' ? (
                                         <div className="space-y-2">
                                             <Label>HTML Content</Label>
                                             <Textarea
@@ -384,10 +441,52 @@ const BroadcastManager = () => {
                                         </div>
                                     )}
 
-                                    <Button onClick={sendBroadcast} disabled={loading || !subject} className="w-full bg-primary text-black hover:bg-white mt-4">
-                                        {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                                        Send Broadcast
-                                    </Button>
+                                    <div className="flex gap-3 mt-4">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setIsTestOpen(true)}
+                                            disabled={loading || !subject}
+                                            className="flex-1 border-primary/50 text-primary hover:bg-primary/10"
+                                        >
+                                            <PenTool className="w-4 h-4 mr-2" /> Send Test
+                                        </Button>
+
+                                        <Button
+                                            onClick={sendBroadcast}
+                                            disabled={loading || !subject}
+                                            className="flex-1 bg-primary text-black hover:bg-white"
+                                        >
+                                            {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                                            Send to All
+                                        </Button>
+                                    </div>
+
+                                    <Dialog open={isTestOpen} onOpenChange={setIsTestOpen}>
+                                        <DialogContent className="bg-mtrix-black border-white/10 text-white sm:max-w-[400px]">
+                                            <DialogHeader>
+                                                <DialogTitle>Send Test Email</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="space-y-4 py-4">
+                                                <div className="space-y-2">
+                                                    <Label>Recipient Email</Label>
+                                                    <Input
+                                                        value={testEmail}
+                                                        onChange={(e) => setTestEmail(e.target.value)}
+                                                        placeholder="you@example.com"
+                                                        className="bg-white/5 border-white/10"
+                                                    />
+                                                </div>
+                                                <Button
+                                                    onClick={handleSendTest}
+                                                    disabled={loading || !testEmail}
+                                                    className="w-full bg-primary text-black"
+                                                >
+                                                    {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                                                    Send Test
+                                                </Button>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
                                 </CardContent>
                             </Card>
 
@@ -425,7 +524,7 @@ const BroadcastManager = () => {
                         </div>
 
                         {/* Live Preview */}
-                        <div className="space-y-6">
+                        <div className="space-y-6 hidden lg:block">
                             <Card className="bg-mtrix-dark border-mtrix-gray h-full flex flex-col">
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
@@ -445,8 +544,102 @@ const BroadcastManager = () => {
                         </div>
                     </div>
                 </TabsContent>
+
+                <TabsContent value="automation">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Welcome Email Card */}
+                        <Card className="bg-mtrix-dark border-mtrix-gray">
+                            <CardHeader>
+                                <CardTitle className="text-white flex items-center gap-2">
+                                    <span className="text-2xl">👋</span> Welcome Series
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <p className="text-sm text-muted-foreground">
+                                    Triggered when a new user signs up.
+                                </p>
+                                <div className="space-y-2">
+                                    <Label>Test Email</Label>
+                                    <Input
+                                        placeholder="test@example.com"
+                                        className="bg-black/20 border-white/10"
+                                        id="welcome-test-email"
+                                    />
+                                </div>
+                                <Button
+                                    className="w-full bg-white text-black hover:bg-white/90"
+                                    onClick={async () => {
+                                        const email = (document.getElementById('welcome-test-email') as HTMLInputElement).value;
+                                        if (!email) return toast({ title: "Error", description: "Enter email", variant: "destructive" });
+
+                                        setLoading(true);
+                                        try {
+                                            const { error } = await supabase.functions.invoke('send-welcome-email', {
+                                                body: { email, name: 'Test User' }
+                                            });
+                                            if (error) throw error;
+                                            toast({ title: "Success", description: "Welcome email sent!" });
+                                        } catch (e: any) {
+                                            toast({ title: "Error", description: e.message, variant: "destructive" });
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                    disabled={loading}
+                                >
+                                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Test Workflow"}
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        {/* Win-Back Card */}
+                        <Card className="bg-mtrix-dark border-mtrix-gray">
+                            <CardHeader>
+                                <CardTitle className="text-white flex items-center gap-2">
+                                    <span className="text-2xl">💔</span> Win-Back Campaign
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <p className="text-sm text-muted-foreground">
+                                    Triggered for users inactive for 60+ days.
+                                </p>
+                                <div className="space-y-2">
+                                    <Label>Test Email</Label>
+                                    <Input
+                                        placeholder="test@example.com"
+                                        className="bg-black/20 border-white/10"
+                                        id="winback-test-email"
+                                    />
+                                </div>
+                                <Button
+                                    className="w-full bg-white text-black hover:bg-white/90"
+                                    onClick={async () => {
+                                        const email = (document.getElementById('winback-test-email') as HTMLInputElement).value;
+                                        if (!email) return toast({ title: "Error", description: "Enter email", variant: "destructive" });
+
+                                        setLoading(true);
+                                        try {
+                                            const { error } = await supabase.functions.invoke('send-winback-campaign', {
+                                                body: { testEmail: email }
+                                            });
+                                            if (error) throw error;
+                                            toast({ title: "Success", description: "Win-back email sent!" });
+                                        } catch (e: any) {
+                                            toast({ title: "Error", description: e.message, variant: "destructive" });
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                    disabled={loading}
+                                >
+                                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Test Workflow"}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
             </Tabs>
-        </div>
+        </div >
     );
 };
 

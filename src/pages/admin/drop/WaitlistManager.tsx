@@ -64,7 +64,7 @@ const WaitlistManager = () => {
             const { data, error } = await query;
 
             if (error) throw error;
-            setEntries(data || []);
+            setEntries((data as unknown as WaitlistEntry[]) || []);
         } catch (error: any) {
             console.error('Error fetching waitlist:', error);
             toast({
@@ -78,11 +78,31 @@ const WaitlistManager = () => {
     };
 
     const handleNotify = async (id: string) => {
-        // Placeholder for notification logic
-        toast({
-            title: "Notification Sent",
-            description: "This feature is currently simulated.",
-        });
+        try {
+            setLoading(true);
+            const { data, error } = await supabase.functions.invoke('send-waitlist-notification', {
+                body: { waitlistId: id }
+            });
+
+            if (error) throw error;
+
+            toast({
+                title: "Notification Sent",
+                description: "User has been notified about the drop.",
+            });
+
+            // Update local state or refetch
+            setEntries(entries.map(e => e.id === id ? { ...e, status: 'notified' } : e));
+        } catch (error: any) {
+            console.error('Notification failed:', error);
+            toast({
+                title: "Error",
+                description: "Failed to send notification: " + error.message,
+                variant: "destructive"
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

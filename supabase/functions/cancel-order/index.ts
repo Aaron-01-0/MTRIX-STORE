@@ -96,6 +96,14 @@ serve(async (req) => {
             .update({ status: 'failed' })
             .eq('order_id', orderId);
 
+        // Restore Coupon Usage if applicable
+        if (order.coupon_code) {
+            await supabaseAdmin.rpc('restore_coupon_usage', {
+                p_code: order.coupon_code,
+                p_user_id: user.id
+            });
+        }
+
         return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200

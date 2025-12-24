@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Package, CreditCard, Clock, Truck, MessageSquare, CheckCircle, ArrowRight, Download, XCircle, AlertTriangle, RefreshCcw, FileText, AlertCircle } from 'lucide-react';
+import { MapPin, Package, CreditCard, Clock, Truck, MessageSquare, CheckCircle, ArrowRight, Download, XCircle, AlertTriangle, RefreshCcw, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import ProductReview from '@/components/ProductReview';
 import { Button } from '@/components/ui/button';
@@ -80,6 +80,7 @@ const OrderDetail = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [showReviewFor, setShowReviewFor] = useState<string | null>(null);
+  const [isResending, setIsResending] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -190,16 +191,19 @@ const OrderDetail = () => {
         return;
       }
 
+      // map to mutable object or any to avoid TS errors with strict Supabase types
+      const orderData = data as any;
+
       // Fetch product images
-      if (data.order_items) {
-        const productIds = data.order_items.map((item: any) => item.product_id);
+      if (orderData.order_items) {
+        const productIds = orderData.order_items.map((item: any) => item.product_id);
         const { data: images } = await supabase
           .from('product_images')
           .select('product_id, image_url')
           .in('product_id', productIds)
           .eq('is_main', true);
 
-        data.order_items = data.order_items.map((item: any) => ({
+        orderData.order_items = orderData.order_items.map((item: any) => ({
           ...item,
           products: {
             ...item.products,
@@ -209,18 +213,18 @@ const OrderDetail = () => {
       }
 
       // Map invoice URL
-      if (data.invoices && data.invoices.length > 0) {
+      if (orderData.invoices && orderData.invoices.length > 0) {
         // Handle array or single object depending on relationship
-        const invoice = Array.isArray(data.invoices) ? data.invoices[0] : data.invoices;
-        data.invoice_url = invoice.pdf_url;
-        data.invoice_number = invoice.invoice_number;
-      } else if (data.invoices && !Array.isArray(data.invoices)) {
+        const invoice = Array.isArray(orderData.invoices) ? orderData.invoices[0] : orderData.invoices;
+        orderData.invoice_url = invoice.pdf_url;
+        orderData.invoice_number = invoice.invoice_number;
+      } else if (orderData.invoices && !Array.isArray(orderData.invoices)) {
         // Handle single object case if maybeSingle returns it that way
-        data.invoice_url = data.invoices.pdf_url;
-        data.invoice_number = data.invoices.invoice_number;
+        orderData.invoice_url = orderData.invoices.pdf_url;
+        orderData.invoice_number = orderData.invoices.invoice_number;
       }
 
-      setOrder(data as Order);
+      setOrder(orderData as Order);
     } catch (error: any) {
       console.error('Error fetching order:', error);
       toast({
@@ -432,6 +436,47 @@ const OrderDetail = () => {
                   title="Regenerate Invoice"
                 >
                   {order.invoice_url ? <RefreshCcw className="w-4 h-4" /> : <><FileText className="mr-2 w-4 h-4" /> Generate Invoice</>}
+                </Button>
+
+                {/* Debugging: Resend Email Button */}
+                <Button
+                  onClick={async () => {
+                    setIsResending(true);
+                    toast({ title: "Sending Email...", description: "Triggering confirmation email..." });
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const { data, error } = await supabase.functions.invoke('send-order-confirmation', {
+                        body: { orderId: order.id },
+                        headers: {
+                          Authorization: `Bearer ${session?.access_token}`
+                        }
+                      });
+                      if (error) throw error;
+                      if (data?.error) {
+                        console.error("Edge Function returned error data:", data);
+                        throw new Error(typeof data.details === 'string' ? data.details : JSON.stringify(data));
+                      }
+
+                      toast({ title: "Email Sent!", description: "Check your inbox (and spam)." });
+                    } catch (e: any) {
+                      console.error("Email Error:", e);
+                      toast({
+                        title: "Email Failed",
+                        description: e.message,
+                        variant: "destructive"
+                      });
+                    } finally {
+                      setIsResending(false);
+                    }
+                  }}
+                  variant="outline"
+                  disabled={isResending}
+                  className="border-mtrix-gray hover:bg-mtrix-gray/20 text-white"
+                >
+                  <div className="flex items-center gap-2">
+                    {isResending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
+                    <span>{isResending ? 'Sending...' : 'Resend Email'}</span>
+                  </div>
                 </Button>
               </>
             )}

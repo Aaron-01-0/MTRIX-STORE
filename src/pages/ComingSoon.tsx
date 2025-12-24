@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useWishes } from '@/hooks/useWishes';
@@ -13,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import ChristmasAudio from '@/components/ChristmasAudio';
 
 // Target Date: Dec 25, 2025
-const TARGET_DATE = new Date('2025-12-25T00:00:00');
+const TARGET_DATE = new Date('2025-12-25T00:00:00+05:30');
 
 function calculateTimeLeft() {
     const difference = +TARGET_DATE - +new Date();
@@ -113,7 +114,20 @@ const Countdown = memo(() => {
 
     useEffect(() => {
         const timer = setInterval(() => {
-            setTimeLeft(calculateTimeLeft());
+            const time = calculateTimeLeft();
+            setTimeLeft(time);
+
+            // Auto reload when countdown finishes
+            if (time.days === 0 && time.hours === 0 && time.minutes === 0 && time.seconds === 0) {
+                // Double check the date to be sure (client side clock sync fallback)
+                const now = new Date();
+                if (now >= TARGET_DATE) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000); // 2 second delay to see the zeros
+                    clearInterval(timer);
+                }
+            }
         }, 1000);
         return () => clearInterval(timer);
     }, []);
@@ -152,10 +166,17 @@ const ComingSoon = () => {
     // Hooks
     const { wishes, loading: wishesLoading, submitWish, checkWishByEmail } = useWishes();
     const [isMobile, setIsMobile] = useState(false);
+    const navigate = useNavigate();
 
-    // Initial Load - Check Session
+    // Initial Load - Check Session & Redirect if Live
     useEffect(() => {
         document.title = "MTRIX Christmas Drop | Coming Soon";
+
+        // Check if launch has happened
+        if (new Date() >= TARGET_DATE) {
+            navigate('/', { replace: true });
+            return;
+        }
 
         const savedEmail = sessionStorage.getItem('mtrix_user_email');
         if (savedEmail) {
@@ -488,12 +509,23 @@ const ComingSoon = () => {
             <ChristmasAudio />
 
             {/* Admin Link */}
-            <div className="absolute bottom-4 text-center w-full z-20">
-                <a href="/auth" className="text-neutral-800 hover:text-neutral-600 text-[10px] uppercase tracking-widest transition-colors">
+            {/* Admin Link */}
+            <div className="absolute bottom-4 w-full flex gap-6 justify-center z-50">
+                <a href="/auth" className="text-neutral-500 hover:text-white text-[10px] uppercase tracking-widest transition-colors">
                     Admin Access
                 </a>
+                <button
+                    onClick={async () => {
+                        await supabase.auth.signOut();
+                        window.location.reload();
+                    }}
+                    className="text-neutral-500 hover:text-red-500 text-[10px] uppercase tracking-widest transition-colors"
+                >
+                    Sign Out
+                </button>
             </div>
         </div>
+
     );
 };
 

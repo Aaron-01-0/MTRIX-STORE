@@ -39,7 +39,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <SEO
         title="Home"
-        description="MTRIX - Redefining Minimalism. Discover our curated collection of premium thrift finds, streetwear essentials, and lifestyle accessories. Sustainable fashion meets modern aesthetics."
+        description="The modern uniform for Identity & Solitude. Discover curated lifestyle artifacts, architectural apparel, and premium essentials."
       />
       <Navbar />
       <HeroSection />

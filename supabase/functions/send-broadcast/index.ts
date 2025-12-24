@@ -15,6 +15,7 @@ const corsHeaders = {
 interface BroadcastRequest {
     subject: string;
     content: string; // HTML content
+    segment?: 'subscribers' | 'verified_users' | 'customers';
 }
 
 Deno.serve(async (req) => {
@@ -23,7 +24,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-        const { subject, content }: BroadcastRequest = await req.json();
+        const { subject, content, testEmail, segment = 'subscribers' }: BroadcastRequest & { testEmail?: string } = await req.json();
 
         if (!subject || !content) {
             return new Response(JSON.stringify({ error: "Subject and content are required." }), {
@@ -32,36 +33,91 @@ Deno.serve(async (req) => {
             });
         }
 
-        // 1. Fetch subscribers
-        const { data: subscribers, error: dbError } = await supabase
-            .from("launch_subscribers")
-            .select("email")
-            .eq("status", "subscribed");
+        let emails: string[] = [];
+        let recipientCount = 0;
 
-        if (dbError) throw dbError;
+        if (testEmail) {
+            // TEST MODE
+            emails = [testEmail];
+            recipientCount = 1;
+            console.log(`Sending TEST broadcast to ${testEmail}`);
+        } else {
+            // PRODUCTION MODE: Fetch Users based on Segment
+            let rawData: { email: string }[] = [];
 
-        if (!subscribers || subscribers.length === 0) {
-            return new Response(JSON.stringify({ message: "No subscribers found." }), {
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
+            if (segment === 'verified_users') {
+                // All Registered Users (Profiles)
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('email')
+                    .not('email', 'is', null);
+                if (error) throw error;
+                rawData = data || [];
+
+            } else if (segment === 'customers') {
+                // Users who have placed at least one order
+                const { data: orderData, error: orderError } = await supabase
+                    .from('orders')
+                    .select('user_id');
+
+                if (orderError) throw orderError;
+
+                if (orderData && orderData.length > 0) {
+                    const userIds = [...new Set(orderData.map(o => o.user_id))];
+                    const { data, error } = await supabase
+                        .from('profiles')
+                        .select('email')
+                        .in('user_id', userIds)
+                        .not('email', 'is', null);
+
+                    if (error) throw error;
+                    rawData = data || [];
+                }
+
+            } else {
+                // Default: Newsletter Subscribers (launch_subscribers)
+                const { data, error } = await supabase
+                    .from("launch_subscribers")
+                    .select("email")
+                    .eq("status", "subscribed");
+
+                if (error) throw error;
+                rawData = data || [];
+            }
+
+            if (!rawData || rawData.length === 0) {
+                return new Response(JSON.stringify({ message: `No recipients found for segment: ${segment}` }), {
+                    status: 200, // Not an error, just 0 sent
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                });
+            }
+
+            // Deduplicate and filter empty
+            emails = [...new Set(rawData.map(r => r.email).filter(e => e && e.includes('@')))];
+            recipientCount = emails.length;
         }
 
-        const emails = subscribers.map(s => s.email);
-        const recipientCount = emails.length;
         // 2. Send emails (Batching)
         const batchSize = 50;
         for (let i = 0; i < emails.length; i += batchSize) {
             const batch = emails.slice(i, i + batchSize);
             const { data, error } = await resend.emails.send({
                 from: "MTRIX <hello@mtrix.store>",
-                to: ["hello@mtrix.store"],
-                bcc: batch,
-                subject: subject,
+                to: testEmail ? [testEmail] : ["hello@mtrix.store"],
+                bcc: testEmail ? undefined : batch, // Don't confirm to self if testing, or do? sending just to TO if test
+                subject: testEmail ? `[TEST] ${subject}` : subject,
                 html: content,
             });
 
             if (error) {
                 console.error("Resend Error:", error);
+                // Check if it's a rate limit error (usually 429)
+                if (JSON.stringify(error).includes("rate limit") || (error as any)?.statusCode === 429) {
+                    return new Response(JSON.stringify({ error: "Email rate limit exceeded. Please try again in an hour." }), {
+                        status: 429,
+                        headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    });
+                }
                 throw new Error(`Resend API Error: ${error.message || JSON.stringify(error)}`);
             }
         }

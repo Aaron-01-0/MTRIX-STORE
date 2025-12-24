@@ -10,6 +10,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -125,7 +126,12 @@ const OrderList = () => {
                 .select('*', { count: 'exact' });
 
             if (statusFilter !== 'all') {
-                query = query.eq('status', statusFilter);
+                if (statusFilter === 'pending') {
+                    // Include 'order_created' and 'paid' in the "New/Pending" tab
+                    query = query.in('status', ['pending', 'order_created', 'paid']);
+                } else {
+                    query = query.eq('status', statusFilter);
+                }
             }
 
             if (searchTerm) {
@@ -179,6 +185,50 @@ const OrderList = () => {
         }
     };
 
+    const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+        if (newStatus === 'shipped') {
+            // Find order object to pass to shipped dialog
+            const order = orders.find(o => o.id === orderId);
+            if (order) handleMarkAsShippedClick(order);
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('orders')
+                .update({ status: newStatus })
+                .eq('id', orderId);
+
+            if (error) throw error;
+
+            toast({
+                title: "Status Updated",
+                description: `Order status changed to ${newStatus}`,
+            });
+
+            // Auto-send email notification
+            toast({ title: "Sending Notification...", description: "Triggering email update..." });
+            supabase.functions.invoke('send-order-confirmation', {
+                body: { orderId: orderId }
+            }).then(({ error: emailError }) => {
+                if (emailError) {
+                    console.error("Email trigger failed:", emailError);
+                    toast({ title: "Email Failed", description: "Could not send notification.", variant: "destructive" });
+                } else {
+                    toast({ title: "Email Sent", description: "Customer notified of update." });
+                }
+            });
+
+            fetchOrders();
+        } catch (error: any) {
+            toast({
+                title: "Update Failed",
+                description: error.message,
+                variant: "destructive"
+            });
+        }
+    };
+
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
             setSelectedOrders(orders.map(o => o.id));
@@ -201,6 +251,9 @@ const OrderList = () => {
             case 'shipped': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
             case 'processing': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
             case 'cancelled': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+            case 'pending':
+            case 'order_created':
+            case 'paid': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
             default: return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
         }
     };
@@ -271,6 +324,20 @@ const OrderList = () => {
                 title: "Success",
                 description: "Order marked as shipped",
             });
+
+            // Auto-send email notification
+            toast({ title: "Sending Notification...", description: "Triggering email update..." });
+            supabase.functions.invoke('send-order-confirmation', {
+                body: { orderId: selectedOrderForShipping.id }
+            }).then(({ error: emailError }) => {
+                if (emailError) {
+                    console.error("Email trigger failed:", emailError);
+                    toast({ title: "Email Failed", description: "Could not send notification.", variant: "destructive" });
+                } else {
+                    toast({ title: "Email Sent", description: "Customer notified of shipping." });
+                }
+            });
+
             setShippedDialogOpen(false);
             fetchOrders(); // Refresh list
         } catch (error: any) {
@@ -307,53 +374,51 @@ const OrderList = () => {
         <div className="space-y-6">
             <OrderStats {...stats} />
 
-            {/* Filters & Actions */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-mtrix-dark/50 backdrop-blur-sm p-4 rounded-xl border border-mtrix-gray shadow-sm">
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="relative w-full sm:w-72">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                        <Input
-                            placeholder="Search by order #..."
-                            className="pl-9 bg-mtrix-black border-mtrix-gray focus:border-mtrix-gold text-white transition-all duration-200"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-[180px] bg-mtrix-black border-mtrix-gray text-white">
-                            <div className="flex items-center gap-2 text-gray-300">
-                                <Filter className="h-4 w-4" />
-                                <SelectValue placeholder="Filter by status" />
-                            </div>
-                        </SelectTrigger>
-                        <SelectContent className="bg-mtrix-dark border-mtrix-gray text-white">
-                            <SelectItem value="all">All Statuses</SelectItem>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="processing">Processing</SelectItem>
-                            <SelectItem value="shipped">Shipped</SelectItem>
-                            <SelectItem value="delivered">Delivered</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
+            {/* Tabs & Actions */}
+            <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <Tabs defaultValue="all" value={statusFilter} onValueChange={setStatusFilter} className="w-full">
+                        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-4">
+                            <TabsList className="bg-mtrix-dark/50 border border-mtrix-gray p-1 h-auto flex-wrap justify-start">
+                                <TabsTrigger value="all" className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-orbitron tracking-wide text-xs">ALL</TabsTrigger>
+                                <TabsTrigger value="pending" className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-orbitron tracking-wide text-xs">NEW / PENDING</TabsTrigger>
+                                <TabsTrigger value="processing" className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-orbitron tracking-wide text-xs">PROCESSING</TabsTrigger>
+                                <TabsTrigger value="shipped" className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-orbitron tracking-wide text-xs">SHIPPED</TabsTrigger>
+                                <TabsTrigger value="delivered" className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-orbitron tracking-wide text-xs">DELIVERED</TabsTrigger>
+                                <TabsTrigger value="cancelled" className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-orbitron tracking-wide text-xs">CANCELLED</TabsTrigger>
+                            </TabsList>
 
-                {selectedOrders.length > 0 && (
-                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
-                        <span className="text-sm text-gray-400 font-medium">{selectedOrders.length} selected</span>
-                        <Button onClick={handleBulkPrint} variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
-                            <Printer className="h-4 w-4 mr-2" />
-                            Print
-                        </Button>
-                        <Button onClick={handleBulkExport} variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
-                            <Download className="h-4 w-4 mr-2" />
-                            Export
-                        </Button>
-                    </div>
-                )}
+                            {selectedOrders.length > 0 && (
+                                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
+                                    <span className="text-sm text-gray-400 font-medium">{selectedOrders.length} selected</span>
+                                    <Button onClick={handleBulkPrint} variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
+                                        <Printer className="h-4 w-4 mr-2" />
+                                        Print
+                                    </Button>
+                                    <Button onClick={handleBulkExport} variant="outline" size="sm" className="bg-mtrix-black border-mtrix-gray hover:bg-mtrix-gray text-white">
+                                        <Download className="h-4 w-4 mr-2" />
+                                        Export
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Search Bar (Global) */}
+                        <div className="relative w-full sm:w-72 mb-4">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                            <Input
+                                placeholder="Search by order #..."
+                                className="pl-9 bg-mtrix-black border-mtrix-gray focus:border-mtrix-gold text-white transition-all duration-200"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </Tabs>
+                </div>
             </div>
 
             {/* Table */}
-            <div className="bg-mtrix-dark/50 backdrop-blur-sm rounded-xl border border-mtrix-gray shadow-sm overflow-hidden">
+            <div className="bg-mtrix-dark/50 backdrop-blur-sm rounded-xl border border-mtrix-gray shadow-sm overflow-hidden min-h-[400px]">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-mtrix-black/50 hover:bg-mtrix-black/50 border-mtrix-gray">
@@ -408,9 +473,25 @@ const OrderList = () => {
                                     </TableCell>
                                     <TableCell className="text-gray-400">{format(new Date(order.created_at), 'MMM d, yyyy')}</TableCell>
                                     <TableCell>
-                                        <Badge variant="secondary" className={`capitalize font-normal border ${getStatusColor(order.status)}`}>
-                                            {order.status}
-                                        </Badge>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger className="focus:outline-none">
+                                                <Badge
+                                                    variant="secondary"
+                                                    className={`capitalize font-normal border cursor-pointer hover:opacity-80 transition-opacity ${getStatusColor(order.status)}`}
+                                                >
+                                                    {order.status} <ArrowUpDown className="w-3 h-3 ml-1 opacity-50" />
+                                                </Badge>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent className="bg-mtrix-dark border-mtrix-gray text-white">
+                                                <DropdownMenuLabel>Change Status</DropdownMenuLabel>
+                                                <DropdownMenuSeparator className="bg-mtrix-gray" />
+                                                <DropdownMenuItem onClick={() => handleStatusUpdate(order.id, 'processing')}>Processing</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleStatusUpdate(order.id, 'shipped')}>Shipped</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleStatusUpdate(order.id, 'delivered')}>Delivered</DropdownMenuItem>
+                                                <DropdownMenuSeparator className="bg-mtrix-gray" />
+                                                <DropdownMenuItem onClick={() => handleStatusUpdate(order.id, 'cancelled')} className="text-red-400">Cancelled</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant="outline" className={`capitalize font-normal ${getPaymentStatusColor(order.payment_status)}`}>

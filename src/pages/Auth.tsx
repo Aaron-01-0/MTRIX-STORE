@@ -23,7 +23,7 @@ const ChristmasAudio = () => {
     const playAudio = async () => {
       if (audioRef.current) {
         try {
-          audioRef.current.volume = 0.3; // Subtle background
+          audioRef.current.volume = 0.1; // Reduced volume per user feedback
           await audioRef.current.play();
           setIsPlaying(true);
         } catch (err) {
@@ -149,6 +149,8 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'signin');
   const [isSuccess, setIsSuccess] = useState(false); // For split animation
 
@@ -176,10 +178,26 @@ const Auth = () => {
     }
   }, [user, navigate, isSuccess]);
 
-  const onAuthSuccess = () => {
+  const onAuthSuccess = async () => {
     setIsSuccess(true);
+
+    // Check if user has completed onboarding
+    let hasCompleted = false;
+    if (user) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('has_completed_onboarding')
+        .eq('id', user.id)
+        .single();
+      if (data?.has_completed_onboarding) hasCompleted = true;
+    }
+
     setTimeout(() => {
-      navigate('/onboarding');
+      if (hasCompleted) {
+        navigate('/');
+      } else {
+        navigate('/onboarding');
+      }
     }, 1500); // Wait for split animation
   };
 
@@ -195,7 +213,8 @@ const Auth = () => {
       const { error } = await signIn(signInData.identifier.trim(), signInData.password);
       if (error) {
         logger.error('Sign in failed', error);
-        toast.error('Invalid credentials. Please try again.');
+        // Show specific error if available (e.g. Email not confirmed)
+        toast.error(error.message || 'Invalid credentials. Please try again.');
       } else {
         toast.success('Welcome back!');
         onAuthSuccess();
@@ -236,18 +255,22 @@ const Auth = () => {
       if (error) {
         toast.error(error.message || 'Failed to create account');
       } else {
-        toast.success('Account created successfully! Please sign in.');
+        toast.success('Account created! Please check your email.');
 
-        // Trigger Welcome Email
+        // Trigger Welcome Email (Edge Function)
         try {
-          await supabase.functions.invoke('subscribe-launch', {
-            body: { email: signUpData.email }
+          await supabase.functions.invoke('send-welcome-email', {
+            body: {
+              email: signUpData.email,
+              name: `${signUpData.firstName} ${signUpData.lastName}`
+            }
           });
         } catch (err) {
           console.error("Failed to send welcome email", err);
         }
 
-        setActiveTab('signin');
+        // Show verification UI
+        setVerificationSent(true);
       }
     } catch (error) {
       toast.error('An unexpected error occurred');
@@ -357,158 +380,187 @@ const Auth = () => {
               {/* Border Gradient Animation */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-mtrix-gold/10 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-[1.5s]" />
 
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full relative z-10">
-                <div className="p-6 pb-0">
-                  <TabsList className="grid w-full grid-cols-2 bg-white/5 p-1 rounded-xl border border-white/5">
-                    <TabsTrigger
-                      value="signin"
-                      className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-bold font-orbitron tracking-wide transition-all duration-300"
-                    >
-                      LOGIN
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="signup"
-                      className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-bold font-orbitron tracking-wide transition-all duration-300"
-                    >
-                      JOIN
-                    </TabsTrigger>
-                  </TabsList>
+              {verificationSent ? (
+                <div className="p-8 text-center space-y-6">
+                  <div className="w-20 h-20 bg-mtrix-gold/10 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                    <Mail className="w-10 h-10 text-mtrix-gold" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-3xl font-black font-orbitron text-white">CHECK INBOX</h2>
+                    <p className="text-gray-400">
+                      We've sent a verification link to <br />
+                      <span className="text-white font-medium">{signUpData.email}</span>
+                    </p>
+                  </div>
+                  <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-sm text-gray-400">
+                    <p>Click the link in the email to activate your account. Then return here to login.</p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      setVerificationSent(false);
+                      setActiveTab('signin');
+                    }}
+                    className="w-full h-12 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white text-gray-300 font-orbitron tracking-wider"
+                  >
+                    RETURN TO LOGIN
+                  </Button>
                 </div>
+              ) : (
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full relative z-10">
+                  <div className="p-6 pb-0">
+                    <TabsList className="grid w-full grid-cols-2 bg-white/5 p-1 rounded-xl border border-white/5">
+                      <TabsTrigger
+                        value="signin"
+                        className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-bold font-orbitron tracking-wide transition-all duration-300"
+                      >
+                        LOGIN
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="signup"
+                        className="data-[state=active]:bg-mtrix-gold data-[state=active]:text-black text-gray-400 font-bold font-orbitron tracking-wide transition-all duration-300"
+                      >
+                        JOIN
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
 
-                <AnimatePresence mode="wait">
-                  <TabsContent value="signin" className="mt-0">
-                    <motion.div
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <CardHeader>
-                        <CardTitle className="text-2xl font-bold text-white text-center font-orbitron">Welcome Back</CardTitle>
-                        <CardDescription className="text-gray-400 text-center flex items-center justify-center gap-2">
-                          <Gift className="w-4 h-4 text-red-500" /> Your rewards are waiting
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <form onSubmit={handleSignIn} className="space-y-4">
-                          <div className="space-y-2">
-                            {/* <Label className="text-xs uppercase text-mtrix-gold/70 tracking-wider">Email or Mobile</Label> */}
-                            <div className="relative group">
-                              <Input
-                                type="text"
-                                placeholder="Email or Mobile"
-                                value={signInData.identifier}
-                                onChange={(e) => setSignInData({ ...signInData, identifier: e.target.value })}
-                                className="pl-10 h-12 bg-white/5 border-white/10 text-white focus:border-mtrix-gold focus:ring-1 focus:ring-mtrix-gold/50 transition-all rounded-lg placeholder:text-gray-600"
-                                required
-                              />
-                              <Mail className="absolute left-3 top-3.5 h-5 w-5 text-gray-500 group-hover:text-mtrix-gold transition-colors" />
+                  <AnimatePresence mode="wait">
+                    <TabsContent value="signin" className="mt-0">
+                      <motion.div
+                        key="signin"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <CardHeader>
+                          <CardTitle className="text-2xl font-bold text-white text-center font-orbitron">Welcome Back</CardTitle>
+                          <CardDescription className="text-gray-400 text-center flex items-center justify-center gap-2">
+                            <Gift className="w-4 h-4 text-red-500" /> Your rewards are waiting
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <form onSubmit={handleSignIn} className="space-y-4">
+                            <div className="space-y-2">
+                              {/* <Label className="text-xs uppercase text-mtrix-gold/70 tracking-wider">Email or Mobile</Label> */}
+                              <div className="relative group">
+                                <Input
+                                  type="text"
+                                  placeholder="Email or Mobile"
+                                  value={signInData.identifier}
+                                  onChange={(e) => setSignInData({ ...signInData, identifier: e.target.value })}
+                                  className="pl-10 h-12 bg-white/5 border-white/10 text-white focus:border-mtrix-gold focus:ring-1 focus:ring-mtrix-gold/50 transition-all rounded-lg placeholder:text-gray-600"
+                                  required
+                                />
+                                <Mail className="absolute left-3 top-3.5 h-5 w-5 text-gray-500 group-hover:text-mtrix-gold transition-colors" />
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="space-y-2">
-                            <div className="relative group">
-                              <Input
-                                type={showPassword ? "text" : "password"}
-                                placeholder="Password"
-                                value={signInData.password}
-                                onChange={(e) => setSignInData({ ...signInData, password: e.target.value })}
-                                className="pl-4 pr-10 h-12 bg-white/5 border-white/10 text-white focus:border-mtrix-gold focus:ring-1 focus:ring-mtrix-gold/50 transition-all rounded-lg placeholder:text-gray-600"
-                                required
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-3.5 text-gray-500 hover:text-white transition-colors"
-                              >
-                                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                              </button>
+                            <div className="space-y-2">
+                              <div className="relative group">
+                                <Input
+                                  type={showPassword ? "text" : "password"}
+                                  placeholder="Password"
+                                  value={signInData.password}
+                                  onChange={(e) => setSignInData({ ...signInData, password: e.target.value })}
+                                  className="pl-4 pr-10 h-12 bg-white/5 border-white/10 text-white focus:border-mtrix-gold focus:ring-1 focus:ring-mtrix-gold/50 transition-all rounded-lg placeholder:text-gray-600"
+                                  required
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  className="absolute right-3 top-3.5 text-gray-500 hover:text-white transition-colors"
+                                >
+                                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <Button
+                              type="submit"
+                              className="w-full h-12 bg-gradient-to-r from-mtrix-gold via-yellow-400 to-mtrix-gold hover:from-yellow-300 hover:to-yellow-500 text-black font-black font-orbitron text-lg tracking-wider shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:shadow-[0_0_30px_rgba(255,215,0,0.5)] transition-all duration-300 border-none"
+                              disabled={isLoading}
+                            >
+                              {isLoading ? (
+                                <span className="flex items-center gap-2">
+                                  <Sparkles className="w-5 h-5 animate-spin" /> LOAD...
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-2">
+                                  UNLOCK MATRIX <ArrowRight className="w-5 h-5" />
+                                </span>
+                              )}
+                            </Button>
+                          </form>
+
+                          {/* Google Login */}
+                          <div className="relative my-6">
+                            <div className="absolute inset-0 flex items-center">
+                              <span className="w-full border-t border-white/10" />
+                            </div>
+                            <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                              <span className="bg-black/80 backdrop-blur-sm px-2 text-gray-500">Or Access With</span>
                             </div>
                           </div>
 
                           <Button
-                            type="submit"
-                            className="w-full h-12 bg-gradient-to-r from-mtrix-gold via-yellow-400 to-mtrix-gold hover:from-yellow-300 hover:to-yellow-500 text-black font-black font-orbitron text-lg tracking-wider shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:shadow-[0_0_30px_rgba(255,215,0,0.5)] transition-all duration-300 border-none"
+                            variant="outline"
+                            className="w-full bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white h-12 font-medium tracking-wide"
+                            onClick={handleGoogleSignIn}
                             disabled={isLoading}
                           >
-                            {isLoading ? (
-                              <span className="flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 animate-spin" /> LOAD...
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-2">
-                                UNLOCK MATRIX <ArrowRight className="w-5 h-5" />
-                              </span>
-                            )}
+                            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 mr-2" alt="Google" />
+                            Google
                           </Button>
-                        </form>
+                        </CardContent>
+                      </motion.div>
+                    </TabsContent>
 
-                        {/* Google Login */}
-                        <div className="relative my-6">
-                          <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t border-white/10" />
-                          </div>
-                          <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
-                            <span className="bg-black/80 backdrop-blur-sm px-2 text-gray-500">Or Access With</span>
-                          </div>
-                        </div>
+                    {/* Sign Up Tab - Similar Styling */}
+                    <TabsContent value="signup" className="mt-0">
+                      <motion.div
+                        key="signup"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <CardHeader>
+                          <CardTitle className="text-2xl font-bold text-white text-center font-orbitron">Join The Elite</CardTitle>
+                          <CardDescription className="text-gray-400 text-center">
+                            Start your journey
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <form onSubmit={handleSignUp} className="space-y-4">
 
-                        <Button
-                          variant="outline"
-                          className="w-full bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white h-12 font-medium tracking-wide"
-                          onClick={handleGoogleSignIn}
-                          disabled={isLoading}
-                        >
-                          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 mr-2" alt="Google" />
-                          Google
-                        </Button>
-                      </CardContent>
-                    </motion.div>
-                  </TabsContent>
+                            <div className="grid grid-cols-2 gap-4">
+                              <Input placeholder="First Name" value={signUpData.firstName} onChange={e => setSignUpData({ ...signUpData, firstName: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
+                              <Input placeholder="Last Name" value={signUpData.lastName} onChange={e => setSignUpData({ ...signUpData, lastName: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
+                            </div>
 
-                  {/* Sign Up Tab - Similar Styling */}
-                  <TabsContent value="signup" className="mt-0">
-                    <motion.div
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <CardHeader>
-                        <CardTitle className="text-2xl font-bold text-white text-center font-orbitron">Join The Elite</CardTitle>
-                        <CardDescription className="text-gray-400 text-center">
-                          Start your journey
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <form onSubmit={handleSignUp} className="space-y-4">
+                            <Input type="email" placeholder="Email Address" value={signUpData.email} onChange={e => setSignUpData({ ...signUpData, email: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
 
-                          <div className="grid grid-cols-2 gap-4">
-                            <Input placeholder="First Name" value={signUpData.firstName} onChange={e => setSignUpData({ ...signUpData, firstName: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
-                            <Input placeholder="Last Name" value={signUpData.lastName} onChange={e => setSignUpData({ ...signUpData, lastName: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
-                          </div>
+                            <Input type="tel" placeholder="Mobile" value={signUpData.mobileNo} onChange={e => setSignUpData({ ...signUpData, mobileNo: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
 
-                          <Input type="email" placeholder="Email Address" value={signUpData.email} onChange={e => setSignUpData({ ...signUpData, email: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
+                            <Input type="password" placeholder="Password" value={signUpData.password} onChange={e => setSignUpData({ ...signUpData, password: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
 
-                          <Input type="tel" placeholder="Mobile" value={signUpData.mobileNo} onChange={e => setSignUpData({ ...signUpData, mobileNo: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
+                            <Input type="password" placeholder="Confirm Password" value={signUpData.confirmPassword} onChange={e => setSignUpData({ ...signUpData, confirmPassword: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
 
-                          <Input type="password" placeholder="Password" value={signUpData.password} onChange={e => setSignUpData({ ...signUpData, password: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
-
-                          <Input type="password" placeholder="Confirm Password" value={signUpData.confirmPassword} onChange={e => setSignUpData({ ...signUpData, confirmPassword: e.target.value })} className="bg-white/5 border-white/10 focus:border-mtrix-gold text-white" required />
-
-                          <Button
-                            type="submit"
-                            className="w-full h-12 bg-gradient-to-r from-mtrix-gold via-yellow-400 to-mtrix-gold hover:from-yellow-300 hover:to-yellow-500 text-black font-black font-orbitron text-lg tracking-wider shadow-[0_0_20px_rgba(255,215,0,0.3)] border-none"
-                            disabled={isLoading}
-                          >
-                            {isLoading ? 'CREATING...' : 'INITIATE'}
-                          </Button>
-                        </form>
-                      </CardContent>
-                    </motion.div>
-                  </TabsContent>
-                </AnimatePresence>
-              </Tabs>
+                            <Button
+                              type="submit"
+                              className="w-full h-12 bg-gradient-to-r from-mtrix-gold via-yellow-400 to-mtrix-gold hover:from-yellow-300 hover:to-yellow-500 text-black font-black font-orbitron text-lg tracking-wider shadow-[0_0_20px_rgba(255,215,0,0.3)] border-none"
+                              disabled={isLoading}
+                            >
+                              {isLoading ? 'CREATING...' : 'INITIATE'}
+                            </Button>
+                          </form>
+                        </CardContent>
+                      </motion.div>
+                    </TabsContent>
+                  </AnimatePresence>
+                </Tabs>
+              )}
             </Card>
           </motion.div>
         </div>

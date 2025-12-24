@@ -79,7 +79,7 @@ const queryClient = new QueryClient();
 const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
-  const targetDate = new Date('2025-12-25T00:00:00');
+  const targetDate = new Date('2025-12-25T00:00:00+05:30');
   const now = new Date();
   const isPreLaunch = now < targetDate;
   // const isPreLaunch = false; // Disabled for SEO Indexing
@@ -129,8 +129,6 @@ const App = () => (
     <AuthProvider>
       <WishlistProvider>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
           <Sonner />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <AnnouncementBar />

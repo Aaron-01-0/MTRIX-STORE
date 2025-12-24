@@ -11,7 +11,10 @@ interface Prize {
     id: string;
     label: string;
     value: string;
-    code: string;
+    displayLabel: string; // "10% Welcome"
+    description: string;  // "You’re part of the launch circle."
+    code?: string;        // "WELCOME10" (optional for mystery/no-discount)
+    probability: number;  // 0-100
     rarity: 'common' | 'rare' | 'legendary';
     color: string;
 }
@@ -34,33 +37,19 @@ const RewardWheel = ({ onComplete }: RewardWheelProps) => {
     const VISIBLE_CARDS = 5; // How many onscreen?
 
     // Fetch coupons
+    // Static 7 Segments Configuration
+    const SEGMENTS: Prize[] = [
+        { id: '1', label: '10% Welcome', value: '10% OFF', code: 'WELCOME10', rarity: 'common', color: '#333', displayLabel: '10%', description: 'Welcome to the family.', probability: 45 },
+        { id: '2', label: 'Shipping on us', value: 'FREE SHIP', code: 'FREESHIP', rarity: 'common', color: '#9333ea', displayLabel: 'SHIP', description: 'Shipping is on us.', probability: 20 },
+        { id: '3', label: 'Lucky You', value: '15% OFF', code: 'LUCKY15', rarity: 'rare', color: '#9333ea', displayLabel: '15%', description: 'A little extra luck.', probability: 15 },
+        { id: '4', label: 'Mystery', value: 'UNLOCKED', code: 'MYSTERY_UNLOCK', rarity: 'rare', color: '#FFD700', displayLabel: '?', description: 'Unlocked. We’ll remind you.', probability: 5 },
+        { id: '5', label: 'Still Special', value: 'LAUNCH CIRCLE', code: 'FOUNDER', rarity: 'common', color: '#333', displayLabel: '★', description: "You’re part of the launch circle.\nThat’s already rare.", probability: 14 },
+        { id: '6', label: 'Golden Spin', value: '20% OFF', code: 'GOLDEN20', rarity: 'legendary', color: '#FFD700', displayLabel: '20%', description: 'The Golden Ticket.', probability: 1 },
+        { id: '7', label: '10% Welcome', value: '10% OFF', code: 'WELCOME10', rarity: 'common', color: '#333', displayLabel: '10%', description: 'Welcome to the family.', probability: 0 }, // Duplicate for visual, handled by probability of ID 1
+    ];
+
     useEffect(() => {
-        const fetchCoupons = async () => {
-            const { data } = await supabase.from('coupons').select('*').eq('is_active', true).limit(10);
-
-            let basePrizes: Prize[] = [];
-
-            if (data && data.length > 0) {
-                basePrizes = data.map((c) => ({
-                    id: c.id,
-                    label: c.description || 'Reward',
-                    value: c.discount_type === 'percentage' ? `${c.discount_value}% OFF` : `₹${c.discount_value} OFF`,
-                    code: c.code,
-                    rarity: c.discount_value > 20 ? 'legendary' : c.discount_value > 10 ? 'rare' : 'common',
-                    color: c.discount_value > 20 ? '#FFD700' : c.discount_value > 10 ? '#9333ea' : '#333'
-                }));
-            } else {
-                basePrizes = [
-                    { id: '1', label: 'Welcome Gift', value: '5% OFF', code: 'WELCOME5', rarity: 'common', color: '#333' },
-                    { id: '2', label: 'Starter Pack', value: 'Free Shipping', code: 'FREESHIP', rarity: 'rare', color: '#9333ea' },
-                    { id: '3', label: 'Lucky Day', value: '10% OFF', code: 'LUCKY10', rarity: 'rare', color: '#9333ea' },
-                    { id: '4', label: 'Jackpot', value: '20% OFF', code: 'JACKPOT20', rarity: 'legendary', color: '#FFD700' },
-                ];
-            }
-
-            setPrizes(basePrizes);
-        };
-        fetchCoupons();
+        setPrizes(SEGMENTS);
     }, []);
 
     // Generate the "Reel" strip
@@ -73,10 +62,19 @@ const RewardWheel = ({ onComplete }: RewardWheelProps) => {
         if (isSpinning || prizes.length === 0) return;
         setIsSpinning(true);
 
-        // 1. Determine Winner (Random Logic)
-        // We want the winner to be somewhere deep in the reel (e.g., near the end)
-        // to allow for a long spin duration.
-        const winnerIndexInBase = Math.floor(Math.random() * prizes.length);
+        // 1. Determine Winner (Weighted Random)
+        const rand = Math.random() * 100;
+        let cumulative = 0;
+        let winnerIndexInBase = 0;
+
+        for (let i = 0; i < prizes.length; i++) {
+            cumulative += prizes[i].probability;
+            if (rand <= cumulative) {
+                winnerIndexInBase = i;
+                break;
+            }
+        }
+
         const winningPrize = prizes[winnerIndexInBase];
 
         // We target a position around 70-80% into the strip
@@ -114,24 +112,31 @@ const RewardWheel = ({ onComplete }: RewardWheelProps) => {
             }
         });
 
-        // Create Expiry Date (7 Days from now)
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
-
-        // Save to Database
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            const { error } = await supabase.from('user_rewards').insert({
-                user_id: user.id,
-                coupon_id: winningPrize.id, // Assuming prize.id IS coupon.id
-                code: winningPrize.code,
-                expires_at: expiresAt.toISOString()
+        // Call Secure RPC to Claim Reward
+        try {
+            // We pass the "Base Code" (e.g., WELCOME10) and the RPC generates a unique one (WELCOME10-X9Y2)
+            const { data: rpcData, error: rpcError } = await supabase.rpc('claim_reward', {
+                p_reward_type: winningPrize.code, // Pass the base type
+                p_user_id: (await supabase.auth.getUser()).data.user?.id
             });
-            if (error) console.error("Failed to save reward:", error);
+
+            if (rpcError) throw rpcError;
+
+            // Update the winner object with the NEW unique code if available
+            if (rpcData && rpcData.code) {
+                winningPrize.code = rpcData.code;
+                setWinner({ ...winningPrize, code: rpcData.code });
+            } else {
+                setWinner(winningPrize); // No code (Mystery/No Discount)
+            }
+
+        } catch (err) {
+            console.error("Failed to claim reward:", err);
+            // Fallback: Just show the base prize locally if RPC fails (failsafe)
+            setWinner(winningPrize);
         }
 
         // Animation Complete
-        setWinner(winningPrize);
         setShowDialog(true);
         confetti({
             particleCount: 200,
@@ -254,13 +259,21 @@ const RewardWheel = ({ onComplete }: RewardWheelProps) => {
                                 </div>
                             </motion.div>
 
-                            <div className="bg-white/5 p-4 rounded-lg flex items-center justify-between border border-white/10 group hover:border-mtrix-gold/50 transition-colors cursor-pointer" onClick={copyCode}>
-                                <code className="text-2xl font-mono text-mtrix-gold font-bold tracking-wider">{winner.code}</code>
-                                <Button size="icon" variant="ghost" className="text-gray-400 group-hover:text-white">
-                                    <Copy className="w-5 h-5" />
-                                </Button>
+                            <div className="bg-white/5 p-4 rounded-lg flex items-center justify-between border border-white/10 group hover:border-mtrix-gold/50 transition-colors cursor-pointer" onClick={winner.value === 'LAUNCH CIRCLE' || winner.value === 'UNLOCKED' ? undefined : copyCode}>
+                                {winner.value === 'LAUNCH CIRCLE' || winner.value === 'UNLOCKED' ? (
+                                    <span className="text-sm font-mono text-gray-300 whitespace-pre-line leading-relaxed">{winner.description}</span>
+                                ) : (
+                                    <>
+                                        <code className="text-2xl font-mono text-mtrix-gold font-bold tracking-wider">{winner.code}</code>
+                                        <Button size="icon" variant="ghost" className="text-gray-400 group-hover:text-white">
+                                            <Copy className="w-5 h-5" />
+                                        </Button>
+                                    </>
+                                )}
                             </div>
-                            <p className="text-xs text-center text-gray-500 uppercase tracking-widest">Auto-applied at checkout</p>
+                            {winner.value !== 'LAUNCH CIRCLE' && winner.value !== 'UNLOCKED' && (
+                                <p className="text-xs text-center text-gray-500 uppercase tracking-widest">Auto-applied at checkout</p>
+                            )}
                         </div>
                     )}
 

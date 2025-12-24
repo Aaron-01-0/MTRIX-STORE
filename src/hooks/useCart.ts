@@ -16,6 +16,7 @@ export interface CartItem {
     discount_price?: number;
     image_url?: string;
     stock_quantity: number;
+    category_id?: string;
   };
   bundle?: {
     id: string;
@@ -64,7 +65,7 @@ export const useCart = () => {
       const [productsRes, imagesRes, variantsRes, bundlesRes] = await Promise.all([
         supabase
           .from('products')
-          .select('id, name, base_price, discount_price, stock_quantity')
+          .select('id, name, base_price, discount_price, stock_quantity, category_id')
           .in('id', productIds),
         supabase
           .from('product_images')
@@ -126,6 +127,7 @@ export const useCart = () => {
               discount_price: p.discount_price,
               stock_quantity: stockQuantity,
               image_url: imageUrl,
+              category_id: p.category_id,
             },
             bundle: item.bundle_id ? bundleMap.get(item.bundle_id) : undefined
           } as CartItem;

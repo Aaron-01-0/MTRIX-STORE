@@ -1,4 +1,4 @@
-export type EmailTemplateType = 'minimal' | 'showcase' | 'newsletter' | 'custom';
+export type EmailTemplateType = 'minimal' | 'showcase' | 'newsletter' | 'custom' | 'builder';
 
 export interface EmailTemplateData {
     title?: string;

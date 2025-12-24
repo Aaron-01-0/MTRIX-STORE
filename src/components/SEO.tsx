@@ -11,7 +11,7 @@ interface SEOProps {
 
 const SEO = ({
     title,
-    description = "MTRIX - Redefining Minimalism | Premium Thrift Store",
+    description = "The modern uniform for Identity & Solitude. Discover curated lifestyle artifacts, architectural apparel, and premium essentials.",
     image = "/og-image.png",
     url = window.location.href,
     type = "website",

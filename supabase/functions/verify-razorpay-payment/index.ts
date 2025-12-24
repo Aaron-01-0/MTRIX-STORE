@@ -95,7 +95,26 @@ serve(async (req) => {
 
     if (cartError) {
       console.error('Failed to clear cart:', cartError);
-      // Non-critical error, don't throw
+    }
+
+    // Increment Coupon Usage
+    try {
+      const { data: orderData } = await supabaseAdmin
+        .from('orders')
+        .select('coupon_code')
+        .eq('id', orderId)
+        .single();
+
+      if (orderData?.coupon_code) {
+        await supabaseAdmin.rpc('increment_coupon_usage', {
+          p_code: orderData.coupon_code,
+          p_user_id: user.id,
+          p_order_id: orderId
+        });
+      }
+    } catch (couponError) {
+      console.error('Failed to increment coupon usage:', couponError);
+      // Don't fail the verification for this
     }
 
     // Trigger Order Confirmation Email (Fire and forget or await)

@@ -11,12 +11,23 @@ const Onboarding = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // Protect route
+    // Protect route & Check Status
     useEffect(() => {
-        if (!user) {
-            // If not logged in, redirect to auth
-            // navigate('/auth'); // Commented out for dev testing
-        }
+        const checkStatus = async () => {
+            if (!user) return;
+
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('has_completed_onboarding')
+                .eq('id', user.id)
+                .single();
+
+            if (data?.has_completed_onboarding) {
+                navigate('/', { replace: true });
+            }
+        };
+
+        checkStatus();
     }, [user, navigate]);
 
     const handlePrologueComplete = () => {
@@ -32,12 +43,12 @@ const Onboarding = () => {
         localStorage.setItem('mtrix_onboarding_complete', 'true');
 
         // Optional: Update user profile if we had a column for it
+        // Mark onboarding as done in DB
         if (user) {
-            /* 
-            await supabase.from('profiles').update({ 
-                onboarding_completed: true 
+            await supabase.from('profiles').update({
+                has_completed_onboarding: true,
+                has_spun_wheel: true
             }).eq('id', user.id);
-            */
         }
 
         navigate('/'); // Go to Dashboard/Home

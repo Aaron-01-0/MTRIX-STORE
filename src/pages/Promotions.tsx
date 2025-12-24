@@ -40,6 +40,7 @@ const Promotions = () => {
         .from('coupons')
         .select('*')
         .eq('is_active', true)
+        .is('allowed_emails', null)
         .order('discount_value', { ascending: false });
 
       if (error) throw error;
@@ -96,7 +97,7 @@ const Promotions = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="pt-24 pb-12">
         {/* Hero Section */}
         <section className="py-20 px-6 bg-gradient-to-br from-primary/10 via-background to-background relative overflow-hidden">
@@ -131,7 +132,7 @@ const Promotions = () => {
               </div>
               <TrendingUp className="w-12 h-12 text-primary/30" />
             </div>
-            
+
             {loading ? (
               <div className="text-center py-20">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4" />
@@ -142,7 +143,7 @@ const Promotions = () => {
                 <Gift className="w-20 h-20 text-muted-foreground/30 mx-auto mb-4" />
                 <h3 className="text-2xl font-semibold text-foreground mb-2">No Active Promotions</h3>
                 <p className="text-muted-foreground mb-6">Check back soon for exciting offers!</p>
-                <Button 
+                <Button
                   onClick={() => navigate('/catalog')}
                   className="bg-gradient-gold text-mtrix-black hover:shadow-gold"
                 >
@@ -153,7 +154,7 @@ const Promotions = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {coupons.map((coupon, index) => {
                   const isExpiring = isExpiringSoon(coupon.valid_until);
-                  const usagePercentage = coupon.usage_limit 
+                  const usagePercentage = coupon.usage_limit
                     ? ((coupon.used_count / coupon.usage_limit) * 100)
                     : 0;
                   const isAlmostGone = usagePercentage > 80;
@@ -208,14 +209,14 @@ const Promotions = () => {
                               <span className="text-foreground font-semibold">₹{coupon.min_order_value}</span>
                             </div>
                           )}
-                          
+
                           {coupon.max_discount_amount && (
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-muted-foreground">Max. Saving:</span>
                               <span className="text-primary font-semibold">₹{coupon.max_discount_amount}</span>
                             </div>
                           )}
-                          
+
                           {coupon.valid_until && (
                             <div className="flex items-center justify-between text-sm">
                               <span className="text-muted-foreground">Valid Until:</span>
@@ -258,7 +259,7 @@ const Promotions = () => {
                         </div>
 
                         {/* CTA Button */}
-                        <Button 
+                        <Button
                           onClick={() => navigate('/catalog')}
                           className="w-full mt-4 bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all duration-300 font-semibold"
                         >
@@ -279,7 +280,7 @@ const Promotions = () => {
             <h2 className="text-3xl font-orbitron font-bold text-gradient-gold mb-12 text-center">
               How to Redeem Your Coupon
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               <div className="text-center group">
                 <div className="w-16 h-16 bg-gradient-gold rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
@@ -318,8 +319,8 @@ const Promotions = () => {
             <p className="text-muted-foreground mb-8 max-w-2xl mx-auto text-lg">
               Start shopping now and use these amazing coupons to get the best deals on premium products
             </p>
-            
-            <Button 
+
+            <Button
               onClick={() => navigate('/catalog')}
               size="lg"
               className="bg-gradient-gold text-mtrix-black hover:shadow-gold transition-all duration-300 text-lg px-8 py-6 hover:scale-105"

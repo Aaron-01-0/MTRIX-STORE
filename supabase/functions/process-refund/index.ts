@@ -106,6 +106,20 @@ serve(async (req) => {
                         reason: 'Admin initiated refund'
                     }
                 });
+
+            // 4. Restore Coupon Usage
+            const { data: orderData } = await supabase
+                .from('orders')
+                .select('coupon_code, user_id')
+                .eq('id', transaction.order_id)
+                .single();
+
+            if (orderData?.coupon_code && orderData?.user_id) {
+                await supabase.rpc('restore_coupon_usage', {
+                    p_code: orderData.coupon_code,
+                    p_user_id: orderData.user_id
+                });
+            }
         }
 
         return new Response(

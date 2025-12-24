@@ -127,13 +127,76 @@ const Checkout = () => {
     const fetchCoupon = async () => {
       const { data } = await supabase.from('coupons').select('*').eq('code', couponCode).single();
       if (data) {
+        const now = new Date();
+        const validUntil = data.valid_until ? new Date(data.valid_until) : null;
+
         if (data.usage_limit && data.used_count >= data.usage_limit) {
           toast({ title: "Limit Reached", description: "This coupon is no longer valid.", variant: "destructive" });
           setCouponCode(null);
           setCouponData(null);
+        } else if (validUntil && validUntil < now) {
+          toast({ title: "Expired", description: "This coupon has expired.", variant: "destructive" });
+          setCouponCode(null);
+          setCouponData(null);
         } else {
-          setCouponData(data);
-          // toast({ title: "Coupon Applied", description: `${data.code} applied!` }); // Can be annoying if auto-applied, maybe silent or distinctive
+
+          // --- Smart Coupon Validation ---
+          let isValid = true;
+          let errorMessage = "";
+
+          // 1. Email Restriction
+          if (data.allowed_emails && data.allowed_emails.length > 0) {
+            if (!user || !user.email || !data.allowed_emails.includes(user.email)) {
+              isValid = false;
+              errorMessage = "This coupon is not valid for your account.";
+            }
+          }
+
+          // 2. Product/Category Restrictions (if any)
+          if (isValid && (data.restricted_products?.length > 0 || data.restricted_categories?.length > 0)) {
+            // For now, we check if AT LEAST ONE item in the cart matches the allowed list.
+            // Or should we enforce that the discount ONLY applies to those items?
+            // Standard logic: The coupon is valid if cart contains eligible items.
+            // We can refine calculation later to only discount specific items.
+
+            const cartProductIds = cartItems.map(item => item.product.id);
+            const cartCategoryIds = cartItems.map(item => item.product.category_id); // Assuming category_id is available on product join
+
+            const hasAllowedProduct = data.restricted_products
+              ? data.restricted_products.some((id: string) => cartProductIds.includes(id))
+              : false;
+
+            const hasAllowedCategory = data.restricted_categories
+              ? data.restricted_categories.some((id: string) => cartCategoryIds.includes(id))
+              : false;
+
+            // If restrictions exist, we must match at least one
+            const productRestrictionExists = data.restricted_products?.length > 0;
+            const categoryRestrictionExists = data.restricted_categories?.length > 0;
+
+            let meetsProduct = productRestrictionExists ? hasAllowedProduct : true;
+            let meetsCategory = categoryRestrictionExists ? hasAllowedCategory : true;
+
+            // If both exist, usually implies "OR" or "AND"? Let's assume OR for flexibility, or strictly enforce.
+            // Let's go with: If specific products listed, must have one. If specific categories listed, must have one.
+            if (productRestrictionExists && !hasAllowedProduct && !hasAllowedCategory) {
+              isValid = false;
+              errorMessage = "This coupon is only valid for specific products.";
+            }
+            if (categoryRestrictionExists && !hasAllowedCategory && !productRestrictionExists) {
+              isValid = false;
+              errorMessage = "This coupon is only valid for specific categories.";
+            }
+          }
+
+          if (isValid) {
+            setCouponData(data);
+            toast({ title: "Coupon Applied", description: `${data.code} applied!` });
+          } else {
+            toast({ title: "Invalid Coupon", description: errorMessage || "Conditions not met.", variant: "destructive" });
+            setCouponCode(null);
+            setCouponData(null);
+          }
         }
       } else {
         // If manual entry failed
@@ -435,6 +498,11 @@ const Checkout = () => {
             }
 
             logger.info('Payment verified successfully');
+
+            // Trigger Email (Fire & Forget)
+            supabase.functions.invoke('send-order-confirmation', {
+              body: { orderId: orderData.orderId }
+            }).catch(err => console.error("Email trigger failed:", err));
 
             toast({
               title: "Payment Successful!",

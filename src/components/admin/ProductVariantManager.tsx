@@ -20,9 +20,13 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, Plus, Upload, Save, X, Wand2, Image as ImageIcon, Layers } from 'lucide-react';
+import { Trash2, Plus, Upload, Save, X, Wand2, Image as ImageIcon, Layers, Settings, History, FileSpreadsheet } from 'lucide-react';
 import { useStorageUpload } from '@/hooks/useStorageUpload';
 import { Badge } from '@/components/ui/badge';
+import StockHistoryViewer from './StockHistoryViewer';
+import { CsvImportDialog } from './CsvImportDialog';
+import { useProductVariants } from '@/hooks/useProductVariants';
+import { useQueryClient } from '@tanstack/react-query';
 
 const SIZE_PRESETS: Record<string, string[]> = {
   'Apparel': ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'],
@@ -41,20 +45,47 @@ interface ProductVariant {
   sku: string;
   image_url?: string;
   is_active: boolean;
+  attribute_json?: Record<string, string>;
+}
+
+interface ProductAttribute {
+  id: string;
+  name: string;
+  display_order: number;
+  attribute_values: {
+    id: string;
+    value: string;
+    display_order: number;
+  }[];
 }
 
 interface Props {
   productId: string;
   productSku?: string;
+  productName?: string;
+  basePrice?: number;
+  variantType?: 'single' | 'multi';
 }
 
-export const ProductVariantManager = ({ productId, productSku }: Props) => {
+export const ProductVariantManager = ({ productId, productSku, productName, basePrice, variantType }: Props) => {
   const { toast } = useToast();
   const { uploadFile, uploading } = useStorageUpload();
-  const [variants, setVariants] = useState<ProductVariant[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data, isLoading, error } = useProductVariants(productId);
+
+  // Derived state from React Query
+  const variants = data?.variants || [];
+  const attributes = data?.attributes || [];
+  const productCategory = data?.category || '';
+  const loading = isLoading;
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const [isAttributesOpen, setIsAttributesOpen] = useState(false);
+
+  const [historyVariantId, setHistoryVariantId] = useState<string | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isCsvOpen, setIsCsvOpen] = useState(false);
 
   // Inline editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -67,7 +98,8 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
     absolute_price: '',
     stock_quantity: '',
     sku: '',
-    image_url: ''
+    image_url: '',
+    attribute_json: {}
   });
 
   // Bulk form state
@@ -78,70 +110,13 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
     stock: ''
   });
 
-  const [productCategory, setProductCategory] = useState<string>('');
+  const [newAttributeName, setNewAttributeName] = useState('');
+  const [newValueInputs, setNewValueInputs] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    fetchData();
-  }, [productId]);
-
-  const fetchData = async () => {
-    try {
-      // Fetch product details for category
-      const { data: productData, error: productError } = await supabase
-        .from('products')
-        .select('category')
-        .eq('id', productId)
-        .single();
-
-      if (productError) throw productError;
-      // @ts-ignore
-      setProductCategory(productData?.category || '');
-
-      // Fetch variants
-      const { data, error } = await supabase
-        .from('product_variants')
-        .select('*')
-        .eq('product_id', productId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      // Map database fields to interface
-      const formattedVariants = (data || []).map((item: any) => ({
-        ...item,
-        absolute_price: item.price || item.absolute_price || 0 // Handle both cases
-      }));
-
-      setVariants(formattedVariants);
-    } catch (error: any) {
-      console.error('Error fetching data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load product data",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+  const refreshData = () => {
+    queryClient.invalidateQueries({ queryKey: ['variants', productId] });
   };
 
-  const generateSku = () => {
-    if (!productSku || !newVariant.size) {
-      toast({
-        title: "Info",
-        description: "Need Product SKU and Size to auto-generate",
-      });
-      return;
-    }
-
-    let suffix = '';
-    if (newVariant.color) {
-      suffix += `${newVariant.color.toUpperCase().slice(0, 3)}-`;
-    }
-    suffix += newVariant.size.toUpperCase();
-
-    setNewVariant(prev => ({ ...prev, sku: `${productSku}-${suffix}` }));
-  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isNew: boolean = true, variantId?: string) => {
     const file = e.target.files?.[0];
@@ -158,29 +133,53 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
   };
 
   const addVariant = async () => {
-    if (!newVariant.size || !newVariant.absolute_price || !newVariant.sku) {
-      toast({ title: "Validation Error", description: "Size, Price and SKU are required", variant: "destructive" });
+    if (variantType === 'multi') {
+      if (!newVariant.attribute_json || Object.keys(newVariant.attribute_json).length < attributes.length) {
+        toast({ title: "Validation Error", description: "Select values for all attributes", variant: "destructive" });
+        return;
+      }
+    } else {
+      if (!newVariant.size) {
+        toast({ title: "Validation Error", description: "Size is required", variant: "destructive" });
+        return;
+      }
+    }
+
+    if (!newVariant.absolute_price || !newVariant.sku) {
+      toast({ title: "Validation Error", description: "Price and SKU are required", variant: "destructive" });
       return;
     }
 
     try {
-      const { error } = await supabase.from('product_variants').insert({
+      const payload: any = {
         product_id: productId,
-        color: newVariant.color || null,
-        size: newVariant.size,
         price: parseFloat(newVariant.absolute_price),
         stock_quantity: parseInt(newVariant.stock_quantity) || 0,
         sku: newVariant.sku,
         image_url: newVariant.image_url,
-        variant_type: newVariant.color ? 'color-size' : 'size',
-        variant_name: newVariant.color ? `${newVariant.color} - ${newVariant.size}` : newVariant.size,
         is_active: true
-      });
+      };
+
+      if (variantType === 'multi') {
+        payload.variant_type = 'multi';
+        payload.attribute_json = newVariant.attribute_json;
+        payload.variant_name = Object.values(newVariant.attribute_json || {}).join(' / ');
+        // Fallbacks
+        payload.size = newVariant.attribute_json?.['Size'] || 'Standard';
+        payload.color = newVariant.attribute_json?.['Color'] || null;
+      } else {
+        payload.color = newVariant.color || null;
+        payload.size = newVariant.size;
+        payload.variant_type = newVariant.color ? 'color-size' : 'size';
+        payload.variant_name = newVariant.color ? `${newVariant.color} - ${newVariant.size}` : newVariant.size;
+      }
+
+      const { error } = await supabase.from('product_variants').insert(payload);
 
       if (error) throw error;
 
       toast({ title: "Success", description: "Variant added successfully" });
-      setNewVariant({ color: '', size: '', absolute_price: '', stock_quantity: '', sku: '', image_url: '' });
+      setNewVariant({ color: '', size: '', absolute_price: '', stock_quantity: '', sku: '', image_url: '', attribute_json: {} });
       setIsDialogOpen(false);
       fetchData();
     } catch (error: any) {
@@ -189,44 +188,106 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
   };
 
   const handleBulkGenerate = async () => {
-    if (!bulkForm.sizes || !bulkForm.price || !bulkForm.stock) {
-      toast({ title: "Error", description: "Sizes, Price and Stock are required", variant: "destructive" });
+    if (!bulkForm.price || !bulkForm.stock) {
+      toast({ title: "Error", description: "Price and Stock are required", variant: "destructive" });
       return;
     }
 
-    const colors = bulkForm.colors ? bulkForm.colors.split(',').map(c => c.trim()).filter(c => c) : [null];
-    const sizes = bulkForm.sizes.split(',').map(s => s.trim()).filter(s => s);
+    let variantsToInsert = [];
 
-    if (sizes.length === 0) {
-      toast({ title: "Error", description: "Enter at least one size", variant: "destructive" });
-      return;
-    }
+    if (variantType === 'multi') {
+      // Matrix Generation Logic
+      if (attributes.length === 0) {
+        toast({ title: "Error", description: "Configure attributes first", variant: "destructive" });
+        return;
+      }
 
-    const variantsToInsert = [];
-    for (const color of colors) {
-      for (const size of sizes) {
-        let sku = productSku ? `${productSku}-` : '';
+      // Check if all attributes have values
+      const emptyAttributes = attributes.filter(a => !a.attribute_values || a.attribute_values.length === 0);
+      if (emptyAttributes.length > 0) {
+        toast({ title: "Error", description: `Add values for: ${emptyAttributes.map(a => a.name).join(', ')}`, variant: "destructive" });
+        return;
+      }
 
-        if (color) {
-          sku += `${color.toUpperCase().slice(0, 3)}-`;
+      // Helper to generate cartesian product
+      const cartesian = (args: any[][]) => {
+        const r: any[][] = [];
+        const max = args.length - 1;
+        function helper(arr: any[], i: number) {
+          for (let j = 0, l = args[i].length; j < l; j++) {
+            const a = arr.slice(0); // clone arr
+            a.push(args[i][j]);
+            if (i === max) r.push(a);
+            else helper(a, i + 1);
+          }
         }
-        sku += size.toUpperCase();
+        helper([], 0);
+        return r;
+      };
 
-        if (!productSku) {
-          sku += `-${Math.floor(Math.random() * 1000)}`;
-        }
+      const attributeValues = attributes.map(a => a.attribute_values.map(v => ({ name: a.name, value: v.value })));
+      const combinations = cartesian(attributeValues);
 
-        variantsToInsert.push({
+      console.log('Generating combinations:', combinations);
+
+      variantsToInsert = combinations.map(combo => {
+        const attributeMap: Record<string, string> = {};
+        combo.forEach((c: any) => { attributeMap[c.name] = c.value; });
+
+        // Generate SKU and Name
+        // SKU: PROD-ATTR1-ATTR2...
+        const suffix = combo.map((c: any) => c.value.toUpperCase().slice(0, 3)).join('-');
+        const sku = productSku ? `${productSku}-${suffix}` : suffix;
+
+        const name = combo.map((c: any) => c.value).join(' / ');
+
+        return {
           product_id: productId,
-          color: color,
-          size: size,
           price: parseFloat(bulkForm.price),
           stock_quantity: parseInt(bulkForm.stock),
           sku: sku,
-          variant_type: color ? 'color-size' : 'size',
-          variant_name: color ? `${color} - ${size}` : size,
+          variant_type: 'multi',
+          variant_name: name,
+          attribute_json: attributeMap,
+          size: attributeMap['Size'] || 'Standard', // Fallback for backward compatibility/required fields
+          color: attributeMap['Color'] || null,
           is_active: true
-        });
+        };
+      });
+
+    } else {
+      // Old Color/Size Logic
+      if (!bulkForm.sizes) {
+        toast({ title: "Error", description: "Sizes are required", variant: "destructive" });
+        return;
+      }
+      const colors = bulkForm.colors ? bulkForm.colors.split(',').map(c => c.trim()).filter(c => c) : [null];
+      const sizes = bulkForm.sizes.split(',').map(s => s.trim()).filter(s => s);
+
+      if (sizes.length === 0) {
+        toast({ title: "Error", description: "Enter at least one size", variant: "destructive" });
+        return;
+      }
+
+      for (const color of colors) {
+        for (const size of sizes) {
+          let sku = productSku ? `${productSku}-` : '';
+          if (color) sku += `${color.toUpperCase().slice(0, 3)}-`;
+          sku += size.toUpperCase();
+          if (!productSku) sku += `-${Math.floor(Math.random() * 1000)}`;
+
+          variantsToInsert.push({
+            product_id: productId,
+            color: color,
+            size: size,
+            price: parseFloat(bulkForm.price),
+            stock_quantity: parseInt(bulkForm.stock),
+            sku: sku,
+            variant_type: color ? 'color-size' : 'size',
+            variant_name: color ? `${color} - ${size}` : size,
+            is_active: true
+          });
+        }
       }
     }
 
@@ -237,11 +298,14 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
       toast({ title: "Success", description: `Generated ${variantsToInsert.length} variants` });
       setIsBulkOpen(false);
       setBulkForm({ colors: '', sizes: '', price: '', stock: '' });
-      fetchData();
+      refreshData();
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to generate variants", variant: "destructive" });
     }
   };
+
+  // ... (rest of code) ...
+
 
   const startEditing = (variant: ProductVariant) => {
     setEditingId(variant.id);
@@ -270,7 +334,7 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
 
       toast({ title: "Success", description: "Variant updated" });
       setEditingId(null);
-      fetchData();
+      refreshData();
     } catch (error: any) {
       toast({ title: "Error", description: "Failed to update variant", variant: "destructive" });
     }
@@ -280,7 +344,7 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
     try {
       const { error } = await supabase.from('product_variants').update({ [field]: value }).eq('id', id);
       if (error) throw error;
-      fetchData();
+      refreshData();
     } catch (error) {
       console.error('Error updating variant:', error);
       toast({ title: "Error", description: "Update failed", variant: "destructive" });
@@ -293,9 +357,67 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
       const { error } = await supabase.from('product_variants').delete().eq('id', variantId);
       if (error) throw error;
       toast({ title: "Success", description: "Variant deleted" });
-      fetchData();
+      refreshData();
     } catch (error: any) {
       toast({ title: "Error", description: "Failed to delete variant", variant: "destructive" });
+    }
+  };
+
+  const handleAddAttribute = async (name: string) => {
+    if (!name.trim()) return;
+    try {
+      const { error } = await supabase.from('product_attributes').insert({
+        product_id: productId,
+        name: name.trim(),
+        display_order: attributes.length
+      });
+      if (error) throw error;
+      refreshData();
+    } catch (error: any) {
+      toast({ title: "Error", description: "Failed to add attribute", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteAttribute = async (id: string) => {
+    try {
+      const { error } = await supabase.from('product_attributes').delete().eq('id', id);
+      if (error) throw error;
+      refreshData();
+    } catch (error: any) {
+      toast({ title: "Error", description: "Failed to delete attribute", variant: "destructive" });
+    }
+  };
+
+  const handleAddValue = async (attributeId: string, value: string) => {
+    if (!value.trim()) return;
+    try {
+      const { error } = await supabase.from('attribute_values').insert({
+        attribute_id: attributeId,
+        value: value.trim(),
+        display_order: 0 // You might want to calculate this
+      });
+      if (error) throw error;
+      refreshData();
+    } catch (error: any) {
+      toast({ title: "Error", description: "Failed to add value", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteValue = async (id: string) => {
+    try {
+      const { error } = await supabase.from('attribute_values').delete().eq('id', id);
+      if (error) throw error;
+      refreshData();
+    } catch (error: any) {
+      toast({ title: "Error", description: "Failed to delete value", variant: "destructive" });
+    }
+  };
+
+  const onAddValue = (attrId: string) => {
+    const val = newValueInputs[attrId];
+    if (val) {
+      handleAddValue(attrId, val);
+      setNewValueInputs(prev => ({ ...prev, [attrId]: '' }));
     }
   };
 
@@ -310,6 +432,29 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
         </div>
 
         <div className="flex gap-2">
+          {variantType === 'multi' && (
+            <Dialog open={isAttributesOpen} onOpenChange={setIsAttributesOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
+                  <Settings className="w-4 h-4 mr-2" /> Configure Attributes
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-mtrix-black border-white/10 text-white sm:max-w-[600px]">
+                {/* ... existing content ... */}
+              </DialogContent>
+            </Dialog>
+          )}
+
+
+
+          <Button
+            variant="outline"
+            onClick={() => setIsCsvOpen(true)}
+            className="border-green-500/50 text-green-500 hover:bg-green-500/10"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" /> Import CSV
+          </Button>
+
           <Dialog open={isBulkOpen} onOpenChange={setIsBulkOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
@@ -321,43 +466,66 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
                 <DialogTitle className="text-gradient-gold">Bulk Generate Variants</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Colors (comma separated, optional)</Label>
-                  <Input
-                    value={bulkForm.colors}
-                    onChange={(e) => setBulkForm({ ...bulkForm, colors: e.target.value })}
-                    placeholder="Red, Blue, Black (Leave empty for no color)"
-                    className="bg-white/5 border-white/10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Sizes (comma separated)</Label>
-                  <Input
-                    value={bulkForm.sizes}
-                    onChange={(e) => setBulkForm({ ...bulkForm, sizes: e.target.value })}
-                    placeholder="S, M, L, XL"
-                    className="bg-white/5 border-white/10"
-                  />
-                  {productCategory && SIZE_PRESETS[productCategory] && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {SIZE_PRESETS[productCategory].map(size => (
-                        <Badge
-                          key={size}
-                          variant="outline"
-                          className="cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors"
-                          onClick={() => {
-                            const current = bulkForm.sizes ? bulkForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
-                            if (!current.includes(size)) {
-                              setBulkForm({ ...bulkForm, sizes: [...current, size].join(', ') });
-                            }
-                          }}
-                        >
-                          + {size}
-                        </Badge>
-                      ))}
+                {variantType === 'multi' ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <Label className="text-muted-foreground mb-2 block">Configuration Summary</Label>
+                      <ul className="space-y-1 text-sm text-white">
+                        {attributes.map(a => (
+                          <li key={a.id} className="flex justify-between">
+                            <span>{a.name}:</span>
+                            <span className="text-primary">{a.attribute_values?.length || 0} values</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {attributes.length === 0 && <p className="text-sm text-red-400">No attributes configured.</p>}
                     </div>
-                  )}
-                </div>
+                    <p className="text-xs text-muted-foreground">
+                      This will generate all possible combinations of the configured attributes.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Colors (comma separated, optional)</Label>
+                      <Input
+                        value={bulkForm.colors}
+                        onChange={(e) => setBulkForm({ ...bulkForm, colors: e.target.value })}
+                        placeholder="Red, Blue, Black (Leave empty for no color)"
+                        className="bg-white/5 border-white/10"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Sizes (comma separated)</Label>
+                      <Input
+                        value={bulkForm.sizes}
+                        onChange={(e) => setBulkForm({ ...bulkForm, sizes: e.target.value })}
+                        placeholder="S, M, L, XL"
+                        className="bg-white/5 border-white/10"
+                      />
+                      {productCategory && SIZE_PRESETS[productCategory] && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {SIZE_PRESETS[productCategory].map(size => (
+                            <Badge
+                              key={size}
+                              variant="outline"
+                              className="cursor-pointer hover:bg-primary/20 hover:border-primary/50 transition-colors"
+                              onClick={() => {
+                                const current = bulkForm.sizes ? bulkForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                if (!current.includes(size)) {
+                                  setBulkForm({ ...bulkForm, sizes: [...current, size].join(', ') });
+                                }
+                              }}
+                            >
+                              + {size}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Base Price</Label>
@@ -396,28 +564,53 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
                 <DialogTitle className="text-gradient-gold">Add New Variant</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Color (Optional)</Label>
-                    <Input
-                      value={newVariant.color}
-                      onChange={(e) => setNewVariant({ ...newVariant, color: e.target.value })}
-                      className="bg-white/5 border-white/10"
-                      placeholder="e.g. Red"
-                    />
+                {variantType === 'multi' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {attributes.map(attr => (
+                      <div key={attr.id} className="space-y-2">
+                        <Label>{attr.name}</Label>
+                        <select
+                          className="w-full bg-white/5 border border-white/10 rounded-md h-10 px-3 text-sm"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewVariant(prev => {
+                              const currentAttrs = prev.attribute_json || {};
+                              return { ...prev, attribute_json: { ...currentAttrs, [attr.name]: val } };
+                            });
+                          }}
+                        >
+                          <option value="">Select {attr.name}</option>
+                          {attr.attribute_values.map(v => (
+                            <option key={v.id} value={v.value}>{v.value}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Size</Label>
-                    <Input
-                      value={newVariant.size}
-                      onChange={(e) => setNewVariant({ ...newVariant, size: e.target.value })}
-                      className="bg-white/5 border-white/10"
-                      placeholder="e.g. XL"
-                    />
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Color (Optional)</Label>
+                      <Input
+                        value={newVariant.color}
+                        onChange={(e) => setNewVariant({ ...newVariant, color: e.target.value })}
+                        className="bg-white/5 border-white/10"
+                        placeholder="e.g. Red"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Size</Label>
+                      <Input
+                        value={newVariant.size}
+                        onChange={(e) => setNewVariant({ ...newVariant, size: e.target.value })}
+                        className="bg-white/5 border-white/10"
+                        placeholder="e.g. XL"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {productCategory && SIZE_PRESETS[productCategory] && (
+                {variantType !== 'multi' && productCategory && SIZE_PRESETS[productCategory] && (
                   <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">Suggested Sizes</Label>
                     <div className="flex flex-wrap gap-2">
@@ -564,27 +757,46 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
                   <TableCell>
                     {editingId === variant.id ? (
                       <div className="flex gap-2">
-                        <Input
-                          value={editForm.color || ''}
-                          onChange={(e) => setEditForm({ ...editForm, color: e.target.value })}
-                          className="h-8 w-20 bg-black border-white/20"
-                          placeholder="Color"
-                        />
-                        <Input
-                          value={editForm.size}
-                          onChange={(e) => setEditForm({ ...editForm, size: e.target.value })}
-                          className="h-8 w-16 bg-black border-white/20"
-                          placeholder="Size"
-                        />
+                        {/* Inline editing for legacy/simple variants */}
+                        {variantType !== 'multi' && (
+                          <>
+                            <Input
+                              value={editForm.color || ''}
+                              onChange={(e) => setEditForm({ ...editForm, color: e.target.value })}
+                              className="h-8 w-20 bg-black border-white/20"
+                              placeholder="Color"
+                            />
+                            <Input
+                              value={editForm.size}
+                              onChange={(e) => setEditForm({ ...editForm, size: e.target.value })}
+                              className="h-8 w-16 bg-black border-white/20"
+                              placeholder="Size"
+                            />
+                          </>
+                        )}
+                        {/* Inline editing for multi-attribute not fully supported yet, show read-only badges */}
+                        {variantType === 'multi' && variant.attribute_json && Object.entries(variant.attribute_json).map(([k, v]) => (
+                          <Badge key={k} variant="secondary" className="bg-white/10">{v}</Badge>
+                        ))}
                       </div>
                     ) : (
                       <div className="flex gap-2">
-                        {variant.color ? (
-                          <Badge variant="outline" className="border-white/10 bg-white/5">{variant.color}</Badge>
+                        {variant.attribute_json ? (
+                          Object.entries(variant.attribute_json).map(([key, val]) => (
+                            <Badge key={key} variant="outline" className="border-white/10 bg-white/5" title={key}>
+                              {val}
+                            </Badge>
+                          ))
                         ) : (
-                          <Badge variant="outline" className="border-white/10 bg-white/5 text-muted-foreground">No Color</Badge>
+                          <>
+                            {variant.color ? (
+                              <Badge variant="outline" className="border-white/10 bg-white/5">{variant.color}</Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-white/10 bg-white/5 text-muted-foreground">No Color</Badge>
+                            )}
+                            <Badge variant="outline" className="border-white/10 bg-white/5">{variant.size}</Badge>
+                          </>
                         )}
-                        <Badge variant="outline" className="border-white/10 bg-white/5">{variant.size}</Badge>
                       </div>
                     )}
                   </TableCell>
@@ -637,6 +849,18 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
                     ) : (
                       <div className="flex justify-end gap-2">
                         <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setHistoryVariantId(variant.id);
+                            setIsHistoryOpen(true);
+                          }}
+                          className="h-8 w-8 text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10"
+                          title="View Stock History"
+                        >
+                          <History className="w-4 h-4" />
+                        </Button>
+                        <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => startEditing(variant)}
@@ -661,6 +885,15 @@ export const ProductVariantManager = ({ productId, productSku }: Props) => {
           </TableBody>
         </Table>
       </div>
+
+      <StockHistoryViewer
+        variantId={historyVariantId}
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        variantName={
+          variants.find(v => v.id === historyVariantId)?.variant_name
+        }
+      />
     </div>
   );
 };

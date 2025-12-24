@@ -1,141 +1,244 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "npm:resend@2.0.0";
-import React from 'https://esm.sh/react@18.2.0';
-import { render } from 'https://esm.sh/@react-email/render@0.0.10';
-import { renderToBuffer } from 'https://esm.sh/@react-pdf/renderer@3.1.12';
-
-import { InvoicePdf } from './_templates/InvoicePdf.tsx';
-import { OrderEmail } from '../_shared/email-templates/OrderEmail.tsx';
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-const supabaseServiceKey = Deno.env.get("SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-rtb-fingerprint-id",
+    "Access-Control-Expose-Headers": "x-rtb-fingerprint-id",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
     }
 
     try {
-        // 1. Parse Request Body
-        const { order_id } = await req.json();
+        console.log(`Received ${req.method} request`);
+        console.log(`Headers:`, Object.fromEntries(req.headers.entries()));
 
-        if (!order_id) {
-            throw new Error("Missing order_id in request body");
+        const body = await req.text();
+        console.log(`Raw Body:`, body);
+
+        if (!body) {
+            return new Response(JSON.stringify({ error: "Request body is empty" }), {
+                status: 200, // Keep 200 for frontend debugging
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
         }
 
-        // 2. Fetch Order Details
-        const { data: orders, error: orderError } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('id', order_id);
+        const payload = JSON.parse(body);
+        const orderId = payload.record?.id || payload.orderId;
 
-        if (orderError) {
-            throw new Error(`Database error: ${orderError.message} `);
+        if (!orderId) {
+            return new Response(JSON.stringify({ error: "Order ID is required in payload" }), {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
         }
 
-        if (!orders || orders.length === 0) {
-            throw new Error(`Order not found: No order with ID ${order_id} `);
+        // Test Mode
+        if (payload.testEmail) {
+            console.log(`Sending TEST Order Confirmation to ${payload.testEmail}`);
+            await resend.emails.send({
+                from: "MTRIX <hello@mtrix.store>",
+                to: [payload.testEmail],
+                subject: "Order Confirmation #TEST-123",
+                html: `
+                    <h1>Order Confirmed</h1>
+                    <p>Thank you for your purchase!</p>
+                    <p><strong>Order ID:</strong> #TEST-123</p>
+                    <hr />
+                    <p>1x Test Product - $29.99</p>
+                    <p><strong>Total:</strong> $29.99</p>
+                `
+            });
+            return new Response(JSON.stringify({ success: true, message: "Test email sent" }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
         }
 
-        const order = orders[0];
-
-        // 3. Fetch User Profile for Email
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('email, first_name, last_name')
-            .eq('id', order.user_id)
+        // 1. Fetch Order Details with Items and User
+        const { data: order, error: orderError } = await supabase
+            .from("orders")
+            .select(`
+                *,
+                order_items (
+                    *,
+                    products (
+                        name
+                    )
+                ),
+                profiles:user_id (
+                    email
+                )
+            `)
+            .eq("id", orderId)
             .single();
 
-        // Fallback email if profile fetch fails
-        let customerEmail = profile?.email;
-        const customerName = profile?.first_name ? `${profile.first_name} ${profile.last_name || ''} ` : 'Valued Customer';
-
-        if (!customerEmail) {
-            // Try fetching from auth.users using admin API
-            const { data: userData, error: userError } = await supabase.auth.admin.getUserById(order.user_id);
-            if (userError || !userData.user) {
-                throw new Error("Could not find user email");
-            }
-            customerEmail = userData.user.email;
-        }
-
-        console.log(`Processing order ${order.order_number} for ${customerEmail}`);
-
-        // 4. Generate PDF Invoice
-        // Note: InvoicePdf template is kept local as it is specific to PDF generation
-        const pdfBuffer = await renderToBuffer(React.createElement(InvoicePdf, { order: order }));
-
-        // 5. Upload Invoice to Storage
-        const fileName = `${order.order_number}.pdf`;
-        const { error: uploadError } = await supabase.storage
-            .from('invoices')
-            .upload(fileName, pdfBuffer, {
-                contentType: 'application/pdf',
-                upsert: true,
-                cacheControl: '0'
+        if (orderError || !order) {
+            console.error("Order Fetch Error:", orderError);
+            return new Response(JSON.stringify({
+                error: "Order fetch failed",
+                details: orderError || "No order found with this ID",
+                queriedId: orderId,
+                found: !!order
+            }), {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
-
-        if (uploadError) {
-            console.error("Error uploading invoice:", uploadError);
         }
 
-        const { data: { publicUrl } } = supabase.storage.from('invoices').getPublicUrl(fileName);
-        console.log("Invoice Public URL:", publicUrl);
+        const userEmail = order.profiles?.email;
+        // 2. Format HTML
+        const currencySymbol = order.currency === 'INR' ? '₹' : '$';
 
-        // 6. Generate Email HTML & Text using Shared Template
-        const emailHtml = render(React.createElement(OrderEmail, {
-            type: 'confirmed',
-            orderNumber: order.order_number,
-            customerName: customerName
-        }));
+        // Status Logic
+        const displayId = order.order_number;
+        let subject = `Order Update #${displayId}`;
+        let headline = "Order Update";
+        let message = "Here is the latest update on your order.";
 
-        const emailText = render(React.createElement(OrderEmail, {
-            type: 'confirmed',
-            orderNumber: order.order_number,
-            customerName: customerName
-        }), {
-            plainText: true,
-        });
+        switch (order.status) {
+            case 'order_created':
+            case 'pending':
+            case 'paid':
+                subject = `Order Confirmation #${displayId}`;
+                headline = "Order Confirmed";
+                message = "Thank you for your purchase! We've received your order.";
+                break;
+            case 'processing':
+                subject = `We're working on Order #${displayId}`;
+                headline = "Processing Order";
+                message = "Your order is currently being prepared by our team.";
+                break;
+            case 'shipped':
+            case 'shipping':
+                subject = `Order #${displayId} Shipped! 🚀`;
+                headline = "On Its Way";
+                message = "Good news! Your order has been shipped.";
+                break;
+            case 'delivered':
+                subject = `Order #${displayId} Delivered ✅`;
+                headline = "Delivered";
+                message = "Your package has arrived! callbacks?";
+                break;
+            case 'cancelled':
+                subject = `Order #${displayId} Cancelled`;
+                headline = "Order Cancelled";
+                message = "This order has been cancelled as requested.";
+                break;
+        }
 
-        // 7. Send Email via Resend
-        const emailResponse = await resend.emails.send({
-            from: Deno.env.get("SENDER_EMAIL") || "MTRIX <onboarding@resend.dev>",
-            to: [customerEmail],
-            subject: `Payment Received — You’re All Set ✔️`,
+        const itemsHtml = order.order_items.map((item: any) => `
+            <div style="border-bottom: 1px solid #333; padding: 15px 0; display: flex; justify-content: space-between;">
+                <div>
+                    <p style="margin: 0; font-weight: bold; color: #fff;">${item.products?.name || 'Item'}</p>
+                    <p style="margin: 5px 0 0; color: #888; font-size: 14px;">Qty: ${item.quantity}</p>
+                </div>
+                <div style="text-align: right;">
+                    <p style="margin: 0; color: #D4AF37;">${currencySymbol}${item.price}</p>
+                </div>
+            </div>
+        `).join('');
+
+        const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #000000; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: #0c0c0c; border: 1px solid #333; border-radius: 16px; overflow: hidden; }
+                    .header { background: linear-gradient(90deg, #D4AF37 0%, #F5D061 50%, #D4AF37 100%); padding: 2px; }
+                    .header-inner { background-color: #000000; padding: 30px; text-align: center; }
+                    .logo { color: #D4AF37; font-size: 24px; font-weight: bold; letter-spacing: 4px; text-decoration: none; border: 2px solid #D4AF37; padding: 10px 20px; display: inline-block; }
+                    .content { padding: 40px 30px; color: #ffffff; }
+                    .h1 { font-size: 28px; margin: 0 0 20px; color: #ffffff; text-align: center; letter-spacing: 1px; }
+                    .message { color: #cccccc; text-align: center; margin-bottom: 40px; line-height: 1.6; font-size: 16px; }
+                    .order-box { background-color: #1a1a1a; padding: 25px; border-radius: 12px; border: 1px solid #333; }
+                    .order-header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+                    .total { font-size: 20px; color: #D4AF37; font-weight: bold; text-align: right; margin-top: 20px; }
+                    .footer { text-align: center; padding: 30px; color: #666; font-size: 12px; background-color: #080808; }
+                    .btn { display: inline-block; padding: 12px 24px; background-color: #D4AF37; color: #000; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }
+                </style>
+            </head>
+            <body style="background-color: #000000; padding: 20px;">
+                <div class="container">
+                    <div class="header">
+                        <div class="header-inner">
+                            <span class="logo">MTRIX</span>
+                        </div>
+                    </div>
+                    
+                    <div class="content">
+                        <h1 class="h1">${headline}</h1>
+                        <p class="message">Hi there,<br/>${message}</p>
+                        
+                        <div class="order-box">
+                            <div class="order-header">
+                                <span style="color: #888;">Order ID</span>
+                                <span style="color: #fff; font-family: monospace;">#${displayId}</span>
+                            </div>
+                            
+                            ${itemsHtml}
+                            
+                            <div class="total">
+                                Total: ${currencySymbol}${order.total_amount}
+                            </div>
+                        </div>
+
+                        <div style="text-align: center;">
+                            <a href="https://mtrix.store" class="btn">View Store</a>
+                        </div>
+                    </div>
+                    
+                    <div class="footer">
+                        <p>&copy; ${new Date().getFullYear()} MTRIX Store. All rights reserved.</p>
+                        <p>This is an automated message. Please do not reply directly.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        // 3. Send Email
+        const { data: resendData, error: resendError } = await resend.emails.send({
+            from: "MTRIX <orders@mtrix.store>",
+            to: [userEmail],
+            subject: subject,
             html: emailHtml,
-            text: emailText,
-            attachments: [
-                {
-                    filename: `Invoice - ${order.order_number}.pdf`,
-                    content: pdfBuffer,
-                },
-            ],
         });
 
-        console.log("Email sent:", emailResponse);
+        if (resendError) {
+            console.error("Resend API Error:", resendError);
+            return new Response(JSON.stringify({
+                error: "Resend API Error",
+                details: resendError
+            }), {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
 
         return new Response(JSON.stringify({
             success: true,
-            emailId: emailResponse.data?.id,
-            invoiceUrl: publicUrl,
-            pdfSize: pdfBuffer.length
+            message: `Order confirmation sent to ${userEmail}`,
+            resendId: resendData?.id
         }), {
-            headers: { "Content-Type": "application/json", ...corsHeaders },
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+
     } catch (error: any) {
-        console.error("Error:", error.message);
+        console.error("Error:", error);
+        // RETURN 200 to ensure frontend receives the error message body
         return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
     }
 });

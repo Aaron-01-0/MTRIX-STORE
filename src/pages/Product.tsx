@@ -33,6 +33,7 @@ import ReviewForm from '@/components/reviews/ReviewForm';
 import ReviewList from '@/components/reviews/ReviewList';
 import InstallationInstructions from '@/components/product/InstallationInstructions';
 import ToteBagDetails from '@/components/product/ToteBagDetails';
+import { VariantSelector, ProductAttribute, ProductVariant } from '@/components/product/VariantSelector';
 import ShippingReturns from '@/components/product/ShippingReturns';
 
 interface DatabaseProduct {
@@ -85,14 +86,18 @@ const Product = () => {
   const { toast } = useToast();
   const { addToCart } = useCart();
 
+  // --- State ---
   const [product, setProduct] = useState<DatabaseProduct | null>(null);
-  const [variants, setVariants] = useState<Variant[]>([]);
+  const [variants, setVariants] = useState<ProductVariant[]>([]); // Use imported type
+  const [productAttributes, setProductAttributes] = useState<ProductAttribute[]>([]); // Use imported type
   const [loading, setLoading] = useState(true);
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+
+  // Dynamic Selections State
+  const [selections, setSelections] = useState<Record<string, string>>({});
+
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -112,7 +117,6 @@ const Product = () => {
     } else {
       setLoading(false);
     }
-
     // Check session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id || null);
@@ -142,88 +146,77 @@ const Product = () => {
         return;
       }
 
-      // 1. Fetch Product
-      let { data: productsData, error: productError } = await supabase
-        .from('products')
-        .select(`
-          *,
-          categories(id, name),
-          brands(name),
-          product_images(image_url, alt_text, is_main, display_order)
-        `)
-        .eq('id', id)
-        .eq('is_active', true)
-        .limit(1);
-
-      if (productError) throw productError;
-
-      const productData = productsData?.[0] || null;
-
-      // If not found, try fetching without is_active check to see if it exists but is inactive
-      if (!productData) {
-        const { data: inactiveProducts, error: inactiveError } = await supabase
+      // 1. Fetch Product, Attributes, and Variants in parallel for efficiency
+      const [productRes, attributesRes, variantsRes] = await Promise.all([
+        supabase
           .from('products')
-          .select('id, is_active, status')
+          .select(`
+            *,
+            categories(id, name),
+            brands(name),
+            product_images(image_url, alt_text, is_main, display_order)
+          `)
           .eq('id', id)
-          .limit(1);
+          .eq('is_active', true)
+          .single(),
 
-        const inactiveProduct = inactiveProducts?.[0] || null;
+        supabase
+          .from('product_attributes')
+          .select('*, attribute_values(*)')
+          .eq('product_id', id)
+          .order('display_order'),
 
-        if (inactiveProduct) {
-          console.warn('Product exists but is inactive:', inactiveProduct);
-          toast({
-            title: "Product Unavailable",
-            description: "This product is currently inactive or archived.",
-            variant: "destructive"
-          });
-          setProduct(null);
-          return;
-        } else if (inactiveError) {
-          console.error('Error checking inactive product:', inactiveError);
-        }
+        supabase
+          .from('product_variants')
+          .select('*')
+          .eq('product_id', id)
+          .eq('is_active', true)
+      ]);
 
-        console.warn('Product not found in DB with ID:', id);
-        setProduct(null);
-        return;
-      }
+      if (productRes.error) throw productRes.error;
 
+      // Handle Product
+      const productData = productRes.data;
       setProduct(productData as unknown as DatabaseProduct);
 
-      // 2. Fetch Variants
-      const { data: variantData } = await supabase
-        .from('product_variants')
-        .select('*')
-        .eq('product_id', id)
-        .eq('is_active', true);
+      // Handle Attributes
+      // @ts-ignore
+      const attrs = (attributesRes.data || []) as ProductAttribute[];
+      setProductAttributes(attrs);
 
-      setVariants(variantData as unknown as Variant[] || []);
+      // Handle Variants
+      // @ts-ignore
+      const loadedVariants = (variantsRes.data || []) as ProductVariant[];
+      setVariants(loadedVariants);
 
-      if (variantData && variantData.length > 0) {
-        // Auto-select first color and its available size
-        const firstVariant = variantData[0];
-        if (firstVariant.color) {
-          setSelectedColor(firstVariant.color);
-          // Find first available size for this color
-          const sizeVariant = variantData.find((v: any) => v.color === firstVariant.color && v.stock_quantity > 0);
-          if (sizeVariant) {
-            setSelectedSize(sizeVariant.size);
-            setSelectedVariantId(sizeVariant.id);
+      // --- Initial Selection Logic ---
+      if (loadedVariants.length > 0) {
+        // Preference: Try to find an in-stock variant
+        const inStockVariant = loadedVariants.find(v => v.stock_quantity > 0) || loadedVariants[0];
+
+        const initialSelections: Record<string, string> = {};
+
+        if (productData.has_variants) {
+          if (productData.variant_type === 'multi' && inStockVariant.attribute_json) {
+            // Load from JSON
+            Object.entries(inStockVariant.attribute_json).forEach(([k, v]) => {
+              // @ts-ignore
+              initialSelections[k] = v;
+            });
           } else {
-            // Fallback if all out of stock
-            const anySize = variantData.find((v: any) => v.color === firstVariant.color);
-            if (anySize) {
-              setSelectedSize(anySize.size);
-              setSelectedVariantId(anySize.id);
-            }
+            // Backward Compatibility / Simple Variants
+            if (inStockVariant.color) initialSelections['Color'] = inStockVariant.color;
+            if (inStockVariant.size) initialSelections['Size'] = inStockVariant.size;
           }
         }
+        setSelections(initialSelections);
       }
 
     } catch (error) {
       console.error('Error loading product:', error);
       toast({
         title: "Error",
-        description: "Failed to load product details. See console for more info.",
+        description: "Failed to load product details.",
         variant: "destructive"
       });
     } finally {
@@ -236,26 +229,72 @@ const Product = () => {
 
 
   // --- Derived State ---
-  // Update selected variant ID when color/size changes
+
+  // Find matching variant based on selections
   useEffect(() => {
-    if (selectedColor && selectedSize) {
-      const variant = variants.find(v => v.color === selectedColor && v.size === selectedSize);
-      setSelectedVariantId(variant ? variant.id : null);
+    if (!variants.length) {
+      setSelectedVariantId(null);
+      return;
     }
-  }, [selectedColor, selectedSize, variants]);
+
+    const match = variants.find(v => {
+      // 1. Check Multi-Attribute JSON
+      if (v.attribute_json) {
+        // Every key in attribute_json should match logical selections
+        // Note: selections might contain 'Color' which maps to attribute_json['Color']
+        return Object.entries(v.attribute_json).every(([key, val]) => selections[key] === val);
+      }
+
+      // 2. Fallback Legacy
+      // If no attribute_json, we check v.color and v.size against selections['Color'] and selections['Size']
+      const colorMatch = !v.color || v.color === selections['Color'];
+      const sizeMatch = !v.size || v.size === selections['Size'];
+      return colorMatch && sizeMatch;
+    });
+
+    setSelectedVariantId(match ? match.id : null);
+  }, [selections, variants]);
 
   const selectedVariant = variants.find(v => v.id === selectedVariantId) || null;
 
-  // Filter variants by selected color to get available sizes
-  const availableSizes = variants
-    .filter(v => v.color === selectedColor)
-    .sort((a, b) => {
-      const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-      return sizes.indexOf(a.size || '') - sizes.indexOf(b.size || '');
-    });
+  // Compute available colors and sizes for legacy support (or visualization fallback)
+  // Ideally VariantSelector handles this, but we might need it for image filtering
+  const selectedColor = selections['Color'] || null;
 
-  // Get unique colors
-  const availableColors = Array.from(new Set(variants.map(v => v.color))).filter(Boolean) as string[];
+  // -------------------------------------------------------------
+  // Construct "Virtual" Attributes if product_attributes is empty
+  // but we have legacy variants (Color/Size columns populated).
+  // This ensures VariantSelector works for old products too.
+  // -------------------------------------------------------------
+  const effectiveAttributes = [...productAttributes];
+  if (effectiveAttributes.length === 0 && variants.length > 0) {
+    const hasColor = variants.some(v => v.color);
+    const hasSize = variants.some(v => v.size);
+
+    if (hasColor) {
+      const colors = Array.from(new Set(variants.map(v => v.color).filter(Boolean))) as string[];
+      effectiveAttributes.push({
+        id: 'legacy-color',
+        name: 'Color',
+        display_name: 'Color',
+        display_order: 0,
+        attribute_values: colors.map((c, i) => ({ id: `c-${i}`, value: c || '', display_order: i }))
+      });
+    }
+    if (hasSize) {
+      const sizes = Array.from(new Set(variants.map(v => v.size).filter(Boolean))) as string[];
+      const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+      sizes.sort((a, b) => sizeOrder.indexOf(a || '') - sizeOrder.indexOf(b || ''));
+
+      effectiveAttributes.push({
+        id: 'legacy-size',
+        name: 'Size',
+        display_name: 'Size',
+        display_order: 1,
+        attribute_values: sizes.map((s, i) => ({ id: `s-${i}`, value: s || '', display_order: i }))
+      });
+    }
+  }
 
   // Images logic
   const baseImages = product?.product_images?.length
@@ -508,76 +547,12 @@ const Product = () => {
                 {/* Variants */}
                 {variants.length > 0 && (
                   <div className="space-y-6 mb-6">
-                    {/* Colors */}
-                    {availableColors.length > 0 && (
-                      <div className="space-y-3">
-                        <span className="text-sm font-medium text-muted-foreground">Color: <span className="text-white ml-1">{selectedColor}</span></span>
-                        <div className="flex flex-wrap gap-3">
-                          {availableColors.map(color => {
-                            const isSelected = selectedColor === color;
-                            return (
-                              <button
-                                key={color}
-                                onClick={() => {
-                                  setSelectedColor(color);
-                                  // Reset size if current size not available in new color?
-                                  // Or try to keep same size?
-                                  // Let's try to keep same size if possible
-                                  const exists = variants.some(v => v.color === color && v.size === selectedSize);
-                                  if (!exists) {
-                                    // Select first available size
-                                    const firstSize = variants.find(v => v.color === color)?.size;
-                                    setSelectedSize(firstSize || null);
-                                  }
-                                  setSelectedImageIndex(0); // Reset image gallery
-                                }}
-                                className={cn(
-                                  "w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all",
-                                  isSelected ? "border-primary scale-110" : "border-transparent hover:scale-105"
-                                )}
-                                style={{ backgroundColor: color.toLowerCase() }}
-                                title={color}
-                              >
-                                {isSelected && <div className="w-2 h-2 bg-white rounded-full shadow-sm" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Sizes */}
-                    {selectedColor && availableSizes.length > 0 && (
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-muted-foreground">Size: <span className="text-white ml-1">{selectedSize}</span></span>
-                          <button className="text-xs text-primary hover:underline">Size Guide</button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {availableSizes.map(variant => {
-                            const isSelected = selectedSize === variant.size;
-                            const isOutOfStock = (variant.stock_quantity || 0) <= 0;
-                            return (
-                              <button
-                                key={variant.id}
-                                onClick={() => !isOutOfStock && setSelectedSize(variant.size)}
-                                disabled={isOutOfStock}
-                                className={cn(
-                                  "px-4 py-2 rounded-lg border text-sm font-medium transition-all min-w-[3rem]",
-                                  isSelected
-                                    ? "border-primary bg-primary/10 text-primary shadow-[0_0_10px_rgba(255,215,0,0.1)]"
-                                    : isOutOfStock
-                                      ? "border-white/5 bg-white/5 text-muted-foreground/50 cursor-not-allowed decoration-slice line-through"
-                                      : "border-white/10 bg-black/20 text-muted-foreground hover:border-white/30 hover:text-white"
-                                )}
-                              >
-                                {variant.size}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                    <VariantSelector
+                      attributes={effectiveAttributes}
+                      variants={variants}
+                      selections={selections}
+                      onSelectionChange={(attr, val) => setSelections(prev => ({ ...prev, [attr]: val }))}
+                    />
                   </div>
                 )}
 

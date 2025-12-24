@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
     }
 
     const authString = btoa(`${razorpayKeyId}:${razorpayKeySecret}`);
-    
+
     const razorpayResponse = await fetch(
       `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
       {
@@ -103,7 +103,8 @@ Deno.serve(async (req) => {
     console.log('Payment data fetched successfully:', paymentData.id);
 
     // Update the payment transaction in database
-    const { error: updateError } = await supabaseClient
+    // Update the payment transaction in database
+    const { data: updatedTxn, error: updateError } = await supabaseClient
       .from('payment_transactions')
       .update({
         status: paymentData.status,
@@ -111,11 +112,30 @@ Deno.serve(async (req) => {
         amount: paymentData.amount / 100, // Razorpay amount is in paise
         updated_at: new Date().toISOString(),
       })
-      .eq('razorpay_payment_id', razorpay_payment_id);
+      .eq('razorpay_payment_id', razorpay_payment_id)
+      .select('order_id')
+      .single();
 
     if (updateError) {
       console.error('Database update error:', updateError);
       throw updateError;
+    }
+
+    // Sync status with Orders table
+    if (updatedTxn?.order_id) {
+      console.log(`Syncing order ${updatedTxn.order_id} status to ${paymentData.status}`);
+      const { error: orderError } = await supabaseClient
+        .from('orders')
+        .update({
+          payment_status: paymentData.status.toLowerCase()
+          // note: not updating the main order 'status' (e.g. pending/shipped) - that is separate workflow
+        })
+        .eq('id', updatedTxn.order_id);
+
+      if (orderError) {
+        console.error('Failed to sync order status:', orderError);
+        // Don't throw here, as the primary payment sync succeeded
+      }
     }
 
     return new Response(
@@ -138,8 +158,8 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error in fetch-razorpay-payment:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Internal server error' 
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Internal server error'
       }),
       {
         status: 500,

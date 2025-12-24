@@ -12,13 +12,15 @@ import { Plus, Search, Filter, ArrowRight, ArrowLeft, Save, Loader2, Wand2, Chec
 import { exportToCSV } from '@/utils/exportUtils';
 import { useToast } from '@/hooks/use-toast';
 import ProductImageManager from './ProductImageManager';
-import VariantManager from './VariantManager';
+// import VariantManager from './VariantManager';
+import { ProductVariantManager as VariantManager } from './ProductVariantManager';
 import ProductList from './ProductList';
 import { Tables } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
-type Product = Tables<'products'>;
+import { Product } from '@/types/supabase-ext';
+// type Product = Tables<'products'>;
 type Category = Tables<'categories'>;
 type Brand = Tables<'brands'>;
 type ProductStatus = 'draft' | 'published' | 'archived';
@@ -75,7 +77,8 @@ const ProductManager = () => {
     meta_title: '',
     meta_description: '',
     tags: '',
-    has_variants: false
+    has_variants: false,
+    variant_type: 'none' // 'none', 'single', 'multi'
   });
 
   useEffect(() => {
@@ -95,7 +98,7 @@ const ProductManager = () => {
       if (categoriesRes.error) throw categoriesRes.error;
       if (brandsRes.error) throw brandsRes.error;
 
-      setProducts(productsRes.data || []);
+      setProducts((productsRes.data || []) as unknown as Product[]);
       setCategories(categoriesRes.data || []);
       setBrands(brandsRes.data || []);
     } catch (error) {
@@ -215,7 +218,8 @@ const ProductManager = () => {
       meta_title: '',
       meta_description: '',
       tags: '',
-      has_variants: false
+      has_variants: false,
+      variant_type: 'none'
     });
     setEditingProduct(null);
     setCurrentStep(0);
@@ -375,7 +379,8 @@ const ProductManager = () => {
       meta_title: product.meta_title || '',
       meta_description: product.meta_description || '',
       tags: product.tags ? product.tags.join(', ') : '',
-      has_variants: false
+      has_variants: product.has_variants || false,
+      variant_type: product.variant_type || 'none'
     });
     setShowCreateDialog(true);
   };
@@ -641,9 +646,42 @@ const ProductManager = () => {
                     </div>
                     <Switch
                       checked={formData.has_variants}
-                      onCheckedChange={(c) => handleInputChange('has_variants', c)}
+                      onCheckedChange={(c) => {
+                        handleInputChange('has_variants', c);
+                        // Default to 'single' if enabled, 'none' if disabled
+                        if (c && (!formData.variant_type || formData.variant_type === 'none')) {
+                          handleInputChange('variant_type', 'single');
+                        } else if (!c) {
+                          handleInputChange('variant_type', 'none');
+                        }
+                      }}
                     />
                   </div>
+
+                  {formData.has_variants && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div
+                        className={cn(
+                          "cursor-pointer p-4 rounded-lg border-2 transition-all hover:bg-white/5",
+                          formData.variant_type === 'single' ? "border-primary bg-primary/10" : "border-white/10"
+                        )}
+                        onClick={() => handleInputChange('variant_type', 'single')}
+                      >
+                        <h4 className="font-bold text-white mb-1">Simple Variants</h4>
+                        <p className="text-sm text-muted-foreground">Best for single attributes like just Size OR just Color. (e.g. Tote Bags)</p>
+                      </div>
+                      <div
+                        className={cn(
+                          "cursor-pointer p-4 rounded-lg border-2 transition-all hover:bg-white/5",
+                          formData.variant_type === 'multi' ? "border-primary bg-primary/10" : "border-white/10"
+                        )}
+                        onClick={() => handleInputChange('variant_type', 'multi')}
+                      >
+                        <h4 className="font-bold text-white mb-1">Multi-Attribute</h4>
+                        <p className="text-sm text-muted-foreground">Complex combinations like Size x Color x Material.</p>
+                      </div>
+                    </div>
+                  )}
 
                   {formData.has_variants ? (
                     editingProduct ? (
@@ -651,6 +689,7 @@ const ProductManager = () => {
                         productId={editingProduct.id}
                         productName={formData.name}
                         basePrice={parseFloat(formData.base_price) || 0}
+                        variantType={formData.variant_type}
                       />
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
