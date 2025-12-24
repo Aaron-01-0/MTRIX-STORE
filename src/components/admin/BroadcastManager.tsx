@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Send, Megaphone, History, Eye, Trash2, PenTool } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
@@ -365,6 +366,7 @@ const BroadcastManager = () => {
                                                 <SelectItem value="minimal">Minimal (Text Focus)</SelectItem>
                                                 <SelectItem value="showcase">Product Showcase (Image Focus)</SelectItem>
                                                 <SelectItem value="newsletter">Newsletter (Structured)</SelectItem>
+                                                <SelectItem value="launch">Launch Countdown (Premium)</SelectItem>
                                                 <SelectItem value="builder">Visual Builder (Drag & Drop)</SelectItem>
                                                 <SelectItem value="custom">Custom HTML</SelectItem>
                                             </SelectContent>

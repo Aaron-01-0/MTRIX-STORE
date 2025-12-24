@@ -174,7 +174,7 @@ const ComingSoon = () => {
 
         // Check if launch has happened
         if (new Date() >= TARGET_DATE) {
-            navigate('/', { replace: true });
+            navigate('/onboarding', { replace: true });
             return;
         }
 

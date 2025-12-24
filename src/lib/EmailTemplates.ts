@@ -1,4 +1,4 @@
-export type EmailTemplateType = 'minimal' | 'showcase' | 'newsletter' | 'custom' | 'builder';
+export type EmailTemplateType = 'minimal' | 'showcase' | 'newsletter' | 'custom' | 'builder' | 'launch';
 
 export interface EmailTemplateData {
     title?: string;
@@ -106,6 +106,40 @@ export const generateEmailHtml = (type: EmailTemplateType, data: EmailTemplateDa
                     </div>
                     <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">
                         &copy; ${new Date().getFullYear()} MTRIX. All rights reserved.
+                    </div>
+                </div>
+            `;
+
+        case 'launch':
+            return `
+                <div style="${baseStyles} background-color: #000; color: #fff;">
+                    <div style="${containerStyle} background-color: #0c0c0c; border: 1px solid #333;">
+                        <div style="position: relative; text-align: center; overflow: hidden;">
+                            <div style="background: linear-gradient(180deg, rgba(0,0,0,0) 0%, #0c0c0c 100%); position: absolute; bottom: 0; left: 0; width: 100%; height: 50px;"></div>
+                            <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeWxvNHR6aHhzZnh6Znh6Znh6Znh6Znh6Znh6Znh6Znh6Znh6Znh6/TqiwHbFBaZ4ti/giphy.gif" alt="Matrix Rain" style="width: 100%; height: 200px; object-fit: cover; opacity: 0.6;" />
+                        </div>
+                        <div style="padding: 30px; text-align: center;">
+                            <h1 style="color: #D4AF37; font-size: 36px; margin: 0 0 10px; font-family: 'Courier New', monospace; letter-spacing: -1px;">SYSTEM ONLINE</h1>
+                            <p style="color: #D4AF37; font-size: 14px; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 40px; opacity: 0.7;">Initialize Sequence...</p>
+                            
+                            <div style="border: 1px solid #333; padding: 25px; border-radius: 4px; margin-bottom: 30px; background: #080808;">
+                                <h3 style="color: #fff; margin: 0 0 10px; font-weight: normal;">Exclusive Access Reward</h3>
+                                <p style="color: #888; margin: 0; font-size: 14px;">
+                                    Use code <strong style="color: #D4AF37;">LAUNCH20</strong> for 20% off your first order.
+                                </p>
+                            </div>
+
+                            <p style="color: #aaa; margin-bottom: 30px; line-height: 1.6; font-size: 16px;">
+                                The wait is over. Experience the seamless fusion of art and technology. Our first collection is now live.
+                            </p>
+
+                            <a href="https://mtrix.store" style="${buttonStyle} background-color: #D4AF37; color: #000; border: none; padding: 15px 40px; font-size: 16px;">
+                                ENTER STORE
+                            </a>
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #444;">
+                        MTRIX Store &copy; ${new Date().getFullYear()}
                     </div>
                 </div>
             `;
