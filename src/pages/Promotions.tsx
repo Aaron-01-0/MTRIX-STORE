@@ -44,7 +44,12 @@ const Promotions = () => {
         .order('discount_value', { ascending: false });
 
       if (error) throw error;
-      setCoupons(data || []);
+
+      // Filter out Reward Wheel prizes
+      const HIDDEN_CODES = ['WELCOME10', 'FREESHIP', 'LUCKY15', 'MYSTERY_UNLOCK', 'FOUNDER', 'GOLDEN20'];
+      const visibleCoupons = (data || []).filter(c => !HIDDEN_CODES.includes(c.code) && !c.code.startsWith('WELCOME10-'));
+
+      setCoupons(visibleCoupons);
     } catch (error) {
       console.error('Error fetching coupons:', error);
       toast.error('Failed to load coupons');

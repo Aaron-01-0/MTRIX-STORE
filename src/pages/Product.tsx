@@ -26,6 +26,7 @@ import Footer from '@/components/Footer';
 import { useToast } from '@/hooks/use-toast';
 import { useCart } from '@/hooks/useCart';
 import { cn } from '@/lib/utils';
+import { useProductDetail } from '@/hooks/useProductDetail';
 import SEO from '@/components/SEO';
 import { OptimizedImage } from '@/components/OptimizedImage';
 import RelatedProducts from '@/components/product/RelatedProducts';
@@ -36,37 +37,7 @@ import ToteBagDetails from '@/components/product/ToteBagDetails';
 import { VariantSelector, ProductAttribute, ProductVariant } from '@/components/product/VariantSelector';
 import ShippingReturns from '@/components/product/ShippingReturns';
 
-interface DatabaseProduct {
-  id: string;
-  name: string;
-  short_description: string | null;
-  detailed_description: string | null;
-  base_price: number;
-  discount_price: number | null;
-  sku: string;
-  stock_quantity: number;
-  stock_status: string;
-  minimum_order_quantity: number;
-  weight: number | null;
-  dimensions: any;
-  return_policy: string | null;
-  warranty_info: string | null;
-  ratings_avg: number;
-  ratings_count: number;
-  is_active: boolean;
-  is_new: boolean;
-  is_trending: boolean;
-  is_featured: boolean;
-  categories: { id: string; name: string } | null;
-  brands: { name: string } | null;
-  product_images: Array<{
-    image_url: string;
-    alt_text: string | null;
-    is_main: boolean;
-    display_order: number;
-  }> | null;
-  category_id: string | null;
-}
+
 
 interface Variant {
   id: string;
@@ -87,10 +58,12 @@ const Product = () => {
   const { addToCart } = useCart();
 
   // --- State ---
-  const [product, setProduct] = useState<DatabaseProduct | null>(null);
-  const [variants, setVariants] = useState<ProductVariant[]>([]); // Use imported type
-  const [productAttributes, setProductAttributes] = useState<ProductAttribute[]>([]); // Use imported type
-  const [loading, setLoading] = useState(true);
+  // const [product, setProduct] = useState<DatabaseProduct | null>(null); // Replaced by hook
+  // const [variants, setVariants] = useState<ProductVariant[]>([]); // Replaced by hook
+  // const [productAttributes, setProductAttributes] = useState<ProductAttribute[]>([]); // Replaced by hook
+  // const [loading, setLoading] = useState(true); // Replaced by hook
+
+  const { product, attributes: productAttributes, variants, loading, error } = useProductDetail(id);
 
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -110,18 +83,36 @@ const Product = () => {
   const imageRef = useRef<HTMLDivElement>(null);
   const addToCartBtnRef = useRef<HTMLButtonElement>(null);
 
+  // Initialize selections once data is loaded
   useEffect(() => {
-    if (id && id !== ':id') {
-      loadProduct();
-      window.scrollTo(0, 0);
-    } else {
-      setLoading(false);
+    if (!loading && variants.length > 0 && Object.keys(selections).length === 0) {
+      // Preference: Try to find an in-stock variant
+      const inStockVariant = variants.find(v => v.stock_quantity > 0) || variants[0];
+      const initialSelections: Record<string, string> = {};
+
+      if (product?.has_variants) {
+        if (product.variant_type === 'multi' && inStockVariant.attribute_json) {
+          // Load from JSON
+          Object.entries(inStockVariant.attribute_json).forEach(([k, v]) => {
+            // @ts-ignore
+            initialSelections[k] = v;
+          });
+        } else {
+          // Backward Compatibility / Simple Variants
+          if (inStockVariant.color) initialSelections['Color'] = inStockVariant.color;
+          if (inStockVariant.size) initialSelections['Size'] = inStockVariant.size;
+        }
+      }
+      setSelections(initialSelections);
     }
+  }, [loading, variants, product]);
+
+  useEffect(() => {
     // Check session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserId(session?.user?.id || null);
     });
-  }, [id]);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -133,96 +124,6 @@ const Product = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  const loadProduct = async () => {
-    try {
-      setLoading(true);
-
-      // Validate UUID
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!id || !uuidRegex.test(id)) {
-        console.error('Invalid Product ID:', id);
-        setLoading(false);
-        return;
-      }
-
-      // 1. Fetch Product, Attributes, and Variants in parallel for efficiency
-      const [productRes, attributesRes, variantsRes] = await Promise.all([
-        supabase
-          .from('products')
-          .select(`
-            *,
-            categories(id, name),
-            brands(name),
-            product_images(image_url, alt_text, is_main, display_order)
-          `)
-          .eq('id', id)
-          .eq('is_active', true)
-          .single(),
-
-        supabase
-          .from('product_attributes')
-          .select('*, attribute_values(*)')
-          .eq('product_id', id)
-          .order('display_order'),
-
-        supabase
-          .from('product_variants')
-          .select('*')
-          .eq('product_id', id)
-          .eq('is_active', true)
-      ]);
-
-      if (productRes.error) throw productRes.error;
-
-      // Handle Product
-      const productData = productRes.data;
-      setProduct(productData as unknown as DatabaseProduct);
-
-      // Handle Attributes
-      // @ts-ignore
-      const attrs = (attributesRes.data || []) as ProductAttribute[];
-      setProductAttributes(attrs);
-
-      // Handle Variants
-      // @ts-ignore
-      const loadedVariants = (variantsRes.data || []) as ProductVariant[];
-      setVariants(loadedVariants);
-
-      // --- Initial Selection Logic ---
-      if (loadedVariants.length > 0) {
-        // Preference: Try to find an in-stock variant
-        const inStockVariant = loadedVariants.find(v => v.stock_quantity > 0) || loadedVariants[0];
-
-        const initialSelections: Record<string, string> = {};
-
-        if (productData.has_variants) {
-          if (productData.variant_type === 'multi' && inStockVariant.attribute_json) {
-            // Load from JSON
-            Object.entries(inStockVariant.attribute_json).forEach(([k, v]) => {
-              // @ts-ignore
-              initialSelections[k] = v;
-            });
-          } else {
-            // Backward Compatibility / Simple Variants
-            if (inStockVariant.color) initialSelections['Color'] = inStockVariant.color;
-            if (inStockVariant.size) initialSelections['Size'] = inStockVariant.size;
-          }
-        }
-        setSelections(initialSelections);
-      }
-
-    } catch (error) {
-      console.error('Error loading product:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load product details.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
 

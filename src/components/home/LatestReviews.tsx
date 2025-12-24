@@ -12,7 +12,8 @@ interface Review {
     review_text: string;
     created_at: string;
     profiles: {
-        full_name: string;
+        first_name: string | null;
+        last_name: string | null;
         avatar_url: string | null;
     };
     products: {
@@ -42,7 +43,7 @@ const LatestReviews = () => {
           rating,
           review_text,
           created_at,
-          profiles (full_name, avatar_url),
+          profiles (first_name, last_name, avatar_url),
           products (
             id,
             name,
@@ -137,12 +138,12 @@ const LatestReviews = () => {
                                     <Avatar className="w-8 h-8 border border-white/10">
                                         <AvatarImage src={review.profiles?.avatar_url || undefined} />
                                         <AvatarFallback className="bg-gold/10 text-gold text-xs">
-                                            {review.profiles?.full_name?.charAt(0) || 'U'}
+                                            {review.profiles?.first_name?.charAt(0) || 'U'}
                                         </AvatarFallback>
                                     </Avatar>
                                     <div className="flex-1">
                                         <p className="text-xs font-medium text-white">
-                                            {review.profiles?.full_name || 'Verified Buyer'}
+                                            {review.profiles ? `${review.profiles.first_name || ''} ${review.profiles.last_name || ''}`.trim() || 'Verified Buyer' : 'Verified Buyer'}
                                         </p>
                                         <p className="text-[10px] text-muted-foreground">
                                             {formatDistanceToNow(new Date(review.created_at), { addSuffix: true })}

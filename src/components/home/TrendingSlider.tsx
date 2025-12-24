@@ -6,6 +6,7 @@ import { ShoppingCart, Heart, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
+import { useTrendingProducts, Product } from '@/hooks/useProducts';
 import {
     Carousel,
     CarouselContent,
@@ -14,54 +15,25 @@ import {
     CarouselPrevious,
 } from "@/components/ui/carousel";
 
-interface Product {
-    id: string;
-    name: string;
-    base_price: number;
-    discount_price: number | null;
-    image_url: string | null;
-    category_id: string;
-}
-
 const TrendingSlider = () => {
     const { addToCart } = useCart();
     const { toast } = useToast();
-    const [products, setProducts] = useState<Product[]>([]);
+    const { products, loading } = useTrendingProducts();
 
-    useEffect(() => {
-        fetchProducts();
-    }, []);
+    // Use derived state if needed or just use products directly
+    // The hook returns formatted products, but this component expects specific shape?
+    // Let's check the hook output vs component expectation.
+    // Hook returns 'Product' interface. Component defines local 'Product' interface.
+    // They might perform mapping.
 
-    const fetchProducts = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('products')
-                .select('id, name, base_price, discount_price, category_id')
-                .eq('is_trending', true)
-                .eq('is_active', true)
-                .limit(10);
+    // The hook returns: { id, name, price, originalPrice, image, ... }
+    // The component expects: { id, name, base_price, discount_price, image_url, category_id }
 
-            if (error) throw error;
+    // I need to map the hook's output to the component's expected format OR update the component to use the hook's format.
+    // Updating component to use shared type is better.
 
-            const productsWithImages = await Promise.all((data || []).map(async (product) => {
-                const { data: imageData } = await supabase
-                    .from('product_images')
-                    .select('image_url')
-                    .eq('product_id', product.id)
-                    .eq('is_main', true)
-                    .single();
+    // However, for minimal friction, I will map it here if necessary, or better yet, Import the shared type.
 
-                return {
-                    ...product,
-                    image_url: imageData?.image_url || null
-                };
-            }));
-
-            setProducts(productsWithImages);
-        } catch (error) {
-            console.error('Error fetching trending products:', error);
-        }
-    };
 
     const handleAddToCart = (e: React.MouseEvent, product: Product) => {
         e.preventDefault();
@@ -100,7 +72,7 @@ const TrendingSlider = () => {
                                     <Card className="bg-mtrix-dark border-mtrix-gray h-full overflow-hidden transition-all duration-300 hover:border-primary/50 hover:shadow-[0_0_30px_-5px_rgba(var(--primary-rgb),0.3)]">
                                         <div className="relative aspect-[4/5] overflow-hidden bg-mtrix-black">
                                             <img
-                                                src={product.image_url || '/placeholder.svg'}
+                                                src={product.image || '/placeholder.svg'}
                                                 alt={product.name}
                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                             />
@@ -131,11 +103,11 @@ const TrendingSlider = () => {
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-lg font-bold text-primary">
-                                                        ₹{product.discount_price || product.base_price}
+                                                        {product.price}
                                                     </span>
-                                                    {product.discount_price && (
+                                                    {product.originalPrice && (
                                                         <span className="text-sm text-muted-foreground line-through">
-                                                            ₹{product.base_price}
+                                                            {product.originalPrice}
                                                         </span>
                                                     )}
                                                 </div>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -26,9 +26,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<any | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const currentUserIdRef = useRef<string | null>(null);
+
+  // Update refs when user changes
+  useEffect(() => {
+    currentUserIdRef.current = user?.id || null;
+  }, [user]);
+
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Helper to fetch profile with timeout
   const fetchProfile = async (userId: string) => {
+    // 1. Abort if this fetch is for a user who is no longer active
+    if (currentUserIdRef.current && currentUserIdRef.current !== userId) return;
+
     try {
       // Create a promise that rejects after 5 seconds
       const timeoutPromise = new Promise((_, reject) => {
@@ -44,6 +58,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Race the fetch against the timeout
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
+      // 2. Safety check again after await
+      if (!mountedRef.current) return;
+      if (currentUserIdRef.current !== userId) {
+        console.log("Profile fetch ignored - user changed/signed out");
+        return;
+      }
+
       if (!error && data) {
         setProfile(data);
       } else {
@@ -51,6 +72,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setProfile(null);
       }
     } catch (err) {
+      // Safety check before applying fail-open
+      if (!mountedRef.current || currentUserIdRef.current !== userId) return;
+
       console.error("Profile unexpected error/timeout:", err);
       // FAIL OPEN STRATEGY
       // If the DB times out or errors, do NOT block the user.
@@ -67,11 +91,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+        if (!mountedRef.current) return;
 
-        if (session?.user) {
-          await fetchProfile(session.user.id);
+        const currentUser = session?.user ?? null;
+        setSession(session);
+        setUser(currentUser);
+        currentUserIdRef.current = currentUser?.id || null; // Update ref immediately
+
+        if (currentUser) {
+          await fetchProfile(currentUser.id);
         } else {
           setProfile(null);
         }
@@ -79,9 +107,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false);
 
         // Record login if user just signed in
-        if (event === 'SIGNED_IN' && session?.user) {
+        if (event === 'SIGNED_IN' && currentUser) {
           setTimeout(() => {
-            recordLogin('email', session.user);
+            recordLogin('email', currentUser);
           }, 0);
         }
       }
@@ -89,11 +117,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+      if (!mountedRef.current) return;
 
-      if (session?.user) {
-        await fetchProfile(session.user.id);
+      const currentUser = session?.user ?? null;
+      setSession(session);
+      setUser(currentUser);
+      currentUserIdRef.current = currentUser?.id || null;
+
+      if (currentUser) {
+        await fetchProfile(currentUser.id);
       } else {
         setProfile(null);
       }
@@ -104,7 +136,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Safety valve: Force loading false after 6 seconds absolute max
     // This ensures that even if DB/network totally hangs, the app unlocks.
-    const safetyTimer = setTimeout(() => setLoading(false), 6000);
+    const safetyTimer = setTimeout(() => {
+      if (mountedRef.current) setLoading(false);
+    }, 6000);
 
     return () => {
       subscription.unsubscribe();
@@ -192,13 +226,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
+    // IMMEDIATE OPTIMISTIC UPDATE
+    // Prevent any pending fetches from applying
+    currentUserIdRef.current = null;
+    setUser(null);
+    setProfile(null);
+    setSession(null);
+
     if (user) {
-      await supabase.rpc('log_activity' as any, {
+      // Fire and forget logging
+      supabase.rpc('log_activity' as any, {
         p_action: 'LOGOUT',
         p_entity_type: 'auth',
         p_entity_id: user.id,
         p_details: { email: user.email }
-      });
+      }).then(() => { });
     }
     const { error } = await supabase.auth.signOut();
     return { error };

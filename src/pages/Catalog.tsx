@@ -14,6 +14,7 @@ import {
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useProducts } from '@/hooks/useProducts';
+import { useCategories, Category } from '@/hooks/useCategories';
 import { supabase } from '@/integrations/supabase/client';
 import ProductCard from '@/components/catalog/ProductCard';
 import CatalogFilters from '@/components/catalog/CatalogFilters';
@@ -21,14 +22,7 @@ import { cn } from '@/lib/utils';
 import SEO from '@/components/SEO';
 import { OptimizedImage } from '@/components/OptimizedImage';
 
-interface Category {
-  id: string;
-  name: string;
-  count: number;
-  image_url?: string;
-  description?: string;
-  parent_id?: string | null;
-}
+
 
 type SortOption = 'newest' | 'price_asc' | 'price_desc' | 'rating';
 
@@ -38,11 +32,17 @@ const Catalog = () => {
 
   // State
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [categories, setCategories] = useState<Category[]>([]);
+  // const [categories, setCategories] = useState<Category[]>([]); // Replaced with useCategories
   const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
   const [displayCount, setDisplayCount] = useState(12);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const { products, loading } = useProducts();
+
+  // Use Cached Hooks
+  const { products, loading: productsLoading } = useProducts();
+  const { categories: cachedCategories, loading: categoriesLoading } = useCategories();
+
+  const loading = productsLoading || categoriesLoading;
+  const categories = cachedCategories; // Alias for compatibility
 
   // Filters State
   const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || 'all');
@@ -75,51 +75,6 @@ const Catalog = () => {
     setDisplayCount(12);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  // Fetch Categories & Metadata
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const { data: categoriesData, error } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('is_active', true);
-
-        if (error) throw error;
-
-        // Get product counts
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('category_id')
-          .eq('is_active', true);
-
-        const productCounts = productsData?.reduce((acc: Record<string, number>, product) => {
-          if (product.category_id) {
-            acc[product.category_id] = (acc[product.category_id] || 0) + 1;
-          }
-          return acc;
-        }, {}) || {};
-
-        const formattedCategories: Category[] = [
-          { id: 'all', name: 'All Categories', count: productsData?.length || 0, parent_id: null },
-          ...(categoriesData?.map(cat => ({
-            id: cat.id,
-            name: cat.name,
-            count: productCounts[cat.id] || 0,
-            image_url: cat.image_url,
-            description: cat.description,
-            parent_id: cat.parent_id
-          })) || [])
-        ];
-
-        setCategories(formattedCategories);
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-      }
-    };
-
-    fetchCategories();
-  }, []);
 
   // Update Current Category Info
   useEffect(() => {
