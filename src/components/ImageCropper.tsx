@@ -22,23 +22,38 @@ export const ImageCropper = ({ image, onCropComplete, onClose, open }: ImageCrop
     const canvas = document.createElement('canvas');
     const scaleX = imgRef.current.naturalWidth / imgRef.current.width;
     const scaleY = imgRef.current.naturalHeight / imgRef.current.height;
-    const ctx = canvas.getContext('2d');
 
+    // Calculate actual pixel dimensions
+    const pixelWidth = completedCrop.width * scaleX;
+    const pixelHeight = completedCrop.height * scaleY;
+
+    // Constrain Max Width to 1080px for bandwidth optimization
+    const MAX_WIDTH = 1080;
+    let outputWidth = pixelWidth;
+    let outputHeight = pixelHeight;
+
+    if (outputWidth > MAX_WIDTH) {
+      outputHeight = Math.round((outputHeight * MAX_WIDTH) / outputWidth);
+      outputWidth = MAX_WIDTH;
+    }
+
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    canvas.width = completedCrop.width;
-    canvas.height = completedCrop.height;
-
+    // Draw resized image
     ctx.drawImage(
       imgRef.current,
       completedCrop.x * scaleX,
       completedCrop.y * scaleY,
-      completedCrop.width * scaleX,
-      completedCrop.height * scaleY,
+      pixelWidth,
+      pixelHeight,
       0,
       0,
-      completedCrop.width,
-      completedCrop.height
+      outputWidth,
+      outputHeight
     );
 
     return new Promise<Blob>((resolve, reject) => {
@@ -50,8 +65,8 @@ export const ImageCropper = ({ image, onCropComplete, onClose, open }: ImageCrop
             reject(new Error('Canvas is empty'));
           }
         },
-        'image/jpeg',
-        0.95
+        'image/webp', // Force WebP
+        0.8 // Quality 80%
       );
     });
   };

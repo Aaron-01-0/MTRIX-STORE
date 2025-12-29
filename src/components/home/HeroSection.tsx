@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getOptimizedImageUrl, imagePresets } from "@/lib/cloudinary";
 
 interface HeroImageConfig {
     headline_size?: number;
@@ -188,9 +189,9 @@ const HeroSection = () => {
 
                     {/* Image */}
                     <picture>
-                        {s.mobile_image_url && <source media="(max-width: 768px)" srcSet={s.mobile_image_url} />}
+                        {s.mobile_image_url && <source media="(max-width: 768px)" srcSet={getOptimizedImageUrl(s.mobile_image_url, { width: 768, quality: 'auto:good', format: 'auto' })} />}
                         <img
-                            src={s.image_url}
+                            src={getOptimizedImageUrl(s.image_url, imagePresets.hero)}
                             alt={s.alt_text || "Hero Background"}
                             className={`w-full h-full object-cover ${index === currentSlide && s.config?.animation_style === 'ken-burns' ? 'scale-125' : 'scale-100'} transition-transform duration-[20s] ease-linear`}
                         />

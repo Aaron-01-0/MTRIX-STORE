@@ -95,6 +95,7 @@ const FeaturedGrid = () => {
                                         src={product.image_url || '/placeholder.svg'}
                                         alt={product.name}
                                         aspectRatio="square"
+                                        preset="card"
                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                     />
 

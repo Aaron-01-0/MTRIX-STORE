@@ -76,7 +76,8 @@ serve(async (req) => {
           name,
           base_price,
           discount_price,
-          stock_quantity
+          stock_quantity,
+          category_id
         ),
         bundles:bundle_id (
           id,
@@ -180,7 +181,7 @@ serve(async (req) => {
       throw new Error('Some items in your cart are no longer available.');
     }
 
-    // --- COUPON LOGIC ---
+    // --- COUPON LOGIC & RESTRICTION VALIDATION ---
     let discountAmount = 0;
     let appliedCouponCode = null;
     let isFreeShipping = false;
@@ -194,30 +195,112 @@ serve(async (req) => {
         .single();
 
       if (!couponError && coupon) {
-        // Check validity
+        // 1. Basic Validation
         const now = new Date();
         const validUntil = coupon.valid_until ? new Date(coupon.valid_until) : null;
 
+        let isValid = true;
+        let rejectReason = "";
+
         if (validUntil && validUntil < now) {
-          console.log('Coupon expired');
-        } else if (coupon.usage_limit !== null && coupon.times_used >= coupon.usage_limit) {
-          console.log('Coupon usage limit reached');
-        } else if (calculatedTotal < coupon.min_order_value) {
-          console.log('Min order value not met');
-        } else {
-          // Apply discount
-          if (coupon.discount_type === 'percentage') {
-            let discount = calculatedTotal * (coupon.discount_value / 100);
-            if (coupon.max_discount_amount) {
-              discount = Math.min(discount, coupon.max_discount_amount);
-            }
-            discountAmount = discount;
-          } else if (coupon.discount_type === 'fixed') {
-            discountAmount = coupon.discount_value;
-          } else if (coupon.discount_type === 'free_shipping') {
-            isFreeShipping = true;
+          isValid = false;
+          rejectReason = "Expired";
+        } else if (coupon.usage_limit !== null && coupon.used_count >= coupon.usage_limit) {
+          isValid = false;
+          rejectReason = "Usage limit reached";
+        } else if (calculatedTotal < (coupon.min_order_value || 0)) {
+          isValid = false;
+          rejectReason = `Min order value of ${coupon.min_order_value} not met`;
+        }
+
+        // 2. Email Validation
+        if (isValid && coupon.allowed_emails && coupon.allowed_emails.length > 0) {
+          if (!user.email || !coupon.allowed_emails.includes(user.email)) {
+            isValid = false;
+            rejectReason = "Coupon not valid for this account";
           }
-          appliedCouponCode = couponCode;
+        }
+
+        // 3. Product & Category Eligibility
+        if (isValid) {
+          let eligibleAmount = 0;
+          let hasEligibleItem = false;
+
+          const hasProductRestrictions = coupon.restricted_products && coupon.restricted_products.length > 0;
+          const hasCategoryRestrictions = coupon.restricted_categories && coupon.restricted_categories.length > 0;
+          const isRestricted = hasProductRestrictions || hasCategoryRestrictions;
+
+          // Process Standalone Items
+          for (const item of standaloneItems) {
+            let isItemEligible = true;
+
+            if (isRestricted) {
+              isItemEligible = false;
+
+              // Check Product Match
+              if (hasProductRestrictions && coupon.restricted_products.includes(item.product_id)) {
+                isItemEligible = true;
+              }
+
+              // Check Category Match
+              if (!isItemEligible && hasCategoryRestrictions && item.products.category_id) {
+                if (coupon.restricted_categories.includes(item.products.category_id)) {
+                  isItemEligible = true;
+                }
+              }
+            }
+
+            if (isItemEligible) {
+              eligibleAmount += item.lineTotal;
+              hasEligibleItem = true;
+            }
+          }
+
+          // Process Bundles (Defaults to INELIGIBLE if restricted, else ELIGIBLE)
+          for (const bundleId in bundleGroups) {
+            if (!isRestricted) {
+              // Recalculate bundle price just to add it to eligible amount
+              const group = bundleGroups[bundleId];
+              const bundle = group.bundle;
+              let bundlePrice = group.totalItemPrice;
+              const bundleQty = group.items[0]?.quantity || 1;
+
+              if (bundle.price_type === 'fixed') {
+                bundlePrice = bundle.price_value * bundleQty;
+              } else if (bundle.price_type === 'percentage_discount') {
+                bundlePrice = group.totalItemPrice * (1 - bundle.price_value / 100);
+              } else if (bundle.price_type === 'fixed_discount') {
+                bundlePrice = Math.max(0, group.totalItemPrice - (bundle.price_value * bundleQty));
+              }
+
+              eligibleAmount += bundlePrice;
+              hasEligibleItem = true;
+            }
+          }
+
+          if (isRestricted && !hasEligibleItem) {
+            isValid = false;
+            rejectReason = "No eligible items in cart for this coupon";
+          }
+
+          // 4. Apply Discount
+          if (isValid) {
+            if (coupon.discount_type === 'percentage') {
+              let discount = eligibleAmount * (coupon.discount_value / 100);
+              if (coupon.max_discount_amount) {
+                discount = Math.min(discount, coupon.max_discount_amount);
+              }
+              discountAmount = discount;
+            } else if (coupon.discount_type === 'fixed') {
+              // Fixed discount capped at eligible amount
+              discountAmount = Math.min(coupon.discount_value, eligibleAmount);
+            } else if (coupon.discount_type === 'free_shipping') {
+              isFreeShipping = true;
+            }
+            appliedCouponCode = couponCode;
+          } else {
+            console.log(`Coupon ${couponCode} rejected: ${rejectReason}`);
+          }
         }
       }
     }

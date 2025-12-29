@@ -272,7 +272,7 @@ const Product = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
               {/* Left: Image Skeleton */}
               <div className="lg:col-span-7 space-y-4">
-                <div className="aspect-square w-full rounded-2xl bg-white/5 animate-pulse border border-white/5"></div>
+                <div className="aspect-[4/5] w-full rounded-2xl bg-white/5 animate-pulse border border-white/5"></div>
                 <div className="flex gap-3">
                   {[...Array(4)].map((_, i) => (
                     <div key={i} className="w-20 h-20 rounded-lg bg-white/5 animate-pulse"></div>
@@ -365,7 +365,7 @@ const Product = () => {
                 {/* Main Image with Zoom */}
                 <div
                   ref={imageRef}
-                  className="relative aspect-square w-full rounded-2xl overflow-hidden bg-white/5 border border-white/10 group cursor-crosshair"
+                  className="relative aspect-[4/5] w-full rounded-2xl overflow-hidden bg-white/5 border border-white/10 group cursor-crosshair"
                   onMouseEnter={() => setIsZoomed(true)}
                   onMouseLeave={() => setIsZoomed(false)}
                   onMouseMove={handleMouseMove}
@@ -373,9 +373,13 @@ const Product = () => {
                   <OptimizedImage
                     src={productImages[selectedImageIndex]}
                     alt={product.name}
+                    width={1000}
                     className={cn(
-                      "w-full h-full object-contain transition-transform duration-200",
-                      isZoomed ? "scale-150" : "scale-100"
+                      "w-full h-full transition-transform duration-200",
+                      isZoomed ? "scale-150" : "scale-100",
+                      product.categories?.name?.toLowerCase().includes('desk') && product.categories?.name?.toLowerCase().includes('mat')
+                        ? "object-contain bg-black/50"
+                        : "object-cover"
                     )}
                     style={isZoomed ? { transformOrigin: `${mousePos.x}% ${mousePos.y}%` } : undefined}
                     loading="eager"
@@ -673,13 +677,15 @@ const Product = () => {
             />
           )}
         </div>
-      </main>
+      </main >
 
       {/* Sticky Bottom Bar (Mobile/Scroll) */}
-      <div className={cn(
-        "fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-4 transform transition-transform duration-300 z-50",
-        showStickyBar ? "translate-y-0" : "translate-y-full"
-      )}>
+      < div className={
+        cn(
+          "fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-4 transform transition-transform duration-300 z-50",
+          showStickyBar ? "translate-y-0" : "translate-y-full"
+        )
+      } >
         <div className="container mx-auto flex items-center justify-between gap-4">
           <div className="hidden md:flex items-center gap-4">
             <OptimizedImage src={productImages[0]} alt={product.name} className="w-12 h-12 rounded-md object-cover" />
@@ -696,10 +702,10 @@ const Product = () => {
             Add to Cart - ₹{currentPrice.toLocaleString()}
           </Button>
         </div>
-      </div>
+      </div >
 
       <Footer />
-    </div>
+    </div >
   );
 };
 

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCategories } from '@/hooks/useCategories';
+import { getOptimizedImageUrl, imagePresets } from '@/lib/cloudinary';
 
 const CategoryGrid = () => {
     const { categories: allCategories, loading } = useCategories();
@@ -45,7 +46,7 @@ const CategoryGrid = () => {
                                 <Card className="bg-mtrix-dark border-mtrix-gray overflow-hidden h-[300px] relative transition-all duration-300 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/50">
                                     <div className="absolute inset-0">
                                         <img
-                                            src={category.image_url || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80'}
+                                            src={getOptimizedImageUrl(category.image_url || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80', imagePresets.category)}
                                             alt={category.name}
                                             loading="lazy"
                                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-60 group-hover:opacity-40"

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { uploadToCloudinary, isCloudinaryUrl } from '@/lib/cloudinary';
 
 interface UploadOptions {
   bucket: 'hero-images' | 'promotion-images' | 'category-images' | 'product-images' | 'product-videos' | 'design-submissions' | 'community-content';
   folder?: string;
   maxSizeMB?: number;
+  useCloudinary?: boolean; // Option to force Supabase for specific cases
 }
 
 export const useStorageUpload = () => {
@@ -16,7 +18,12 @@ export const useStorageUpload = () => {
     file: File,
     options: UploadOptions
   ): Promise<string | null> => {
-    const { bucket, folder = '', maxSizeMB = bucket === 'hero-images' ? 20 : 5 } = options;
+    const {
+      bucket,
+      folder = '',
+      maxSizeMB = bucket === 'hero-images' ? 20 : 10,
+      useCloudinary: forceCloudinary = true // Default to Cloudinary
+    } = options;
 
     // Validate file size
     const maxSize = maxSizeMB * 1024 * 1024;
@@ -32,7 +39,23 @@ export const useStorageUpload = () => {
     setUploading(true);
 
     try {
-      // Generate automatic filename: folder_timestamp_randomId.extension
+      // Use Cloudinary for image uploads (solves egress limits)
+      if (forceCloudinary && !file.type.startsWith('video/')) {
+        const cloudinaryUrl = await uploadToCloudinary(file, { bucket });
+
+        if (!cloudinaryUrl) {
+          throw new Error('Cloudinary upload failed');
+        }
+
+        toast({
+          title: "Success",
+          description: "Image uploaded successfully"
+        });
+
+        return cloudinaryUrl;
+      }
+
+      // Fallback to Supabase for videos or when explicitly requested
       const timestamp = Date.now();
       const randomId = Math.random().toString(36).substring(7);
       const extension = file.name.split('.').pop();
@@ -45,11 +68,11 @@ export const useStorageUpload = () => {
         ? `${folder}/${sanitizedName}_${timestamp}_${randomId}.${extension}`
         : `${sanitizedName}_${timestamp}_${randomId}.${extension}`;
 
-      // Upload to storage
+      // Upload to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from(bucket)
         .upload(filename, file, {
-          cacheControl: '3600',
+          cacheControl: '31536000',
           upsert: false
         });
 
@@ -84,7 +107,19 @@ export const useStorageUpload = () => {
     bucket: UploadOptions['bucket']
   ): Promise<boolean> => {
     try {
-      // Extract filename from URL
+      // Handle Cloudinary URLs - for now, just log (deletion requires server-side)
+      if (isCloudinaryUrl(url)) {
+        console.log('Cloudinary file deletion skipped (requires server-side API)');
+        // Files remain in Cloudinary but are no longer referenced
+        // This is acceptable as Cloudinary has good storage limits
+        toast({
+          title: "Success",
+          description: "File reference removed"
+        });
+        return true;
+      }
+
+      // Handle Supabase URLs
       const urlParts = url.split('/');
       const bucketIndex = urlParts.findIndex(part => part === bucket);
 

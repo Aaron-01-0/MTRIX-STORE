@@ -400,6 +400,11 @@ export const useCart = () => {
         fetchCartItems();
         throw error;
       }
+
+      toast({
+        title: "Removed from Cart",
+        description: "Item has been removed from your cart"
+      });
     } catch (error: any) {
       console.error('Error removing from cart:', error);
       toast({

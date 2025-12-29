@@ -20,7 +20,7 @@ interface DatabaseProduct {
   stock_quantity: number;
   categories: { name: string } | null;
   brands: { name: string } | null;
-  product_images: Array<{ image_url: string; is_main: boolean; display_order: number }> | null;
+  product_images: Array<{ image_url: string; thumbnail_url?: string | null; is_main: boolean; display_order: number }> | null;
 }
 
 export interface Product {
@@ -35,12 +35,17 @@ export interface Product {
   category?: string;
   brand?: string;
   stockStatus?: string;
+  thumbnail?: string;
 }
 
 // Helper to format product data
 const formatProduct = (product: DatabaseProduct): Product => {
-  const mainImage = product.product_images?.find(img => img.is_main)?.image_url;
-  const firstImage = product.product_images?.sort((a, b) => a.display_order - b.display_order)[0]?.image_url;
+  const mainImgObj = product.product_images?.find(img => img.is_main);
+  const firstImgObj = product.product_images?.sort((a, b) => a.display_order - b.display_order)[0];
+
+  const mainImage = mainImgObj?.image_url;
+  const firstImage = firstImgObj?.image_url;
+  const thumbnail = mainImgObj?.thumbnail_url || firstImgObj?.thumbnail_url;
 
   return {
     id: product.id,
@@ -58,6 +63,7 @@ const formatProduct = (product: DatabaseProduct): Product => {
     category: product.categories?.name,
     brand: product.brands?.name,
     stockStatus: product.stock_quantity === 0 ? 'out_of_stock' : product.stock_status,
+    thumbnail: thumbnail || (mainImage || firstImage), // Fallback to main image if no thumbnail
   };
 };
 
@@ -71,7 +77,7 @@ export const useProducts = () => {
           *,
           categories(name),
           brands(name),
-          product_images(image_url, is_main, display_order)
+          product_images(image_url, thumbnail_url, is_main, display_order)
         `)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -80,6 +86,11 @@ export const useProducts = () => {
         toast.error('Failed to fetch products');
         throw error;
       }
+
+      console.log('[useProducts] Raw Data Sample:', data && data[0] ? {
+        name: data[0].name,
+        images: data[0].product_images
+      } : 'No data');
 
       return (data as unknown as DatabaseProduct[]).map(formatProduct);
     },
@@ -104,7 +115,7 @@ export const useFeaturedProducts = () => {
           *,
           categories(name),
           brands(name),
-          product_images(image_url, is_main, display_order)
+          product_images(image_url, thumbnail_url, is_main, display_order)
         `)
         .eq('is_active', true)
         .eq('is_featured', true)
@@ -131,7 +142,7 @@ export const useTrendingProducts = () => {
           *,
           categories(name),
           brands(name),
-          product_images(image_url, is_main, display_order)
+          product_images(image_url, thumbnail_url, is_main, display_order)
         `)
         .eq('is_active', true)
         .eq('is_trending', true)

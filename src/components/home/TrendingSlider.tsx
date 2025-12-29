@@ -14,6 +14,7 @@ import {
     CarouselNext,
     CarouselPrevious,
 } from "@/components/ui/carousel";
+import { OptimizedImage } from "@/components/OptimizedImage";
 
 const TrendingSlider = () => {
     const { addToCart } = useCart();
@@ -71,9 +72,11 @@ const TrendingSlider = () => {
                                 <Link to={`/product/${product.id}`} className="group block h-full">
                                     <Card className="bg-mtrix-dark border-mtrix-gray h-full overflow-hidden transition-all duration-300 hover:border-primary/50 hover:shadow-[0_0_30px_-5px_rgba(var(--primary-rgb),0.3)]">
                                         <div className="relative aspect-[4/5] overflow-hidden bg-mtrix-black">
-                                            <img
+                                            <OptimizedImage
                                                 src={product.image || '/placeholder.svg'}
+                                                thumbnailSrc={product.thumbnail}
                                                 alt={product.name}
+                                                width={400}
                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                             />
 

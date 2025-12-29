@@ -18,6 +18,8 @@ import { logger } from '@/lib/logger';
 import { MapPin, Plus, Edit2, Check, ShieldCheck, CreditCard, Truck, ChevronRight, Tag, Package } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import RewardWheel from './onboarding/RewardWheel';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 declare global {
   interface Window {
@@ -51,6 +53,8 @@ const Checkout = () => {
   const [isPolicyAccepted, setIsPolicyAccepted] = useState(false);
   const [myRewards, setMyRewards] = useState<any[]>([]);
   const [loadingRewards, setLoadingRewards] = useState(true);
+  const [showRewardWheel, setShowRewardWheel] = useState(false);
+  const [completedOrderData, setCompletedOrderData] = useState<any>(null);
 
   // Sync Input with Applied Code
   useEffect(() => {
@@ -401,13 +405,49 @@ const Checkout = () => {
   // Calculate discount for display
   let discountAmount = 0;
   if (couponData) {
+    let eligibleAmount = 0;
+
+    // Check restrictions
+    const hasProductRestrictions = couponData.restricted_products && couponData.restricted_products.length > 0;
+    const hasCategoryRestrictions = couponData.restricted_categories && couponData.restricted_categories.length > 0;
+    const isRestricted = hasProductRestrictions || hasCategoryRestrictions;
+
+    if (!isRestricted) {
+      eligibleAmount = subtotal;
+    } else {
+      // Calculate eligible total from specific items
+      cartItems.forEach(item => {
+        // Restricted coupons do not apply to bundles (matching backend logic)
+        if (item.bundle_id) return;
+
+        let isMatch = false;
+        // Check Product Match
+        if (hasProductRestrictions && couponData.restricted_products.includes(item.product.id)) {
+          isMatch = true;
+        }
+        // Check Category Match
+        if (!isMatch && hasCategoryRestrictions && item.product.category_id && couponData.restricted_categories.includes(item.product.category_id)) {
+          isMatch = true;
+        }
+
+        if (isMatch) {
+          const price = item.product.discount_price || item.product.base_price;
+          // Note: In frontend we don't have atomic variant price fetch here easily without logic duplication,
+          // but usually product.discount_price covers it. 
+          // Backend is more precise with variants, but this should be close enough for display.
+          eligibleAmount += (price * item.quantity);
+        }
+      });
+    }
+
     if (couponData.discount_type === 'percentage') {
-      const discount = subtotal * (couponData.discount_value / 100);
+      const discount = eligibleAmount * (couponData.discount_value / 100);
       discountAmount = couponData.max_discount_amount
         ? Math.min(discount, couponData.max_discount_amount)
         : discount;
     } else if (couponData.discount_type === 'fixed') {
-      discountAmount = couponData.discount_value;
+      // Fixed amount capped at eligible amount to prevent negative/abuse
+      discountAmount = Math.min(couponData.discount_value, eligibleAmount);
     }
     // For free_shipping, discountAmount remains 0 locally, but shipping becomes 0.
   }
@@ -509,8 +549,10 @@ const Checkout = () => {
               description: `Order ${orderData.orderNumber} has been placed successfully.`
             });
 
-            // Navigate to order detail page
-            navigate(`/order/${orderData.orderId}`);
+            // Show Reward Wheel instead of immediate navigation
+            setCompletedOrderData(orderData);
+            setShowRewardWheel(true);
+            setLoading(false);
           } catch (error: any) {
             logger.error('Payment verification failed', error);
             toast({
@@ -1032,7 +1074,17 @@ const Checkout = () => {
       </main>
 
       <Footer />
-    </div>
+      {/* Post-Order Reward Wheel Overlay */}
+      {
+        showRewardWheel && (
+          <div className="fixed inset-0 z-50 bg-black animate-in fade-in duration-500">
+            <RewardWheel onComplete={() => {
+              navigate(`/order/${completedOrderData?.orderId}`);
+            }} />
+          </div>
+        )
+      }
+    </div >
   );
 };
 

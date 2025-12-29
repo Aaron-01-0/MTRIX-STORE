@@ -17,6 +17,7 @@ interface ProductCardProps {
         price: string;
         originalPrice?: string;
         image: string;
+        thumbnail?: string; // Add thumbnail URL
         rating: number;
         stockStatus: 'in_stock' | 'out_of_stock' | 'low_stock';
         isNew?: boolean;
@@ -27,6 +28,7 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
+    // console.log(`[ProductCard] ${product.name} Thumbnail:`, product.thumbnail);
     const navigate = useNavigate();
     const { addToWishlist, removeFromWishlist, isInWishlist, wishlistItems } = useWishlist();
     const { addToCart } = useCart();
@@ -82,8 +84,13 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
                 <div className={`relative overflow-hidden bg-black/50 ${viewMode === 'list' ? 'w-48 shrink-0' : 'aspect-[4/5]'}`}>
                     <OptimizedImage
                         src={product.image}
+                        thumbnailSrc={product.thumbnail} // Use manual thumbnail if available
                         alt={product.name}
-                        className={`w-full h-full object-contain transition-transform duration-700 group-hover:scale-110 ${isOutOfStock ? 'grayscale' : ''}`}
+                        width={500}
+                        className={`w-full h-full transition-transform duration-700 group-hover:scale-110 ${isOutOfStock ? 'grayscale' : ''} ${product.category?.toLowerCase().includes('desk') && product.category?.toLowerCase().includes('mat')
+                            ? 'object-contain p-4'
+                            : 'object-cover'
+                            }`}
                     />
 
                     {/* Overlay Gradient */}

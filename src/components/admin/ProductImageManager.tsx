@@ -7,12 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Upload, Trash2, Star, Image, MoveUp, MoveDown, Crop } from 'lucide-react';
+import { Plus, Upload, Trash2, Star, Image, MoveUp, MoveDown, Crop, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tables } from '@/integrations/supabase/types';
 import { logger } from '@/lib/logger';
 import { ImageCropper } from '@/components/ImageCropper';
 import { useStorageUpload } from '@/hooks/useStorageUpload';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import ProductCard from '@/components/catalog/ProductCard';
+import { compressImage } from '@/lib/imageUtils';
 
 type ProductImage = Tables<'product_images'>;
 
@@ -28,6 +31,10 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
   const [showCropper, setShowCropper] = useState(false);
   const [imageToCrop, setImageToCrop] = useState<string>('');
   const [currentFile, setCurrentFile] = useState<File | null>(null);
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+
+  // Preview State
+  const [previewImage, setPreviewImage] = useState<ProductImage | null>(null);
 
   const [newImage, setNewImage] = useState({
     image_url: '',
@@ -94,6 +101,24 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
     reader.readAsDataURL(file);
   };
 
+  const handleEditCrop = async (image: ProductImage) => {
+    try {
+      const response = await fetch(image.image_url);
+      const blob = await response.blob();
+      const file = new File([blob], "edited-image.jpg", { type: blob.type });
+
+      setEditingImageId(image.id);
+      openCropper(file);
+    } catch (error) {
+      console.error("Error fetching image for editing:", error);
+      toast({
+        title: "Error",
+        description: "Could not load image for editing.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleCroppedImage = async (croppedBlob: Blob) => {
     setShowCropper(false);
 
@@ -103,32 +128,57 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
       // Create a File from the Blob
       const croppedFile = new File([croppedBlob], currentFile.name, { type: currentFile.type });
 
-      // Upload using the storage hook
+      // Upload Main Image (Cropped)
       const publicUrl = await uploadFile(croppedFile, {
         bucket: 'product-images',
         maxSizeMB: 5
       });
 
+      // Generate & Upload Thumbnail for the Cropped Image
+      const thumbnailBlob = await compressImage(croppedFile, 400, 0.7);
+      const thumbnailFile = new File([thumbnailBlob], `thumb_${croppedFile.name}`, {
+        type: 'image/webp'
+      });
+
+      const thumbnailUrl = await uploadFile(thumbnailFile, {
+        bucket: 'product-images',
+        maxSizeMB: 2
+      });
+
       if (!publicUrl) return;
 
-      const { error } = await supabase
-        .from('product_images')
-        .insert({
-          product_id: productId,
-          image_url: publicUrl,
-          alt_text: currentFile.name.replace(/\.[^/.]+$/, ''),
-          is_main: images.length === 0,
-          display_order: images.length,
-          variant_type: null,
-          variant_value: null
-        });
+      if (editingImageId) {
+        // Update existing image
+        const { error } = await supabase
+          .from('product_images')
+          .update({
+            image_url: publicUrl,
+            thumbnail_url: thumbnailUrl || null
+          })
+          .eq('id', editingImageId);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "Image uploaded successfully"
-      });
+        toast({ title: "Success", description: "Image updated successfully" });
+      } else {
+        // Insert new image
+        const { error } = await supabase
+          .from('product_images')
+          .insert({
+            product_id: productId,
+            image_url: publicUrl,
+            thumbnail_url: thumbnailUrl || null,
+            alt_text: currentFile.name.replace(/\.[^/.]+$/, ''),
+            is_main: images.length === 0,
+            display_order: images.length,
+            variant_type: null,
+            variant_value: null
+          });
+
+        if (error) throw error;
+
+        toast({ title: "Success", description: "Image uploaded successfully" });
+      }
 
       loadImages();
     } catch (error: any) {
@@ -140,6 +190,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
       });
     } finally {
       setCurrentFile(null);
+      setEditingImageId(null);
     }
   };
 
@@ -148,6 +199,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
 
     // For single file, open cropper
     if (files.length === 1) {
+      setEditingImageId(null);
       openCropper(files[0]);
       return;
     }
@@ -155,16 +207,44 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
     // For multiple files, upload directly using storage hook
     try {
       const uploadPromises = Array.from(files).map(async (file, index) => {
-        const publicUrl = await uploadFile(file, {
+        console.log(`[Upload] Processing file ${index}: ${file.name}`);
+
+        // Compress image before upload (Main Image: ~1200px)
+        const compressedBlob = await compressImage(file, 1200, 0.8);
+        const compressedFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, '.webp'), {
+          type: 'image/webp'
+        });
+
+        // Generate Thumbnail (Thumbnail: ~400px)
+        const thumbnailBlob = await compressImage(file, 400, 0.7);
+        const thumbName = `thumb_${file.name.replace(/\.[^/.]+$/, '.webp')}`;
+        console.log(`[Upload] Generated thumb name: ${thumbName}`);
+
+        const thumbnailFile = new File([thumbnailBlob], thumbName, {
+          type: 'image/webp'
+        });
+
+        // Upload Main Image
+        const publicUrl = await uploadFile(compressedFile, {
           bucket: 'product-images',
           maxSizeMB: 5
         });
+
+        // Upload Thumbnail
+        const thumbnailUrl = await uploadFile(thumbnailFile, {
+          bucket: 'product-images',
+          maxSizeMB: 2
+        });
+
+        console.log(`[Upload] Main URL: ${publicUrl}`);
+        console.log(`[Upload] Thumb URL: ${thumbnailUrl}`);
 
         if (!publicUrl) throw new Error('Upload failed');
 
         return {
           product_id: productId,
           image_url: publicUrl,
+          thumbnail_url: thumbnailUrl || null,
           alt_text: file.name.replace(/\.[^/.]+$/, ''),
           is_main: images.length === 0 && index === 0,
           display_order: images.length + index,
@@ -495,7 +575,7 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
         {images.map((image, index) => (
           <Card key={image.id} className="bg-mtrix-black border-mtrix-gray">
             <CardContent className="p-4">
-              <div className="relative bg-muted/20">
+              <div className="relative bg-muted/20 group">
                 <img
                   src={image.image_url}
                   alt={image.alt_text || 'Product image'}
@@ -506,6 +586,26 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                   }}
                 />
 
+                {/* Edit Overlay */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => handleEditCrop(image)}
+                  >
+                    <Crop className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setPreviewImage(image)}
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Preview
+                  </Button>
+                </div>
+
                 {image.is_main && (
                   <Badge className="absolute top-2 left-2 bg-green-500 text-white">
                     <Star className="w-3 h-3 mr-1" />
@@ -513,11 +613,16 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
                   </Badge>
                 )}
 
-                {image.variant_type && image.variant_value && (
+                {(image as any).variant_type && (image as any).variant_value && (
                   <Badge className="absolute top-2 right-2 bg-blue-500 text-white">
-                    {image.variant_type}: {image.variant_value}
+                    {(image as any).variant_type}: {(image as any).variant_value}
                   </Badge>
                 )}
+
+                {/* DEBUG: Thumbnail Status */}
+                <Badge className={`absolute bottom-2 right-2 ${(image as any).thumbnail_url ? 'bg-purple-500' : 'bg-red-500'} text-white text-[10px]`}>
+                  {(image as any).thumbnail_url ? 'Thumb: OK' : 'Thumb: Missing'}
+                </Badge>
               </div>
 
               <div className="mt-4 space-y-3">
@@ -604,8 +709,59 @@ const ProductImageManager = ({ productId }: ProductImageManagerProps) => {
           setShowCropper(false);
           setImageToCrop('');
           setCurrentFile(null);
+          setEditingImageId(null);
         }}
       />
+
+      {/* Preview Sheet */}
+      <Sheet open={!!previewImage} onOpenChange={(val) => !val && setPreviewImage(null)}>
+        <SheetContent className="bg-mtrix-black border-l border-mtrix-gray sm:max-w-md overflow-y-auto">
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-gold">Card Preview</SheetTitle>
+            <SheetDescription>
+              See how this image might look on a product card.
+            </SheetDescription>
+          </SheetHeader>
+
+          {previewImage && (
+            <div className="space-y-8">
+              <div className="p-4 border border-dashed border-white/20 rounded-xl">
+                <p className="text-xs text-muted-foreground mb-2 text-center">Standard Grid View</p>
+                <div className="w-64 mx-auto">
+                  <ProductCard
+                    product={{
+                      id: 'preview',
+                      name: 'Sample Product Name',
+                      price: '₹999',
+                      image: previewImage.image_url,
+                      rating: 4.5,
+                      stockStatus: 'in_stock',
+                      category: 'Posters'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 border border-dashed border-white/20 rounded-xl">
+                <p className="text-xs text-muted-foreground mb-2 text-center">Desk Mat Simulation</p>
+                <div className="w-64 mx-auto">
+                  <ProductCard
+                    product={{
+                      id: 'preview-deskmat',
+                      name: 'Sample Desk Mat',
+                      price: '₹1,499',
+                      image: previewImage.image_url,
+                      rating: 5,
+                      stockStatus: 'in_stock',
+                      category: 'Desk Mat'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
