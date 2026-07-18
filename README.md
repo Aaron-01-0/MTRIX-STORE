@@ -13,6 +13,22 @@
 
 ---
 
+### 📸 Interface Showcase
+
+| 3D Hero Poster Carousel | Category Collections |
+| :---: | :---: |
+| ![MTRIX Hero Posters](public/docs/hero_posters.png) | ![Shop by Category](public/docs/shop_by_category.png) |
+
+| Trending Collections | Featured Gear Grid |
+| :---: | :---: |
+| ![Trending Collections](public/docs/trending_collections.png) | ![Featured Gear Grid](public/docs/featured_gear.png) |
+
+| Brand Story & Narrative |
+| :---: |
+| ![Brand Narrative](public/docs/brand_story.png) |
+
+---
+
 </div>
 
 ## 🚀 Overview
@@ -105,7 +121,7 @@ MTRIX-STORE/
    ```bash
    npm run dev
    ```
-   Open `http://localhost:5173` in your browser.
+   Open `http://localhost:8080` in your browser.
 
 5. **Build for Production**
    ```bash
