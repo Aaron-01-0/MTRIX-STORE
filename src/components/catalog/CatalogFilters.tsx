@@ -102,8 +102,8 @@ const CatalogFilters = ({
                 <div className="px-2">
                     <Slider
                         min={0}
-                        max={10000}
-                        step={100}
+                        max={100000}
+                        step={500}
                         value={priceRange}
                         onValueChange={(value) => setPriceRange(value as [number, number])}
                         className="py-4 [&>.relative>.absolute]:shadow-[0_0_10px_rgba(255,215,0,0.5)]"

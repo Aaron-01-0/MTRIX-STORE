@@ -17,15 +17,15 @@
 
 | 3D Hero Poster Carousel | Category Collections |
 | :---: | :---: |
-| ![MTRIX Hero Posters](public/docs/hero_posters.png) | ![Shop by Category](public/docs/shop_by_category.png) |
+| <img src="https://raw.githubusercontent.com/raaajjjjj/MTRIX-STORE/main/public/docs/hero_posters.png" alt="MTRIX Hero Posters" width="100%" /> | <img src="https://raw.githubusercontent.com/raaajjjjj/MTRIX-STORE/main/public/docs/shop_by_category.png" alt="Shop by Category" width="100%" /> |
 
 | Trending Collections | Featured Gear Grid |
 | :---: | :---: |
-| ![Trending Collections](public/docs/trending_collections.png) | ![Featured Gear Grid](public/docs/featured_gear.png) |
+| <img src="https://raw.githubusercontent.com/raaajjjjj/MTRIX-STORE/main/public/docs/trending_collections.png" alt="Trending Collections" width="100%" /> | <img src="https://raw.githubusercontent.com/raaajjjjj/MTRIX-STORE/main/public/docs/featured_gear.png" alt="Featured Gear Grid" width="100%" /> |
 
 | Brand Story & Narrative |
 | :---: |
-| ![Brand Narrative](public/docs/brand_story.png) |
+| <img src="https://raw.githubusercontent.com/raaajjjjj/MTRIX-STORE/main/public/docs/brand_story.png" alt="Brand Narrative" width="100%" /> |
 
 ---
 

@@ -47,7 +47,7 @@ const Catalog = () => {
   // Filters State
   const [selectedCategory, setSelectedCategory] = useState<string>(searchParams.get('category') || 'all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 100000]);
   const [minRating, setMinRating] = useState(0);
   const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'out_of_stock'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -81,7 +81,7 @@ const Catalog = () => {
     if (selectedCategory === 'all') {
       setCurrentCategory(null);
     } else {
-      const cat = categories.find(c => c.id === selectedCategory);
+      const cat = categories.find(c => c.id === selectedCategory || c.name.toLowerCase() === selectedCategory.toLowerCase());
       setCurrentCategory(cat || null);
     }
   }, [selectedCategory, categories]);
@@ -91,9 +91,16 @@ const Catalog = () => {
     .filter(product => {
       // Category Filter
       if (selectedCategory !== 'all') {
-        // Match by ID if possible, fallback to name match from hook
-        const category = categories.find(cat => cat.id === selectedCategory);
-        if (category && product.category !== category.name) return false;
+        const categoryObj = categories.find(cat => cat.id === selectedCategory);
+        if (categoryObj) {
+          const matchName = product.category?.toLowerCase() === categoryObj.name.toLowerCase();
+          const matchId = (product as any).category_id === categoryObj.id;
+          if (!matchName && !matchId) return false;
+        } else {
+          const selLow = selectedCategory.toLowerCase();
+          const matchCategory = product.category?.toLowerCase().includes(selLow);
+          if (!matchCategory) return false;
+        }
       }
 
       // Search Filter
@@ -105,8 +112,11 @@ const Catalog = () => {
       }
 
       // Price Filter
-      const price = parseFloat(product.price.replace(/[^0-9.]/g, ''));
-      if (price < priceRange[0] || price > priceRange[1]) return false;
+      const numString = (product.price || '').toString().replace(/[^0-9.]/g, '');
+      const price = parseFloat(numString);
+      if (!isNaN(price) && price > 0) {
+        if (price < priceRange[0] || price > priceRange[1]) return false;
+      }
 
       // Rating Filter
       if (product.rating < minRating) return false;
@@ -118,14 +128,14 @@ const Catalog = () => {
       return true;
     })
     .sort((a, b) => {
-      const priceA = parseFloat(a.price.replace(/[^0-9.]/g, ''));
-      const priceB = parseFloat(b.price.replace(/[^0-9.]/g, ''));
+      const priceA = parseFloat((a.price || '').toString().replace(/[^0-9.]/g, '')) || 0;
+      const priceB = parseFloat((b.price || '').toString().replace(/[^0-9.]/g, '')) || 0;
 
       switch (sortBy) {
         case 'price_asc': return priceA - priceB;
         case 'price_desc': return priceB - priceA;
         case 'rating': return b.rating - a.rating;
-        case 'newest': default: return 0; // Assuming default order is newest from hook/DB
+        case 'newest': default: return 0;
       }
     });
 
@@ -134,7 +144,7 @@ const Catalog = () => {
 
   const clearFilters = () => {
     setSearchQuery('');
-    setPriceRange([0, 10000]);
+    setPriceRange([0, 100000]);
     setMinRating(0);
     setStockFilter('all');
     handleCategoryChange('all');
@@ -142,7 +152,7 @@ const Catalog = () => {
 
   const activeFiltersCount =
     (searchQuery ? 1 : 0) +
-    (priceRange[0] > 0 || priceRange[1] < 10000 ? 1 : 0) +
+    (priceRange[0] > 0 || priceRange[1] < 100000 ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
     (stockFilter !== 'all' ? 1 : 0) +
     (selectedCategory !== 'all' ? 1 : 0);
@@ -313,10 +323,10 @@ const Catalog = () => {
                         </button>
                       </Badge>
                     )}
-                    {(priceRange[0] > 0 || priceRange[1] < 10000) && (
+                    {(priceRange[0] > 0 || priceRange[1] < 100000) && (
                       <Badge variant="secondary" className="bg-white/10 text-white border border-white/10 hover:bg-white/20 transition-colors pl-3 pr-1 py-1">
                         ₹{priceRange[0]} - ₹{priceRange[1]}
-                        <button onClick={() => setPriceRange([0, 10000])} className="ml-2 p-0.5 hover:bg-white/20 rounded-full">
+                        <button onClick={() => setPriceRange([0, 100000])} className="ml-2 p-0.5 hover:bg-white/20 rounded-full">
                           <X className="w-3 h-3" />
                         </button>
                       </Badge>
