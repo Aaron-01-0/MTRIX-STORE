@@ -76,10 +76,7 @@ const queryClient = new QueryClient();
 const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
-  const targetDate = new Date('2025-12-25T00:00:00+05:30');
-  const now = new Date();
-  const isPreLaunch = now < targetDate;
-  // const isPreLaunch = false; // Disabled for SEO Indexing
+  const isPreLaunch = false;
   const isBypassed = localStorage.getItem('mtrix_bypass') === 'true';
 
   // Whitelisted paths that are always accessible
