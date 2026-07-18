@@ -31,10 +31,6 @@ import ArenaSubmit from "./pages/ArenaSubmit";
 import ArenaRules from "./pages/ArenaRules";
 import About from "./pages/About";
 import Onboarding from "./pages/onboarding/Onboarding"; // Imported Onboarding
-import Maintenance from "./pages/Maintenance";
-
-// 🚨 MAINTENANCE MODE - Set to true to show maintenance page for ALL visitors
-const MAINTENANCE_MODE = true;
 
 // Admin Imports
 import DropAdminLayout from "./layouts/DropAdminLayout";
@@ -143,21 +139,6 @@ const LaunchGuard = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App = () => {
-  // If maintenance mode is ON, show only the maintenance page
-  if (MAINTENANCE_MODE) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <Routes>
-              <Route path="*" element={<Maintenance />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
