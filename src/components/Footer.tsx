@@ -42,15 +42,15 @@ const Footer = () => {
           {/* Links Columns (2 cols each) */}
           <div className="lg:col-span-2">
             <h3 className="text-lg font-orbitron font-bold text-white mb-6 flex items-center gap-2">
-              Shop <span className="w-8 h-0.5 bg-primary/50 rounded-full" />
+              Explore <span className="w-8 h-0.5 bg-primary/50 rounded-full" />
             </h3>
             <ul className="space-y-4">
               {[
-                { label: "All Products", href: "/catalog" },
-                { label: "New Arrivals", href: "/catalog?sort=new" },
+                { label: "Catalogue", href: "/catalog" },
                 { label: "Limited Drops", href: "/drop" },
-                { label: "Bundles", href: "/bundles" },
-                { label: "Discounts", href: "/promotions" }
+                { label: "Community", href: "/community" },
+                { label: "Arena", href: "/arena" },
+                { label: "About", href: "/about" }
               ].map((link) => (
                 <li key={link.label}>
                   <Link
@@ -71,7 +71,6 @@ const Footer = () => {
             </h3>
             <ul className="space-y-4">
               {[
-                { label: "Track Order", href: "/track-order" },
                 { label: "Shipping Policy", href: "/shipping" },
                 { label: "Returns & Refunds", href: "/returns" },
                 { label: "FAQs", href: "/faq" },
@@ -96,7 +95,7 @@ const Footer = () => {
               Stay Updated <span className="w-8 h-0.5 bg-primary/50 rounded-full" />
             </h3>
             <p className="text-muted-foreground">
-              Subscribe to our newsletter for exclusive drops, early access, and special offers.
+              Subscribe to our newsletter for exclusive drops, early access, and updates.
             </p>
             <div className="space-y-3">
               <div className="relative">

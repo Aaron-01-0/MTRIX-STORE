@@ -9,7 +9,7 @@ import {
     CommandList,
     CommandSeparator,
 } from "@/components/ui/command";
-import { Search, Package, Hash, FileText } from "lucide-react";
+import { Search, Hash, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -29,17 +29,7 @@ export function GlobalSearch() {
         return () => document.removeEventListener("keydown", down);
     }, []);
 
-    const { data: products } = useQuery({
-        queryKey: ["search-products"],
-        queryFn: async () => {
-            const { data } = await supabase
-                .from("products")
-                .select("id, name, category_id")
-                .eq("is_active", true)
-                .limit(20);
-            return data || [];
-        },
-    });
+
 
     const { data: categories } = useQuery({
         queryKey: ["search-categories"],
@@ -47,6 +37,18 @@ export function GlobalSearch() {
             const { data } = await supabase
                 .from("categories")
                 .select("id, name, slug")
+                .limit(10);
+            return data || [];
+        },
+    });
+
+    const { data: products } = useQuery({
+        queryKey: ["search-products"],
+        queryFn: async () => {
+            const { data } = await supabase
+                .from("products")
+                .select("id, name, discount_price, base_price")
+                .eq("is_active", true)
                 .limit(10);
             return data || [];
         },
@@ -89,6 +91,12 @@ export function GlobalSearch() {
                             Catalogue
                         </CommandItem>
                         <CommandItem
+                            onSelect={() => runCommand(() => navigate("/cart"))}
+                        >
+                            <FileText className="mr-2 h-4 w-4" />
+                            Cart & Checkout
+                        </CommandItem>
+                        <CommandItem
                             onSelect={() => runCommand(() => navigate("/community"))}
                         >
                             <FileText className="mr-2 h-4 w-4" />
@@ -100,20 +108,38 @@ export function GlobalSearch() {
                             <FileText className="mr-2 h-4 w-4" />
                             Arena
                         </CommandItem>
+                        <CommandItem
+                            onSelect={() => runCommand(() => navigate("/support"))}
+                        >
+                            <FileText className="mr-2 h-4 w-4" />
+                            Support
+                        </CommandItem>
                     </CommandGroup>
                     <CommandSeparator />
-                    <CommandGroup heading="Products">
-                        {products?.map((product) => (
-                            <CommandItem
-                                key={product.id}
-                                onSelect={() => runCommand(() => navigate(`/product/${product.id}`))}
-                            >
-                                <Package className="mr-2 h-4 w-4" />
-                                {product.name}
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
-                    <CommandSeparator />
+
+                    {products && products.length > 0 && (
+                        <>
+                            <CommandGroup heading="Products">
+                                {products.map((product) => (
+                                    <CommandItem
+                                        key={product.id}
+                                        onSelect={() => runCommand(() => navigate(`/product/${product.id}`))}
+                                        className="flex items-center justify-between"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Search className="h-4 w-4 text-primary" />
+                                            <span>{product.name}</span>
+                                        </div>
+                                        <span className="text-xs font-bold text-primary">
+                                            ₹{(product.discount_price ?? product.base_price ?? 0).toLocaleString()}
+                                        </span>
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                            <CommandSeparator />
+                        </>
+                    )}
+
                     <CommandGroup heading="Categories">
                         {categories?.map((category) => (
                             <CommandItem

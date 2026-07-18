@@ -126,11 +126,6 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://mtrix.store/catalog?category=748a3aad-7201-4567-a9f5-248dc10f99d1</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
     <loc>https://mtrix.store/catalog?category=511c4bd1-3265-4344-89d3-ae9867554cd8</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
@@ -156,11 +151,6 @@
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://mtrix.store/catalog?category=1052d27e-4601-4b55-bb80-7572bd4e3db3</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
     <loc>https://mtrix.store/catalog?category=e7b252a9-efc6-47ee-bab1-4e98c980061c</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
@@ -176,12 +166,17 @@
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://mtrix.store/catalog?category=6f29fa8c-dcc2-4ace-ae75-1a5ae742f3f0</loc>
+    <loc>https://mtrix.store/catalog?category=748a3aad-7201-4567-a9f5-248dc10f99d1</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://mtrix.store/catalog?category=9b30b74e-1754-42d5-b6ec-a1dfe136ef40</loc>
+    <loc>https://mtrix.store/catalog?category=1052d27e-4601-4b55-bb80-7572bd4e3db3</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://mtrix.store/catalog?category=6f29fa8c-dcc2-4ace-ae75-1a5ae742f3f0</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -216,12 +211,17 @@
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://mtrix.store/catalog?category=1b13ee37-74ba-4b61-acf5-f4b54e22de34</loc>
+    <loc>https://mtrix.store/catalog?category=d49859d7-ff87-4573-ad87-3b80185cd109</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://mtrix.store/catalog?category=d49859d7-ff87-4573-ad87-3b80185cd109</loc>
+    <loc>https://mtrix.store/catalog?category=9b30b74e-1754-42d5-b6ec-a1dfe136ef40</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://mtrix.store/catalog?category=1b13ee37-74ba-4b61-acf5-f4b54e22de34</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>

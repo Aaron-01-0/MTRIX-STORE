@@ -2,11 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  Heart,
-  ShoppingCart,
   Star,
-  Plus,
-  Minus,
   Truck,
   RefreshCw,
   Shield,
@@ -14,7 +10,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ZoomIn,
-  ArrowRight
+  ArrowRight,
+  ShoppingCart,
+  Heart,
+  Minus,
+  Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,10 +23,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { useToast } from '@/hooks/use-toast';
-import { useCart } from '@/hooks/useCart';
 import { cn } from '@/lib/utils';
 import { useProductDetail } from '@/hooks/useProductDetail';
+import { useCart } from '@/hooks/useCart';
+import { useWishlist } from '@/hooks/useWishlist';
+import { useToast } from '@/hooks/use-toast';
 import SEO from '@/components/SEO';
 import { OptimizedImage } from '@/components/OptimizedImage';
 import RelatedProducts from '@/components/product/RelatedProducts';
@@ -54,8 +55,7 @@ interface Variant {
 const Product = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { addToCart } = useCart();
+
 
   // --- State ---
   // const [product, setProduct] = useState<DatabaseProduct | null>(null); // Replaced by hook
@@ -65,23 +65,40 @@ const Product = () => {
 
   const { product, attributes: productAttributes, variants, loading, error } = useProductDetail(id);
 
-  const [quantity, setQuantity] = useState(1);
+
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Dynamic Selections State
   const [selections, setSelections] = useState<Record<string, string>>({});
 
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
-  const [isWishlisted, setIsWishlisted] = useState(false);
+
   const [isZoomed, setIsZoomed] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  const [showStickyBar, setShowStickyBar] = useState(false);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [refreshReviews, setRefreshReviews] = useState(0);
 
-  const imageRef = useRef<HTMLDivElement>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [showStickyBar, setShowStickyBar] = useState(false);
+
   const addToCartBtnRef = useRef<HTMLButtonElement>(null);
+  const imageRef = useRef<HTMLDivElement>(null);
+
+  const { addToCart } = useCart();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (addToCartBtnRef.current) {
+        const rect = addToCartBtnRef.current.getBoundingClientRect();
+        setShowStickyBar(rect.bottom < 0);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Initialize selections once data is loaded
   useEffect(() => {
@@ -114,16 +131,7 @@ const Product = () => {
     });
   }, []);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (addToCartBtnRef.current) {
-        const rect = addToCartBtnRef.current.getBoundingClientRect();
-        setShowStickyBar(rect.bottom < 0);
-      }
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+
 
 
 
@@ -236,6 +244,23 @@ const Product = () => {
     : (product?.stock_status === 'in_stock' && (product?.stock_quantity || 0) > 0);
 
   // --- Handlers ---
+  const handleAddToCart = async () => {
+    if (!inStock || !product) return;
+    try {
+      await addToCart(product.id, quantity);
+      toast({
+        title: "Added to Cart",
+        description: `${quantity}x ${product.name} added to your cart.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!imageRef.current) return;
     const { left, top, width, height } = imageRef.current.getBoundingClientRect();
@@ -244,22 +269,7 @@ const Product = () => {
     setMousePos({ x, y });
   };
 
-  const handleAddToCart = () => {
-    if (!product) return;
-    if (!inStock) {
-      toast({ title: "Out of Stock", description: "This item is currently unavailable.", variant: "destructive" });
-      return;
-    }
-    if (variants.length > 0 && !selectedVariantId) {
-      toast({ title: "Select Option", description: "Please select a variant first." });
-      return;
-    }
-    addToCart(product.id, quantity, selectedVariantId || undefined);
-    toast({
-      title: "Added to Cart",
-      description: `${product.name} has been added to your cart.`,
-    });
-  };
+
 
   if (loading) {
     return (
@@ -320,14 +330,6 @@ const Product = () => {
       "@type": "Brand",
       "name": product.brands?.name || "MTRIX"
     },
-    "offers": {
-      "@type": "Offer",
-      "url": window.location.href,
-      "priceCurrency": "INR",
-      "price": currentPrice,
-      "availability": inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      "itemCondition": "https://schema.org/NewCondition"
-    },
     "aggregateRating": product.ratings_count > 0 ? {
       "@type": "AggregateRating",
       "ratingValue": product.ratings_avg,
@@ -339,7 +341,7 @@ const Product = () => {
     <div className="min-h-screen bg-black text-white font-inter selection:bg-primary/30 selection:text-primary">
       <SEO
         title={product.name}
-        description={product.short_description || product.detailed_description?.substring(0, 160) || `Buy ${product.name} at MTRIX.`}
+        description={product.short_description || product.detailed_description?.substring(0, 160) || `${product.name} at MTRIX.`}
         image={productImages[0]}
         structuredData={structuredData}
       />
@@ -463,7 +465,7 @@ const Product = () => {
                 </div>
               </div>
 
-              {/* Price */}
+              {/* Price & Actions Card */}
               <div className="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
                 <div className="flex items-baseline gap-3 mb-4">
                   <span className="text-4xl font-bold text-gradient-gold">₹{currentPrice.toLocaleString()}</span>
@@ -677,15 +679,15 @@ const Product = () => {
             />
           )}
         </div>
-      </main >
+      </main>
 
       {/* Sticky Bottom Bar (Mobile/Scroll) */}
-      < div className={
+      <div className={
         cn(
           "fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-xl border-t border-white/10 p-4 transform transition-transform duration-300 z-50",
           showStickyBar ? "translate-y-0" : "translate-y-full"
         )
-      } >
+      }>
         <div className="container mx-auto flex items-center justify-between gap-4">
           <div className="hidden md:flex items-center gap-4">
             <OptimizedImage src={productImages[0]} alt={product.name} className="w-12 h-12 rounded-md object-cover" />
@@ -702,10 +704,10 @@ const Product = () => {
             Add to Cart - ₹{currentPrice.toLocaleString()}
           </Button>
         </div>
-      </div >
+      </div>
 
       <Footer />
-    </div >
+    </div>
   );
 };
 

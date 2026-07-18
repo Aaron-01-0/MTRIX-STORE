@@ -6,6 +6,7 @@ import Footer from '@/components/Footer';
 import HeroSection from '@/components/home/HeroSection';
 import PromotionsStrip from '@/components/PromotionsStrip';
 
+
 // Lazy load below-the-fold components
 const CategoryGrid = lazy(() => import('@/components/home/CategoryGrid'));
 const TrendingCollections = lazy(() => import('@/components/home/TrendingCollections'));

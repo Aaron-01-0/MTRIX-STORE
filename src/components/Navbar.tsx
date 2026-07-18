@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, User, ShoppingCart, Home, Bookmark, Package, Tag, HelpCircle, LogOut, MapPin, Edit, Heart, X, ChevronRight, CreditCard, Settings, Crown, Users } from 'lucide-react';
+import { Menu, User, ShoppingCart, Home, Bookmark, Package, Tag, HelpCircle, LogOut, MapPin, Heart, X, ChevronRight, Settings, Crown, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
