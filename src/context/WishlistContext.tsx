@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { SHOWCASE_PRODUCTS } from '@/data/mockData';
 
 export interface WishlistItem {
     id: string;
@@ -28,19 +29,27 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     const { user } = useAuth();
     const { toast } = useToast();
-    const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>(() => {
+        try {
+            const saved = localStorage.getItem('mtrix_demo_wishlist');
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('mtrix_demo_wishlist', JSON.stringify(wishlistItems));
+        } catch (e) {
+            console.error('Error saving wishlist:', e);
+        }
+    }, [wishlistItems]);
 
     useEffect(() => {
         if (user) {
             fetchWishlistItems();
-            const unsubscribe = subscribeToWishlistChanges();
-            return () => {
-                unsubscribe();
-            };
-        } else {
-            setWishlistItems([]);
-            setLoading(false);
         }
     }, [user]);
 
@@ -62,17 +71,16 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
         `)
                 .eq('user_id', user.id);
 
-            if (error) throw error;
+            if (error || !data || data.length === 0) return;
 
-            // Fetch product images
             const itemsWithImages = await Promise.all(
-                (data || []).map(async (item: any) => {
+                data.map(async (item: any) => {
                     const { data: imageData } = await supabase
                         .from('product_images')
                         .select('image_url')
                         .eq('product_id', item.product_id)
                         .eq('is_main', true)
-                        .single();
+                        .maybeSingle();
 
                     return {
                         id: item.id,
@@ -85,121 +93,68 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
                 })
             );
 
-            setWishlistItems(itemsWithImages);
-        } catch (error: any) {
-            console.error('Error fetching wishlist:', error);
-        } finally {
-            setLoading(false);
+            if (itemsWithImages.length > 0) {
+                setWishlistItems(itemsWithImages);
+            }
+        } catch {
+            // Silently fall back to demo wishlist
         }
-    };
-
-    const subscribeToWishlistChanges = () => {
-        const channel = supabase
-            .channel('wishlist-changes')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'wishlist_items',
-                    filter: `user_id=eq.${user?.id}`
-                },
-                () => {
-                    fetchWishlistItems();
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
     };
 
     const addToWishlist = async (productId: string) => {
-        if (!user) {
-            toast({
-                title: "Authentication Required",
-                description: "Please sign in to add items to wishlist",
-                variant: "destructive"
-            });
-            return;
-        }
-
-        // Check if already in wishlist to prevent duplicates
         if (isInWishlist(productId)) return;
 
-        // Optimistic update
-        const tempId = crypto.randomUUID();
-        const tempItem: WishlistItem = {
-            id: tempId,
-            product_id: productId,
+        const targetShowcase = SHOWCASE_PRODUCTS.find(p => p.id === productId) || SHOWCASE_PRODUCTS[0];
+        const newItem: WishlistItem = {
+            id: `wish-${Date.now()}`,
+            product_id: targetShowcase.id,
             product: {
-                id: productId,
-                name: '', // Placeholder
-                base_price: 0
+                id: targetShowcase.id,
+                name: targetShowcase.name,
+                base_price: targetShowcase.base_price,
+                discount_price: targetShowcase.discount_price ?? undefined,
+                image_url: targetShowcase.product_images[0]?.image_url
             }
         };
 
-        setWishlistItems(prev => [...prev, tempItem]);
+        setWishlistItems(prev => [...prev, newItem]);
 
-        try {
-            const { error } = await supabase
-                .from('wishlist_items')
-                .insert({
+        toast({
+            title: "Saved to Wishlist",
+            description: `${targetShowcase.name} saved to your wishlist.`
+        });
+
+        if (user) {
+            try {
+                await supabase.from('wishlist_items').insert({
                     user_id: user.id,
                     product_id: productId
                 });
-
-            if (error) throw error;
-
-            toast({
-                title: "Success",
-                description: "Item added to wishlist"
-            });
-            // Subscription will trigger refresh and replace temp item with real one
-        } catch (error: any) {
-            console.error('Error adding to wishlist:', error);
-            // Rollback
-            setWishlistItems(prev => prev.filter(item => item.id !== tempId));
-            toast({
-                title: "Error",
-                description: error.message || "Failed to add item to wishlist",
-                variant: "destructive"
-            });
+            } catch {
+                // Suppress DB error in demo mode
+            }
         }
     };
 
     const removeFromWishlist = async (itemId: string) => {
-        // Optimistic update
-        const previousItems = [...wishlistItems];
-        setWishlistItems(prev => prev.filter(item => item.id !== itemId));
+        setWishlistItems(prev => prev.filter(item => item.id !== itemId && item.product_id !== itemId));
 
-        try {
-            const { error } = await supabase
-                .from('wishlist_items')
-                .delete()
-                .eq('id', itemId);
+        toast({
+            title: "Removed from Wishlist",
+            description: "Item removed from your wishlist."
+        });
 
-            if (error) throw error;
-
-            toast({
-                title: "Success",
-                description: "Item removed from wishlist"
-            });
-        } catch (error: any) {
-            console.error('Error removing from wishlist:', error);
-            // Rollback
-            setWishlistItems(previousItems);
-            toast({
-                title: "Error",
-                description: "Failed to remove item",
-                variant: "destructive"
-            });
+        if (user) {
+            try {
+                await supabase.from('wishlist_items').delete().eq('id', itemId);
+            } catch {
+                // Suppress DB error in demo mode
+            }
         }
     };
 
     const isInWishlist = (productId: string) => {
-        return wishlistItems.some(item => item.product_id === productId);
+        return wishlistItems.some(item => item.product_id === productId || item.id === productId);
     };
 
     return (

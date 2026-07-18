@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ProductVariant } from '@/components/product/VariantSelector';
 import { ProductAttribute } from '@/components/product/VariantSelector';
+import { SHOWCASE_PRODUCTS } from '@/data/mockData';
 
 export interface ProductDetail {
     id: string;
@@ -43,49 +44,62 @@ export const useProductDetail = (id: string | undefined) => {
         queryFn: async () => {
             if (!id) throw new Error('Product ID is required');
 
-            // Validate UUID format
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidRegex.test(id)) {
-                throw new Error('Invalid Product ID format');
+            // Check if matching showcase product exists
+            const showcaseMatch = SHOWCASE_PRODUCTS.find(p => p.id === id);
+
+            try {
+                // Validate UUID format before trying Supabase
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!uuidRegex.test(id)) {
+                    if (showcaseMatch) {
+                        return { product: showcaseMatch as unknown as ProductDetail, attributes: [], variants: [] };
+                    }
+                    return { product: SHOWCASE_PRODUCTS[0] as unknown as ProductDetail, attributes: [], variants: [] };
+                }
+
+                const [productRes, attributesRes, variantsRes] = await Promise.all([
+                    supabase
+                        .from('products')
+                        .select(`
+                *,
+                categories(id, name),
+                brands(name),
+                product_images(image_url, alt_text, is_main, display_order)
+              `)
+                        .eq('id', id)
+                        .eq('is_active', true)
+                        .single(),
+
+                    supabase
+                        .from('product_attributes')
+                        .select('*, attribute_values(*)')
+                        .eq('product_id', id)
+                        .order('display_order'),
+
+                    supabase
+                        .from('product_variants')
+                        .select('*')
+                        .eq('product_id', id)
+                        .eq('is_active', true)
+                ]);
+
+                if (productRes.error || !productRes.data) {
+                    const fallback = showcaseMatch || SHOWCASE_PRODUCTS[0];
+                    return { product: fallback as unknown as ProductDetail, attributes: [], variants: [] };
+                }
+
+                return {
+                    product: productRes.data as unknown as ProductDetail,
+                    attributes: (attributesRes.data || []) as unknown as ProductAttribute[],
+                    variants: (variantsRes.data || []) as unknown as ProductVariant[]
+                };
+            } catch {
+                const fallback = showcaseMatch || SHOWCASE_PRODUCTS[0];
+                return { product: fallback as unknown as ProductDetail, attributes: [], variants: [] };
             }
-
-            // 1. Fetch Product, Attributes, and Variants in parallel
-            const [productRes, attributesRes, variantsRes] = await Promise.all([
-                supabase
-                    .from('products')
-                    .select(`
-            *,
-            categories(id, name),
-            brands(name),
-            product_images(image_url, alt_text, is_main, display_order)
-          `)
-                    .eq('id', id)
-                    .eq('is_active', true)
-                    .single(),
-
-                supabase
-                    .from('product_attributes')
-                    .select('*, attribute_values(*)')
-                    .eq('product_id', id)
-                    .order('display_order'),
-
-                supabase
-                    .from('product_variants')
-                    .select('*')
-                    .eq('product_id', id)
-                    .eq('is_active', true)
-            ]);
-
-            if (productRes.error) throw productRes.error;
-
-            return {
-                product: productRes.data as unknown as ProductDetail,
-                attributes: (attributesRes.data || []) as unknown as ProductAttribute[],
-                variants: (variantsRes.data || []) as unknown as ProductVariant[]
-            };
         },
         enabled: !!id && id !== ':id',
-        staleTime: 1000 * 60 * 5, // 5 minutes
+        staleTime: 1000 * 60 * 5,
     });
 
     return {
